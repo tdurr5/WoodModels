@@ -248,7 +248,7 @@ async function init() {
   rows.forEach((r) => (r.obj_names || []).forEach((n) => rowByMeshName.set(n, r)));
 
   renderCutList($('sidebar'), rows, cfg, { onSelect: (r) => selectRow(r), onPrint: printSheet, onDiagram: () => diagram.open() });
-  diagram = initDiagramModal({ rows, onSelectRow: (r) => selectRow(r) });
+  diagram = initDiagramModal({ rows, onSelectRow: (r) => selectRow(r), finishArea: () => (model ? woodSurfaceArea() : 0) });
   buildViewButtons();
 
   const mtl = await loadMTL('scene.mtl');
@@ -351,6 +351,23 @@ function singleSidedGeometry(geo) {
   const out = new THREE.BufferGeometry();
   out.setAttribute('position', new THREE.Float32BufferAttribute(keep, 3));
   return out;
+}
+
+// Total wood surface in square inches (one side of each double-sided face),
+// for estimating how much finish to buy.
+function woodSurfaceArea() {
+  let area = 0;
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), tri = new THREE.Triangle();
+  meshes.forEach((m) => {
+    const row = rowByMeshName.get(m.name);
+    if (!row || row.category !== 'Wood') return;
+    const pos = singleSidedGeometry(m.geometry).attributes.position;
+    for (let i = 0; i + 2 < pos.count; i += 3) {
+      a.fromBufferAttribute(pos, i); b.fromBufferAttribute(pos, i + 1); c.fromBufferAttribute(pos, i + 2);
+      area += tri.set(a, b, c).getArea();
+    }
+  });
+  return area;
 }
 
 function ensureSectionCaps() {
@@ -1176,7 +1193,7 @@ window.addEventListener('beforeprint', () => {
   const layouts = computeLayouts(rows);
   const longest = Math.max(...layouts.flatMap((g) => g.boards.map((b) => b.length)), 1);
   const diagrams = layouts.length
-    ? `<div class="ps-diagrams"><h2>Shopping list &amp; cutting diagrams</h2>${layoutsHTML(layouts, { pxPerInch: 700 / longest, units: settings().units, colorFor: diagram.colorFor, hardware: rows })}</div>`
+    ? `<div class="ps-diagrams"><h2>Shopping list &amp; cutting diagrams</h2>${layoutsHTML(layouts, { pxPerInch: 700 / longest, units: settings().units, colorFor: diagram.colorFor, hardware: rows, finishArea: woodSurfaceArea() })}</div>`
     : '';
   const mill = millingPlanHTML(rows);
   buildPrintSheet($('printSheet'), rows, config, img, drillingHtml() + (mill ? `<h2>Milling plan</h2>${mill}` : '') + diagrams);

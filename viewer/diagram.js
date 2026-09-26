@@ -114,7 +114,7 @@ export function boardSVG(board, g, { pxPerInch = 9, units = 'in16', colorFor = (
   </svg>`;
 }
 
-export function layoutsHTML(layouts, { pxPerInch, units, colorFor, hardware = null }) {
+export function layoutsHTML(layouts, { pxPerInch, units, colorFor, hardware = null, finishArea = 0 }) {
   const shop = shoppingList(layouts);
   const totalCost = shop.reduce((a, s) => a + (s.cost || 0), 0);
   const money = (v) => `$${v.toFixed(2)}`;
@@ -126,6 +126,7 @@ export function layoutsHTML(layouts, { pxPerInch, units, colorFor, hardware = nu
       ${hw.rods.length || hw.other.length ? `<b>Hardware &amp; other</b>:
         <ul>${hw.rods.map((r) => `<li><b>${escapeHtml(r.name)}</b>: ${escapeHtml(r.text)}</li>`).join('')}
         ${hw.other.map((o) => `<li><b>${escapeHtml(o.name)}</b> ×${o.count}: ${escapeHtml(o.size)}${o.category !== 'Hardware' ? ` <span class="muted">(${escapeHtml(o.category.toLowerCase())})</span>` : ''}</li>`).join('')}</ul>` : ''}
+      ${finishArea > 0 ? `<b>Finish</b>: about <b>${(finishArea / 144).toFixed(1)} sq ft</b> of wood surface per coat <span class="muted">(a quart of most oil or varnish finishes covers roughly 100-125 sq ft per coat)</span>` : ''}
     </div>
     ${layouts.map((g) => `
       <div class="cd-group">
@@ -143,7 +144,7 @@ export function layoutsHTML(layouts, { pxPerInch, units, colorFor, hardware = nu
 }
 
 // ---------- modal ----------
-export function initDiagramModal({ rows, onSelectRow }) {
+export function initDiagramModal({ rows, onSelectRow, finishArea = () => 0 }) {
   const modal = document.getElementById('diagram');
   const body = modal.querySelector('.cd-body');
   const rowColor = new Map(rows.map((r, i) => [r.key, PART_COLORS[i % PART_COLORS.length]]));
@@ -165,7 +166,7 @@ export function initDiagramModal({ rows, onSelectRow }) {
     const avail = Math.max(320, body.clientWidth - 24);
     const longest = Math.max(...layouts.flatMap((g) => g.boards.map((b) => b.length)), stock.length);
     renderPrices(layouts);
-    body.innerHTML = layoutsHTML(layouts, { pxPerInch: avail / longest, units: s.units, colorFor, hardware: rows })
+    body.innerHTML = layoutsHTML(layouts, { pxPerInch: avail / longest, units: s.units, colorFor, hardware: rows, finishArea: finishArea() })
       + `<details class="cd-mill" open><summary>Milling plan: parts that share a machine setting</summary>${millingPlanHTML(rows, s.units)}</details>`;
     body.querySelectorAll('.part').forEach((el) => el.addEventListener('click', () => {
       const row = rows.find((r) => r.key === el.dataset.row);
