@@ -36,6 +36,15 @@ python3 -m http.server 8743
 
 Then open http://localhost:8743. Everything it needs is in the `viewer/` folder (three.js is vendored under `viewer/vendor/three/`), so it works offline: copy the folder to a shop laptop or tablet and serve it there.
 
+### On a phone or tablet in the shop
+
+The viewer is an installable web app that keeps working offline once it has been opened. To get a URL for your phone:
+
+1. In the repo settings, enable **Pages** with **GitHub Actions** as the source.
+2. Run the **publish viewer** workflow from the Actions tab.
+
+It only publishes when you run it by hand. Open the published page once while online, then use "Add to Home Screen". After that it opens without a connection, model included.
+
 ## Using it
 
 **Cut list** (right sidebar)

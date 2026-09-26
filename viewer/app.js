@@ -1346,6 +1346,11 @@ function updateOrthoFrustumIfNeeded() {
 resize();
 requestAnimationFrame(animate);
 
+// Offline support (see sw.js). Only on http(s); a no-op when opened as a file.
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  navigator.serviceWorker.register('sw.js').catch(() => { /* e.g. private mode */ });
+}
+
 init().catch((err) => {
   const el = $('loading');
   el.classList.add('load-error');

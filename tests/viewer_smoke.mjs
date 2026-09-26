@@ -22,6 +22,7 @@ fs.mkdirSync(OUT, { recursive: true });
 const MIME = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
   '.obj': 'text/plain', '.mtl': 'text/plain', '.png': 'image/png', '.jpg': 'image/jpeg',
+  '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json',
 };
 
 function serve(dir) {
@@ -507,18 +508,40 @@ try {
   }
 }
 
+// ---------- offline after first visit (service worker) ----------
+{
+  console.log('offline after first visit');
+  const b2 = await chromium.launch(launchOpts);
+  const ctx = await b2.newContext();
+  const p2 = await ctx.newPage();
+  try {
+    await p2.goto(base);
+    await p2.waitForFunction(() => document.getElementById('loading').style.display === 'none', null, { timeout: 30000 });
+    await p2.evaluate(() => navigator.serviceWorker.ready);
+    await p2.reload(); // first load after the worker takes control fills the cache
+    await p2.waitForFunction(() => document.getElementById('loading').style.display === 'none', null, { timeout: 30000 });
+    await ctx.setOffline(true);
+    await p2.reload();
+    await p2.waitForFunction(() => document.getElementById('loading').style.display === 'none', null, { timeout: 30000 });
+    check((await p2.locator('#clList .row').count()) === 24, 'reloads and works with no connection after one visit');
+  } finally {
+    await b2.close();
+  }
+}
+
 // ---------- failure modes ----------
 {
   console.log('load failures explain themselves');
   const b2 = await chromium.launch(launchOpts);
-  const p2 = await b2.newPage();
+  // no service worker here: it would fetch files itself, bypassing page.route
+  const p2 = await b2.newPage({ serviceWorkers: 'block' });
   await p2.route(/\/vendor\/three\//, (route) => route.fulfill({ status: 404 }));
   await p2.clock.install();
   await p2.goto(base);
   await p2.clock.fastForward(13000);
   const msg = await p2.locator('#loading').innerText();
   check(/Couldn't start the 3D viewer/.test(msg), 'missing 3D library shows a helpful message');
-  const p3 = await b2.newPage();
+  const p3 = await b2.newPage({ serviceWorkers: 'block' });
   await p3.route(/scene\.obj$/, (route) => route.fulfill({ status: 404 }));
   await p3.goto(base);
   await p3.waitForFunction(() => document.getElementById('loading').classList.contains('load-error'), null, { timeout: 30000 });
