@@ -19,6 +19,7 @@ A 3D cut-list viewer for woodworking plans, starting with the Lie-Nielsen/Brian 
   - `library.js`, `collada.js`, `zip.js`, `modelstore.js` - uploading models in the browser: COLLADA parser (a port of `parse_dae.py`), zip/KMZ reading, saved models (IndexedDB)
   - `edits.js` - your renames, deleted parts and parts set aside, per model
   - `woodtex.js` - species wood textures (side and end grain) generated in the browser
+  - `build.js` - build mode's step order (assembly or cutting)
   - `settings.js` - per-browser preferences (units, allowances, parts ticked off)
   - `model.json` - per-model settings: title, friendly part names, notes, materials, axis names, view presets
   - `vendor/three/` - pinned three.js 0.160 build and the three addons used (MIT)
@@ -63,6 +64,12 @@ It only publishes when you run it by hand. Open the published page once while on
   - Enter a price per board foot for a lumber cost estimate.
 - **Your notes**: add a note to any part from its card; it shows in the list, CSV and printout.
 - ⚠ notes flag known problems in the source model (e.g. rods whose name says 8-1/4" but are modeled 6-7/8").
+
+**Build mode** (▶ Build at the top of the cut list) - the plan as a step-by-step guide for the shop, made for a phone:
+- One part per step, big: letter, name, quantity, finished and rough size, what it joins, its holes and your notes. Tick **Cut** and it moves on to the next part.
+- The model assembles as you go: parts from earlier steps solid, this one highlighted with its dimensions, the rest ghosted. Tap any part to jump to its step.
+- **Assembly order** builds from the ground up, assembly by assembly; **Cutting order** groups the wood by species and stock thickness, widest and longest first, the way you'd mill it.
+- It remembers where you were. ← / → (or Back / Next) step through; Esc leaves.
 
 **3D view**
 - **Realistic wood**: each species has its own look - colour, growth rings with cathedral grain along the board, open pores in oak and ash, oak's ray fleck, knots in pine - with end grain on the ends of boards. The species is guessed from the material's name (in several languages); pick it yourself under **Looks like** in Set up. Textures are generated in the browser, so they work offline.

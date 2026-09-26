@@ -157,6 +157,7 @@ export function renderCutList(container, rows, config, h) {
       <div class="cl-title-row">
         <h1>${escapeHtml(config.title || 'Cut List')}</h1>
         <div class="cl-model-btns">
+          <button id="clBuild" class="primary" title="Step-by-step build guide for the shop: one part at a time, big, with the model assembling as you go">▶ Build</button>
           ${h.onSetup ? '<button id="clSetup" title="Name, which materials are wood, which way is front">Set up</button>' : ''}
           <button id="clLibrary" title="Upload a model (3D Warehouse Collada / KMZ) or switch models (M)">Models</button>
         </div>
@@ -213,6 +214,7 @@ export function renderCutList(container, rows, config, h) {
   container.querySelector('#clDiagram').addEventListener('click', () => handlers.onDiagram && handlers.onDiagram());
   container.querySelector('#clLibrary').addEventListener('click', () => handlers.onLibrary && handlers.onLibrary());
   container.querySelector('#clSetup')?.addEventListener('click', () => handlers.onSetup());
+  container.querySelector('#clBuild').addEventListener('click', () => handlers.onBuild && handlers.onBuild());
   renderRows();
 }
 

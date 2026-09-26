@@ -466,3 +466,29 @@ test('wood species are recognised from material names', () => {
   assert.equal(speciesFor('Wood'), null);
   assert.equal(speciesFor('Pineapple'), null, 'whole words only');
 });
+
+import { buildOrder } from '../viewer/build.js';
+
+test('build order: assemblies from the ground up, wood before hardware, big parts first', () => {
+  const rows = [
+    { key: 'top', top_group: 'Top', category: 'Wood' },
+    { key: 'bolt', top_group: 'Base', category: 'Hardware' },
+    { key: 'leg', top_group: 'Base', category: 'Wood' },
+    { key: 'foot', top_group: 'Base', category: 'Wood' },
+    { key: 'stretcher', top_group: 'Base', category: 'Wood' },
+  ];
+  const boxes = { top: [30, 100], bolt: [5, 1], leg: [0, 50], foot: [0, 80], stretcher: [6, 20] };
+  const order = buildOrder(rows, (r) => ({ minY: boxes[r.key][0], volume: boxes[r.key][1] })).map((r) => r.key);
+  assert.deepEqual(order, ['foot', 'leg', 'stretcher', 'bolt', 'top']);
+});
+
+test('cutting order: wood by species and stock thickness, widest first, then the rest', () => {
+  const rows = [
+    { key: 'w-thin', category: 'Wood', materialLabel: 'Walnut', dims: [20, 4, 0.75], top_group: 'A' },
+    { key: 'o-thick', category: 'Wood', materialLabel: 'Oak', dims: [30, 3, 1.75], top_group: 'A' },
+    { key: 'o-thin-wide', category: 'Wood', materialLabel: 'Oak', dims: [30, 6, 0.75], top_group: 'B' },
+    { key: 'o-thin', category: 'Wood', materialLabel: 'Oak', dims: [40, 2, 0.75], top_group: 'B' },
+    { key: 'bolt', category: 'Hardware', materialLabel: 'Steel', dims: [5, 0.5, 0.5], top_group: 'A' },
+  ];
+  assert.deepEqual(buildOrder(rows, () => ({ minY: 0, volume: 1 }), 'cutting').map((r) => r.key), ['o-thin-wide', 'o-thin', 'o-thick', 'w-thin', 'bolt']);
+});

@@ -877,6 +877,58 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
   }
 }
 
+// ---------- build mode ----------
+{
+  console.log('build mode');
+  const b2 = await chromium.launch(launchOpts);
+  const p2 = await b2.newPage({ viewport: { width: 1400, height: 900 } });
+  const errs = [];
+  p2.on('pageerror', (e) => errs.push(e.message));
+  const loaded = () => p2.waitForFunction(() => document.getElementById('loading').style.display === 'none', null, { timeout: 30000 });
+  const stepName = () => p2.locator('#buildPanel .bp-name').evaluate((e) => e.childNodes[1].textContent.trim());
+  const stepNo = () => p2.locator('#buildPanel .bp-steps').inputValue();
+  try {
+    await p2.goto(base);
+    await loaded();
+    await p2.locator('#introClose').click();
+    await p2.locator('#clBuild').click();
+    check(await p2.locator('#buildPanel').isVisible() && !(await p2.locator('#dimCard').isVisible()), 'Build opens the step-by-step panel');
+    const first = await stepName();
+    check(/Leg/.test(first), `assembly order starts from the ground up (${first})`);
+    check(/\d/.test(await p2.locator('#buildPanel .bp-size').innerText()) && /rough/.test(await p2.locator('#buildPanel .bp-sub').innerText()), 'a step shows the finished and rough size');
+    await p2.locator('#buildPanel .bp-next').click();
+    check(await stepNo() === '1', 'Next goes to the next part');
+    const ghosts = await p2.evaluate(() => {
+      const v = window.__viewer;
+      const now = v.currentSelectionMeshes();
+      const all = v.rows().flatMap((r) => v.meshesOf(r.name));
+      return { hl: now.every((m) => m.material.emissiveIntensity > 0), ghosted: all.some((m) => m.material.transparent && m.visible), solid: all.some((m) => !m.material.transparent && !now.includes(m)) };
+    });
+    check(ghosts.hl && ghosts.ghosted && ghosts.solid, 'the model assembles as you go: earlier parts solid, this one highlighted, later ones ghosted');
+    const name2 = await stepName();
+    await p2.locator('#buildPanel .bp-cut input').click(); // (check() would re-tick the next step's box)
+    await p2.waitForTimeout(500);
+    check(await stepNo() === '2', 'ticking "Cut" moves on to the next part');
+    check(await p2.locator('#clList .row', { hasText: name2 }).first().locator('.cut-box').isChecked(), 'and ticks it off in the cut list');
+    await p2.keyboard.press('ArrowLeft');
+    check(await stepNo() === '1', 'arrow keys step back and forth');
+    await p2.locator('#buildPanel .bp-exit').click();
+    check(!(await p2.locator('#buildPanel').isVisible()), 'Exit leaves build mode');
+    await p2.reload();
+    await loaded();
+    await p2.locator('#clBuild').click();
+    check(await stepNo() === '1', 'build mode picks up where you left off');
+    await p2.locator('#buildPanel .bp-order').click();
+    check(/Cutting order/.test(await p2.locator('#buildPanel .bp-order').innerText()) && await stepName() === name2, 'cutting order keeps you on the same part');
+    const firstCut = await p2.locator('#buildPanel .bp-steps option').first().innerText();
+    check(!/Leg Rear/.test(firstCut), `cutting order is different (${firstCut})`);
+    await p2.screenshot({ path: path.join(OUT, '45-build-mode.png') });
+    check(errs.length === 0, `no page errors in build mode (${errs.join('; ')})`);
+  } finally {
+    await b2.close();
+  }
+}
+
 // ---------- phone (touch) ----------
 {
   console.log('phone');
@@ -910,6 +962,11 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     await p2.waitForTimeout(300);
     check((await p2.locator('#dimCard .pn-text').innerText().catch(() => '')) === 'Bench', 'tapping a part selects it');
     check(await p2.locator('.group-title .gt-actions').first().isHidden(), 'group buttons stay out of the way on touch (tap the group name instead)');
+    await p2.locator('#clBuild').tap();
+    const bp = await p2.locator('#buildPanel').boundingBox();
+    check(bp && bp.width > 350 && await p2.locator('#sidebar').isHidden(), 'build mode on a phone: full-width panel, cut list out of the way');
+    await p2.screenshot({ path: path.join(OUT, '51-phone-build.png') });
+    await p2.locator('#buildPanel .bp-exit').tap();
     await p2.locator('#helpBtn').tap();
     check(await p2.locator('#help .help-touch').isVisible() && !(await p2.locator('#help .if-mouse-block').isVisible()), 'help shows touch gestures instead of keyboard shortcuts');
     await p2.screenshot({ path: path.join(OUT, '50-phone-help.png') });

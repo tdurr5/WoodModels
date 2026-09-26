@@ -9,8 +9,9 @@ import { compoundAngle, describeAngle, round1, DEFAULT_AXIS_NAMES } from './angl
 import { initSettings, settings, updateSettings, onSettingsChange, resetSettings } from './settings.js';
 import {
   prepareRows, renderCutList, renderRows, markActive, visibleRows, focusSearch, finishedDims, buildPrintSheet, isRod, userNote,
-  millingPlanHTML, setCutListRows, inlineEdit, markActiveGroup,
+  millingPlanHTML, setCutListRows, inlineEdit, markActiveGroup, roughDims, roughFor,
 } from './cutlist.js';
+import { buildOrder } from './build.js';
 import {
   normalizeEdits, withStatus, withName, withGroupName, withPieceStatus, withJoin, withSplit, withAutoFixes, joinKey,
 } from './edits.js';
@@ -258,9 +259,9 @@ async function init() {
   allPartRows.forEach((r) => (r.obj_names || []).forEach((n) => rowByMeshName.set(n, r)));
 
   renderCutList($('sidebar'), allPartRows, cfg, {
-    onSelect: (r) => selectRow(r), onPrint: printSheet, onDiagram: () => diagram.open(),
+    onSelect: (r) => pickRow(r), onPrint: printSheet, onDiagram: () => diagram.open(),
     onLibrary: () => library.open(), onSetup: LOCAL_ID ? () => library.openSetup(LOCAL_ID) : null,
-    onSetStatus: setPartStatus, onRenameGroup: renameGroup, onSelectGroup: selectGroup,
+    onSetStatus: setPartStatus, onRenameGroup: renameGroup, onSelectGroup: selectGroup, onBuild: () => startBuild(),
   });
   diagram = initDiagramModal({ rows, onSelectRow: (r) => selectRow(r), finishArea: () => (model ? woodSurfaceArea() : 0) });
   buildViewButtons();
@@ -623,6 +624,15 @@ function applyMaterials() {
   meshes.forEach((m) => {
     const info = meshInfo.get(m);
     const catHidden = info.row && hidden.has(info.row.category);
+    if (build) {
+      // build mode: parts from earlier steps solid, this step highlighted, the rest ghosted
+      const step = build.stepOf.get(info.row?.key);
+      const done = step !== undefined && step < build.i;
+      const now = selected.has(m);
+      m.visible = now || (isShownPart(m) && !catHidden);
+      m.material = now ? info.hl : done ? info.orig : info.dim;
+      return;
+    }
     const inGroup = !current && groupSel !== null && info.row?.top_group === groupSel;
     const isSel = selected.has(m) || inGroup;
     m.visible = isSel || (isShownPart(m) && !catHidden && !(s.isolate && (current || groupSel !== null) && !isSel));
@@ -1350,6 +1360,110 @@ function mergePositions(geos) {
   return g;
 }
 
+// ---------- build mode ----------
+// A step-by-step guide for the shop (build.js orders the parts): one part per
+// step, big, with its size, rough stock, joins and notes and a "cut" tick; the
+// model assembles as you go.
+let build = null; // { order: rows, stepOf: key -> index, i }
+
+function startBuild() {
+  if (!model) return;
+  const boxOf = (r) => {
+    const box = new THREE.Box3();
+    (r.obj_names || []).forEach((n) => { const m = meshByName.get(n); if (m) box.expandByObject(m); });
+    if (box.isEmpty()) return null;
+    const sz = box.getSize(new THREE.Vector3());
+    return { minY: box.min.y, volume: sz.x * sz.y * sz.z };
+  };
+  const order = buildOrder(rows.filter((r) => r.clickable), boxOf, settings().buildOrder, (r) => roughFor(r)?.thickness || r.dims[2]);
+  if (!order.length) return;
+  const i = Math.max(0, order.findIndex((r) => r.key === settings().buildStep));
+  build = { order, stepOf: new Map(order.map((r, k) => [r.key, k])), i };
+  document.body.classList.add('build-mode');
+  measure.cancel();
+  syncToolButtons();
+  dismissIntro();
+  showStep(true);
+}
+
+// a part picked in the list: in build mode, go to its step
+function pickRow(r) {
+  const k = build ? build.order.findIndex((x) => x.key === r.key) : -1;
+  if (k >= 0) { build.i = k; showStep(true); } else selectRow(r);
+}
+
+function exitBuild() {
+  build = null;
+  document.body.classList.remove('build-mode');
+  $('buildPanel').style.display = 'none';
+  clearSelection();
+  frameBox(focusBox(), null);
+}
+
+function stepBuild(delta) {
+  if (!build) return;
+  build.i = Math.min(build.order.length - 1, Math.max(0, build.i + delta));
+  showStep(true);
+}
+
+function showStep(frame) {
+  const row = build.order[build.i];
+  selectRow(row, { frame });
+  updateSettings({ buildStep: row.key });
+  renderBuildPanel();
+}
+
+function renderBuildPanel() {
+  const el = $('buildPanel');
+  const row = build.order[build.i];
+  const units = settings().units;
+  const cutSet = new Set(settings().cut);
+  const n = build.order.length;
+  const rough = row.category === 'Wood' ? roughDims(row, units) : '';
+  const mine = userNote(row);
+  el.innerHTML = `
+    <div class="bp-top">
+      <select class="bp-steps" title="Jump to a step">${build.order.map((r, k) => `<option value="${k}"${k === build.i ? ' selected' : ''}>${k + 1}. ${escapeHtml(r.letter)} ${escapeHtml(r.name)}${cutSet.has(r.key) ? ' ✓' : ''}</option>`).join('')}</select>
+      <span class="bp-of">of ${n} · ${escapeHtml(row.groupName)}</span>
+      <button class="bp-order card-btn" title="Step through the parts in assembly order (ground up) or cutting order (by species and stock thickness)">${settings().buildOrder === 'cutting' ? 'Cutting order' : 'Assembly order'}</button>
+      <button class="bp-exit card-btn" title="Leave build mode (Esc)">Exit</button>
+    </div>
+    <div class="bp-progress"><div style="width:${Math.round(((build.i + 1) / n) * 100)}%"></div></div>
+    <div class="bp-name"><span class="letter">${row.letter}</span>${escapeHtml(row.name)} <span class="bp-qty">×${row.count}</span></div>
+    <div class="bp-size">${escapeHtml(finishedDims(row, units))}</div>
+    <div class="bp-sub">${row.customDims ? '' : 'Thickness × Width × Length'}${rough ? ` · rough <b>${escapeHtml(rough)}</b>` : ''} · ${escapeHtml(row.materialLabel)}</div>
+    ${contactHtml(row)}
+    ${row.notes.map((t) => `<div class="card-note${row.warn ? ' warn' : ''}">${escapeHtml(t)}</div>`).join('')}
+    ${mine ? `<div class="card-note mine">✎ ${escapeHtml(mine)}</div>` : ''}
+    <div class="bp-nav">
+      <button class="bp-prev" ${build.i === 0 ? 'disabled' : ''}>◀ Back</button>
+      <label class="bp-cut"><input type="checkbox" ${cutSet.has(row.key) ? 'checked' : ''} /> ${row.category === 'Wood' ? 'Cut' : 'Done'}</label>
+      <button class="bp-next" ${build.i === n - 1 ? 'disabled' : ''}>Next ▶</button>
+    </div>`;
+  el.style.display = 'block';
+  el.querySelector('.bp-exit').addEventListener('click', () => exitBuild());
+  el.querySelector('.bp-order').addEventListener('click', () => {
+    updateSettings({ buildOrder: settings().buildOrder === 'cutting' ? 'assembly' : 'cutting' });
+    startBuild(); // same part, new order
+  });
+  el.querySelector('.bp-prev').addEventListener('click', () => stepBuild(-1));
+  el.querySelector('.bp-next').addEventListener('click', () => stepBuild(1));
+  el.querySelector('.bp-steps').addEventListener('change', (e) => { build.i = +e.target.value; showStep(true); });
+  el.querySelector('.bp-cut input').addEventListener('change', (e) => {
+    const next = new Set(settings().cut);
+    if (e.target.checked) next.add(row.key); else next.delete(row.key);
+    updateSettings({ cut: [...next] });
+    // ticking a part off moves on to the next one
+    if (e.target.checked && build.i < n - 1) setTimeout(() => stepBuild(1), 250);
+    else renderBuildPanel();
+  });
+  el.querySelectorAll('.card-rel a').forEach((a) => a.addEventListener('click', (e) => {
+    e.preventDefault();
+    const k = build.order.findIndex((r) => r.key === a.dataset.key);
+    if (k >= 0) { build.i = k; showStep(true); }
+  }));
+}
+
 function renameSelected() {
   if (!current) return;
   if (cardCollapsed) { cardCollapsed = false; renderDimCard(); }
@@ -1537,8 +1651,9 @@ renderer.domElement.addEventListener('click', (e) => {
   if (!model || wasDrag(e)) return;
   if (measure.handleClick(e)) return;
   const hit = raycastAt(e.clientX, e.clientY, meshes.filter((m) => m.visible));
-  if (!hit) { if (current) clearSelection(); return; }
+  if (!hit) { if (current && !build) clearSelection(); return; }
   const row = rowByMeshName.get(hit.object.name);
+  if (build && row) { const k = build.order.findIndex((r) => r.key === row.key); if (k >= 0 && k !== build.i) { build.i = k; showStep(false); return; } }
   if (row && (!current || row.key !== current.row.key)) selectRow(row, { frame: false });
   // remember which of the part's pieces was clicked (to delete just that one)
   if (current && row && row.key === current.row.key && current.piece !== hit.object) {
@@ -1867,8 +1982,10 @@ window.addEventListener('keydown', (e) => {
   }
   const viewKeys = Object.keys(config.views || {});
   const k = e.key;
+  if (build && ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', ' '].includes(k)) { stepBuild(k === 'ArrowLeft' || k === 'ArrowUp' ? -1 : 1); e.preventDefault(); return; }
   if (k === 'Escape') {
     if ($('help').style.display === 'flex') toggleHelp(false);
+    else if (build && !measure.mode) exitBuild();
     else if (library.isOpen()) { $('library').style.display = 'none'; $('setup').style.display = 'none'; }
     else if (diagram && diagram.isOpen()) diagram.close();
     else if (measure.cancel()) syncToolButtons();

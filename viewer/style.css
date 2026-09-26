@@ -94,8 +94,8 @@ body.sidebar-collapsed #sidebar { display: none; }
 #dimCard .card-note { font-size: 11px; color: var(--text-2); margin-top: 4px; font-style: italic; }
 #dimCard .card-note.warn { color: var(--warn); font-style: normal; }
 #dimCard .card-rel { font-size: 11.5px; color: var(--text-2); margin-top: 4px; line-height: 1.45; }
-#dimCard .card-rel a { color: var(--blue); text-decoration: none; }
-#dimCard .card-rel a:hover { text-decoration: underline; }
+#dimCard .card-rel a, #buildPanel .card-rel a { color: var(--blue); text-decoration: none; }
+#dimCard .card-rel a:hover, #buildPanel .card-rel a:hover { text-decoration: underline; }
 #dimCard .card-mynote { margin-top: 6px; font-size: 11.5px; }
 #dimCard .card-mynote summary { cursor: pointer; color: var(--muted); }
 #dimCard .card-mynote textarea { width: 100%; box-sizing: border-box; margin-top: 4px; background: var(--input-bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 4px 6px; font: inherit; font-size: 12px; resize: vertical; }
@@ -371,3 +371,38 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
   h2.if-touch { display: block; }
 }
 .help-touch td:first-child { font-weight: 600; white-space: nowrap; padding-right: 12px; }
+
+/* ---------- build mode ---------- */
+#buildPanel {
+  position: absolute; left: 10px; bottom: 54px; width: min(460px, calc(100% - 20px)); z-index: 7; display: none; box-sizing: border-box;
+  background: var(--card-bg); border: 1.5px solid var(--accent); border-radius: 10px; padding: 10px 14px 12px; max-height: calc(100% - 110px); overflow: auto;
+}
+body.build-mode #dimCard, body.build-mode #bottombar, body.build-mode #introTip { display: none !important; }
+.bp-top { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-2); }
+.bp-steps { max-width: 55%; background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 5px; padding: 3px 4px; font-weight: 600; }
+.bp-order { white-space: nowrap; }
+.bp-of { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bp-progress { height: 4px; background: var(--track); border-radius: 2px; margin: 8px 0 6px; overflow: hidden; }
+.bp-progress div { height: 100%; background: var(--accent); }
+.bp-name { font-size: 20px; font-weight: 700; color: var(--accent-text); }
+.bp-qty { color: var(--text); font-weight: 700; margin-left: 4px; }
+.bp-size { font-size: 26px; font-weight: 800; margin: 2px 0; letter-spacing: 0.01em; }
+.bp-sub { font-size: 12px; color: var(--text-3); margin-bottom: 4px; }
+#buildPanel .card-rel { font-size: 12.5px; margin-top: 4px; }
+#buildPanel .card-note { font-size: 12px; margin-top: 4px; }
+#buildPanel .card-note.warn { color: var(--warn); }
+#buildPanel .card-note.mine { color: var(--blue); }
+.bp-nav { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.bp-nav button { flex: 1; font-size: 16px; font-weight: 700; padding: 10px; border-radius: 8px; border: 1px solid var(--border-2); background: var(--panel-2); color: var(--text); cursor: pointer; }
+.bp-nav .bp-next { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.bp-nav button:disabled { opacity: 0.35; }
+.bp-cut { display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 600; white-space: nowrap; }
+.bp-cut input { width: 22px; height: 22px; accent-color: var(--accent); }
+#clBuild.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 700; }
+@media (max-width: 800px) {
+  body.build-mode #sidebar { display: none; }
+  .bp-of { display: none; }
+  #buildPanel { left: 8px; right: 8px; width: auto; bottom: 8px; max-height: 58%; }
+  .bp-size { font-size: 24px; }
+}
+@media print { #buildPanel { display: none !important; } }
