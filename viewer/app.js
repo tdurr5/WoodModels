@@ -6,7 +6,7 @@ import { formatLength, escapeHtml } from './format.js';
 import { compoundAngle, describeAngle, round1, DEFAULT_AXIS_NAMES } from './angles.js';
 import { initSettings, settings, updateSettings, onSettingsChange } from './settings.js';
 import {
-  prepareRows, renderCutList, renderRows, markActive, visibleRows, focusSearch, finishedDims, buildPrintSheet, isRod,
+  prepareRows, renderCutList, renderRows, markActive, visibleRows, focusSearch, finishedDims, buildPrintSheet, isRod, userNote,
 } from './cutlist.js';
 import { initMeasure } from './measure.js';
 import { initDiagramModal, computeLayouts, layoutsHTML } from './diagram.js';
@@ -482,7 +482,9 @@ function applySettingsToScene() {
 }
 
 onSettingsChange((s, patch) => {
-  if ('units' in patch || 'showRough' in patch || 'allowance' in patch || 'cut' in patch || 'hiddenCategories' in patch) renderRows();
+  if ('units' in patch || 'showRough' in patch || 'allowance' in patch || 'cut' in patch || 'hiddenCategories' in patch || 'userNotes' in patch) renderRows();
+  // typing a note mustn't rebuild the card it's being typed into
+  if (Object.keys(patch).every((k) => k === 'userNotes')) return;
   if ('hiddenCategories' in patch && current && settings().hiddenCategories.includes(current.row.category)) clearSelection();
   if (model) applySettingsToScene();
 });
@@ -880,6 +882,10 @@ function renderDimCard() {
     <div class="meta">qty ${row.count} · ${escapeHtml(row.materialLabel)} · ${escapeHtml(row.groupName)}</div>
     ${contactHtml(row)}
     ${notes}
+    <details class="card-mynote"${userNote(row) ? ' open' : ''}>
+      <summary>${userNote(row) ? 'Your note' : 'Add a note'}</summary>
+      <textarea rows="2" placeholder="e.g. use the quartersawn offcut; check grain runout">${escapeHtml(userNote(row))}</textarea>
+    </details>
     ${data && row.category === 'Wood' ? '<div class="card-actions"><button class="card-btn" data-act="template" title="Print this part at full size to trace onto your stock">Print full-size template</button></div>' : ''}
   `;
   dimCard.style.display = 'block';
@@ -889,6 +895,16 @@ function renderDimCard() {
     const r = rows.find((x) => x.key === a.dataset.key);
     if (r) selectRow(r);
   }));
+  const noteEl = dimCard.querySelector('.card-mynote textarea');
+  noteEl.addEventListener('input', () => {
+    const notes = { ...(settings().userNotes || {}) };
+    if (noteEl.value.trim()) notes[row.key] = noteEl.value; else delete notes[row.key];
+    updateSettings({ userNotes: notes });
+  });
+  noteEl.addEventListener('keydown', (e) => {
+    e.stopPropagation(); // don't trigger shortcuts while typing
+    if (e.key === 'Escape') noteEl.blur();
+  });
   const tplBtn = dimCard.querySelector('[data-act="template"]');
   if (tplBtn) tplBtn.addEventListener('click', () => printTemplate());
 }

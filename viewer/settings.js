@@ -13,6 +13,7 @@ const DEFAULTS = {
   stock: { length: 96, width: 8, kerf: 0.125 }, // lumber for cutting diagrams
   theme: 'dark',    // 'dark' | 'light'
   prices: {},       // $ per board foot by material label, for cost estimates
+  userNotes: {},    // row key -> the user's own note for that part
 };
 
 let storageKey = 'woodmodels:settings';

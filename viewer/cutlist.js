@@ -55,6 +55,10 @@ export function finishedDims(row, units = settings().units) {
 export const isRod = (row) => row.category === 'Hardware' && !row.customDims
   && Math.abs(row.dims[1] - row.dims[2]) < 0.02 && row.dims[0] > 3 * row.dims[1];
 
+export function userNote(row) {
+  return ((settings().userNotes || {})[row.key] || '').trim();
+}
+
 export function roughFor(row) {
   if (row.category !== 'Wood') return null;
   return roughStock(row.dims, settings().allowance);
@@ -162,7 +166,7 @@ export function visibleRows() {
 
 function matchesFilter(r) {
   if (!filterText) return true;
-  return (`${r.name} ${r.label} ${r.top_group} ${r.materialLabel}`).toLowerCase().includes(filterText);
+  return (`${r.name} ${r.label} ${r.top_group} ${r.materialLabel} ${userNote(r)}`).toLowerCase().includes(filterText);
 }
 
 let activeKey = null;
@@ -222,7 +226,9 @@ function rowElement(r, isCut, s) {
   el.dataset.key = r.key;
   const rough = s.showRough && r.category === 'Wood'
     ? `<div class="rough">rough ${escapeHtml(roughDims(r, s.units))} · ${(roughFor(r).boardFeet * r.count).toFixed(2)} bf</div>` : '';
-  const notes = r.notes.map((n) => `<div class="note${r.warn ? ' warn' : ''}">${r.warn ? '⚠ ' : ''}${escapeHtml(n)}</div>`).join('');
+  const mine = userNote(r);
+  const notes = r.notes.map((n) => `<div class="note${r.warn ? ' warn' : ''}">${r.warn ? '⚠ ' : ''}${escapeHtml(n)}</div>`).join('')
+    + (mine ? `<div class="note mine">✎ ${escapeHtml(mine)}</div>` : '');
   const trackable = r.category === 'Wood';
   el.innerHTML = `
     ${trackable ? `<input type="checkbox" class="cut-box" title="Tick off when cut" ${isCut ? 'checked' : ''} />` : '<span class="cut-spacer"></span>'}
@@ -292,7 +298,7 @@ export function cutListTable(rows, units = settings().units) {
       rough ? (units.startsWith('in') ? rough.thicknessLabel : fmt(rough.thickness)) : '',
       rough ? fmt(rough.width) : '', rough ? fmt(rough.length) : '',
       rough ? (rough.boardFeet * r.count).toFixed(2) : '',
-      r.notes.join(' / '), r.label,
+      [...r.notes, userNote(r)].filter(Boolean).join(' / '), r.label,
     ];
   });
   return [header, ...body];
@@ -338,7 +344,7 @@ export function buildPrintSheet(target, rows, config, imageDataUrl, extraHtml = 
             <td class="num">${r.count}</td>
             <td>${escapeHtml(finishedDims(r, s.units))}</td>
             ${sec.cat === 'Wood' ? `<td>${escapeHtml(roughDims(r, s.units))}</td><td class="num">${(roughFor(r).boardFeet * r.count).toFixed(2)}</td>` : ''}
-            <td class="ps-note">${escapeHtml(r.notes.join(' / '))}</td>
+            <td class="ps-note">${escapeHtml(r.notes.join(' / '))}${userNote(r) ? `<div class="ps-mine">✎ ${escapeHtml(userNote(r))}</div>` : ''}</td>
           </tr>`).join('')}
         </tbody>
       </table>`).join('')}

@@ -368,6 +368,14 @@ try {
   await page.locator('#diagram .part').first().click();
   check(!(await page.locator('#diagram').isVisible()) && await page.locator('#clList .row.active').count() === 1, 'clicking a piece in the diagram selects that part');
 
+  console.log('user notes');
+  await selectPart('Seat');
+  await page.locator('#dimCard .card-mynote summary').click();
+  await page.locator('#dimCard .card-mynote textarea').fill('carve from the walnut slab');
+  check(await page.locator('#dimCard .card-mynote textarea').evaluate((el) => document.activeElement === el), 'typing a note keeps focus in the note');
+  check((await page.locator('#clList .row.active .note.mine').innerText()).includes('walnut slab'), 'note shows in the cut list');
+  check(await page.evaluate(() => window.__viewer.current !== null), 'typing a note (with letters like f/i/e) does not trigger shortcuts');
+  await page.keyboard.press('Escape');
   const selectedBeforeReload = (await page.locator('#clList .row.active .name').innerText()).trim();
 
   console.log('cut tracking persists');
@@ -378,6 +386,7 @@ try {
   const selectedAfterReload = (await page.locator('#clList .row.active .name').innerText().catch(() => '')).trim();
   check(selectedAfterReload === selectedBeforeReload, `reload restores the selection from the URL hash (${selectedAfterReload})`);
   check(await page.locator('#clRough').isChecked(), 'settings persist across reload');
+  check(await page.locator('#clList .note.mine', { hasText: 'walnut slab' }).count() === 1, 'user notes persist across reload');
 
   console.log('help');
   await page.keyboard.press('?');

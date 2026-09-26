@@ -90,6 +90,9 @@ body.sidebar-collapsed #sidebar { display: none; }
 #dimCard .card-rel { font-size: 11.5px; color: var(--text-2); margin-top: 4px; line-height: 1.45; }
 #dimCard .card-rel a { color: var(--blue); text-decoration: none; }
 #dimCard .card-rel a:hover { text-decoration: underline; }
+#dimCard .card-mynote { margin-top: 6px; font-size: 11.5px; }
+#dimCard .card-mynote summary { cursor: pointer; color: var(--muted); }
+#dimCard .card-mynote textarea { width: 100%; box-sizing: border-box; margin-top: 4px; background: var(--input-bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 4px 6px; font: inherit; font-size: 12px; resize: vertical; }
 #dimCard .card-actions { margin-top: 8px; display: flex; gap: 6px; }
 .card-btn { background: var(--panel-2); color: var(--text); border: 1px solid var(--border-2); border-radius: 5px; padding: 4px 8px; font-size: 11.5px; cursor: pointer; }
 .card-btn:hover { background: var(--hover); }
@@ -133,6 +136,7 @@ h1 { font-size: 16px; margin: 0 0 2px; }
 .row .rough { color: var(--rough); font-size: 11px; }
 .row .note { color: var(--muted); font-size: 10.5px; font-style: italic; }
 .row .note.warn { color: var(--warn); font-style: normal; }
+.row .note.mine { color: var(--blue); font-style: normal; }
 .row .qty { color: var(--accent-text); font-size: 12px; white-space: nowrap; font-weight: 600; }
 .cut-box { margin: 2px 0 0; accent-color: var(--good); cursor: pointer; }
 .cut-spacer { width: 13px; flex: none; }
@@ -205,6 +209,7 @@ h1 { font-size: 16px; margin: 0 0 2px; }
   #printSheet .box { display: inline-block; width: 11px; height: 11px; border: 1.2px solid #000; }
   #printSheet .ps-grp { color: #555; font-size: 9.5px; }
   #printSheet .ps-note { color: #444; font-size: 9.5px; max-width: 180px; }
+  #printSheet .ps-mine { color: #000; font-size: 10px; margin-top: 2px; }
   .ps-tot { margin-top: 10px; font-weight: 600; }
   #diagram { display: none !important; }
   @page { margin: 0.5in; }
