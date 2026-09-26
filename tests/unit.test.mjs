@@ -453,3 +453,16 @@ test('automatic fixes apply unless you undid them or changed the same pieces', (
   assert.equal(e.pieces.x, 'build');
   assert.deepEqual([...e.autoDeleted], ['y']);
 });
+
+import { speciesFor } from '../viewer/woodtex.js';
+
+test('wood species are recognised from material names', () => {
+  assert.equal(speciesFor('Mélèse_Verticale1'), 'larch');
+  assert.equal(speciesFor('Oak_-Red'), 'red-oak');
+  assert.equal(speciesFor('Red_Oak'), 'red-oak');
+  assert.equal(speciesFor('White Oak'), 'white-oak');
+  assert.equal(speciesFor('qcg_7587_zm_mexican_walnut_copy'), 'walnut');
+  assert.equal(speciesFor('', 'Wood_Cherry_Original'), 'cherry');
+  assert.equal(speciesFor('Wood'), null);
+  assert.equal(speciesFor('Pineapple'), null, 'whole words only');
+});

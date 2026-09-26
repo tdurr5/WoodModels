@@ -8,6 +8,7 @@ import {
   saveModel, listModels, getModelFiles, putModelFile, deleteModel, getModelMeta,
 } from './modelstore.js';
 import { escapeHtml } from './format.js';
+import { SPECIES, speciesFor } from './woodtex.js';
 
 const DATA_FILES = ['scene.obj', 'scene.mtl', 'materials.json', 'object_dims.json', 'parts_report.json', 'model.json'];
 export const CATEGORIES = ['Wood', 'Hardware', 'Leather', 'Other'];
@@ -84,7 +85,7 @@ export function cleanMaterialName(name) {
   return out || String(name || '').replace(/^_+/, '');
 }
 
-export function applySetup(cfg, { title, subtitle, categories, front, labels = {} }) {
+export function applySetup(cfg, { title, subtitle, categories, front, labels = {}, species = {} }) {
   const out = structuredClone(cfg);
   out.title = title || out.title;
   out.subtitle = subtitle ?? out.subtitle;
@@ -93,6 +94,12 @@ export function applySetup(cfg, { title, subtitle, categories, front, labels = {
     m.category = cat;
     if (cat === 'Wood' && !m.texture) m.texture = { base: '#c9975c', streak: '#a06f3b', ring: '#8a5a2c', tile: 5 };
     if (cat !== 'Wood') delete m.texture;
+  });
+  // how the wood looks ('' = guess from its names)
+  Object.entries(species).forEach(([name, sp]) => {
+    const m = out.materials[name];
+    if (!m) return;
+    if (sp && SPECIES[sp]) m.species = sp; else delete m.species;
   });
   // materials given the same name are one species: totals and shopping list combine them
   Object.entries(labels).forEach(([name, label]) => {
@@ -224,11 +231,12 @@ export function initLibrary({ current, onOpen, builtIn }) {
       <label class="setup-field">Front of the piece faces
         <select name="front">${Object.keys(FRONTS).map((k) => `<option value="${k}"${k === frontOf(cfg) ? ' selected' : ''}>${k} (${k.includes('X') ? 'red' : 'blue'} axis ${k.startsWith('+') ? 'positive' : 'negative'})</option>`).join('')}</select></label>
       <p class="muted small">Tip: use the Front view button afterwards - if you see the back, pick the opposite direction.</p>
-      <table class="setup-mats"><thead><tr><th>Material</th><th>Used by</th><th>Counts as</th><th title="Species or material name. Materials with the same name are added up together.">Called</th></tr></thead><tbody>
+      <table class="setup-mats"><thead><tr><th>Material</th><th>Used by</th><th>Counts as</th><th title="Species or material name. Materials with the same name are added up together.">Called</th><th title="How the wood looks in 3D">Looks like</th></tr></thead><tbody>
       ${mats.map((m) => `<tr><td><span class="mat-swatch" style="background:${escapeHtml(cfg.materials[m].color || '#999')}"></span>${escapeHtml(m === '(none)' ? 'No material (unpainted)' : m.replace(/^_+/, ''))}</td>
         <td class="num">${uses[m] || 0} pc</td>
         <td><select data-mat="${escapeHtml(m)}">${CATEGORIES.map((c) => `<option${c === cfg.materials[m].category ? ' selected' : ''}>${c}</option>`).join('')}</select></td>
-        <td><input data-label="${escapeHtml(m)}" value="${escapeHtml(cfg.materials[m].label || (m === '(none)' ? 'No material' : cleanMaterialName(m)))}" /></td></tr>`).join('')}
+        <td><input data-label="${escapeHtml(m)}" value="${escapeHtml(cfg.materials[m].label || (m === '(none)' ? 'No material' : cleanMaterialName(m)))}" /></td>
+        <td><select data-species="${escapeHtml(m)}"><option value="">${escapeHtml(SPECIES[speciesFor(cfg.materials[m].label, m)]?.name ? `Auto (${SPECIES[speciesFor(cfg.materials[m].label, m)].name})` : 'Auto')}</option>${Object.entries(SPECIES).map(([k, sp]) => `<option value="${k}"${cfg.materials[m].species === k ? ' selected' : ''}>${escapeHtml(sp.name)}</option>`).join('')}</select></td></tr>`).join('')}
       </tbody></table>
       <p class="muted small">Only <b>Wood</b> parts go into rough stock, board feet, the cutting diagram and templates. Give materials the same name (e.g. all the oak textures "Red oak") to total them as one species.</p>`;
     setup.dataset.id = id;
@@ -244,12 +252,15 @@ export function initLibrary({ current, onOpen, builtIn }) {
     body.querySelectorAll('select[data-mat]').forEach((s) => { categories[s.dataset.mat] = s.value; });
     const labels = {};
     body.querySelectorAll('input[data-label]').forEach((i) => { labels[i.dataset.label] = i.value; });
+    const species = {};
+    body.querySelectorAll('select[data-species]').forEach((sel) => { species[sel.dataset.species] = sel.value; });
     const next = applySetup(cfg, {
       title: body.querySelector('[name=title]').value.trim(),
       subtitle: body.querySelector('[name=subtitle]').value.trim(),
       front: body.querySelector('[name=front]').value,
       categories,
       labels,
+      species,
     });
     await putModelFile(id, 'model.json', JSON.stringify(next, null, 2), { name: next.title });
     setup.style.display = 'none';

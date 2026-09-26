@@ -689,6 +689,10 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     await p2.locator('#clList .row', { hasText: 'Dowel' }).first().click();
     await p2.locator('#dimCard [data-act=aside]').click();
     check(/Set aside "Dowel"/.test(await p2.locator('#toast').innerText()), 'setting a part aside says so, with Undo');
+    await p2.locator('#toast [data-act=undo]').click();
+    check((await rowNames()).includes('Dowel'), 'the notice\'s Undo button puts it back');
+    await p2.locator('#clList .row', { hasText: 'Dowel' }).first().click();
+    await p2.locator('#dimCard [data-act=aside]').click();
     check(!(await rowNames()).includes('Dowel') && await p2.locator('.aside-section .row', { hasText: 'Dowel' }).count() === 1, 'a set-aside part moves to "Set aside · not in the build"');
     check(await woodPieces() === piecesBefore - 1, `set-aside parts leave the wood totals (${piecesBefore} -> ${await woodPieces()})`);
     check(await p2.locator('#dimCard .card-aside').isVisible(), 'its card says it is set aside while still selected');
@@ -699,7 +703,7 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     await p2.locator('.aside-section .show-aside').check();
     check(await dowelShown(), '"Show" draws set-aside parts again');
     await p2.locator('.aside-section .show-aside').uncheck();
-    await p2.locator('#toast [data-act=undo]').click();
+    await p2.keyboard.press('Control+z');
     check((await rowNames()).includes('Dowel'), 'Undo puts it back');
 
     await p2.locator('#clList .row', { hasText: 'Square stock' }).first().click();

@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { woodMaterial, addEndGrain, endMapOf, speciesFor } from './woodtex.js';
 import { formatLength, escapeHtml, toFraction } from './format.js';
 import { compoundAngle, describeAngle, round1, DEFAULT_AXIS_NAMES } from './angles.js';
 import { initSettings, settings, updateSettings, onSettingsChange, resetSettings } from './settings.js';
@@ -104,7 +106,9 @@ renderer.domElement.addEventListener('wheel', (e) => {
   camera.position.copy(controls.target).add(offset);
 }, { passive: false, capture: true });
 
-scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+// soft studio light for reflections, so finished wood has some life to it
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(renderer), 0.04).texture;
+scene.add(new THREE.AmbientLight(0xffffff, 0.45));
 const sun1 = new THREE.DirectionalLight(0xffffff, 1.1);
 sun1.position.set(1, 2, 1.5);
 scene.add(sun1);
@@ -153,11 +157,19 @@ const AXIS_COLORS = { Length: '#ff6b4a', Width: '#7ee08a', Thickness: '#6ab7ff' 
 // length axis: grain then runs along every board the way it's cut, whatever
 // its orientation in the model. U is whichever cross axis lies in the face.
 // Parts without dimension data fall back to world-axis box mapping.
-function generateGrainUV(geometry, tileSize, dims) {
+// UVs that run the wood texture along each part's length (one tile is
+// `tile` inches across the grain and 4x that along it), and an endGrain
+// attribute marking the faces that cut across the length (woodtex.js shows
+// end grain there).
+function generateGrainUV(geometry, tile, dims, seed = 0) {
+  // each board is cut from its own spot in the log (and never mirrored about its middle)
+  const r1 = ((Math.imul(seed, 2654435761) >>> 0) % 1000) / 1000, r2 = ((Math.imul(seed + 1, 2246822519) >>> 0) % 1000) / 1000;
+  const ou = 0.3 + 0.4 * r1, ov = 0.1 + 3 * r2;
   if (!geometry.attributes.normal) geometry.computeVertexNormals();
   const pos = geometry.attributes.position;
   const norm = geometry.attributes.normal;
   const uv = new Float32Array(pos.count * 2);
+  const end = new Float32Array(pos.count);
   const byRole = dims ? Object.fromEntries(dims.axes.map((a) => [a.role, new THREE.Vector3(...a.direction)])) : {};
   const L = byRole.Length, W = byRole.Width, T = byRole.Thickness;
   const c = dims ? new THREE.Vector3(...dims.center) : new THREE.Vector3();
@@ -165,11 +177,11 @@ function generateGrainUV(geometry, tileSize, dims) {
   for (let i = 0; i < pos.count; i++) {
     p.fromBufferAttribute(pos, i);
     n.fromBufferAttribute(norm, i);
-    let u, v;
+    let u, v, along = 4;
     if (L && W && T) {
       p.sub(c);
       const nl = Math.abs(n.dot(L)), nw = Math.abs(n.dot(W)), nt = Math.abs(n.dot(T));
-      if (nl > nw && nl > nt) { u = p.dot(W); v = p.dot(T); } // end grain
+      if (nl > nw && nl > nt) { u = p.dot(W); v = p.dot(T); along = 1; end[i] = 1; } // end grain
       else { u = nw > nt ? p.dot(T) : p.dot(W); v = p.dot(L); }
     } else {
       const ax = Math.abs(n.x), ay = Math.abs(n.y), az = Math.abs(n.z);
@@ -177,58 +189,11 @@ function generateGrainUV(geometry, tileSize, dims) {
       else if (ay >= ax && ay >= az) { u = p.x; v = p.z; }
       else { u = p.x; v = p.y; }
     }
-    uv[i * 2] = u / tileSize;
-    uv[i * 2 + 1] = v / tileSize;
+    uv[i * 2] = u / tile + ou;
+    uv[i * 2 + 1] = v / (tile * along) + (along === 1 ? 0.5 : ov);
   }
   geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-}
-
-// Seeded so the grain looks the same on every load (and in screenshots).
-function mulberry32(seed) {
-  return () => {
-    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-const woodTextureCache = new Map();
-function getWoodTexture(key, { base, streak, ring }) {
-  if (woodTextureCache.has(key)) return woodTextureCache.get(key);
-  const rand = mulberry32([...key].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7));
-  const size = 512;
-  const canvas = document.createElement('canvas');
-  canvas.width = size; canvas.height = size;
-  const g = canvas.getContext('2d');
-  g.fillStyle = base;
-  g.fillRect(0, 0, size, size);
-  for (let i = 0; i < 90; i++) {
-    let x = rand() * size;
-    g.strokeStyle = rand() < 0.5 ? streak : ring;
-    g.globalAlpha = 0.06 + rand() * 0.16;
-    g.lineWidth = 0.5 + rand() * 2.2;
-    g.beginPath();
-    g.moveTo(x, 0);
-    for (let y = 0; y <= size; y += 14) { x += (rand() - 0.5) * 9; g.lineTo(x, y); }
-    g.stroke();
-  }
-  for (let i = 0; i < 2; i++) {
-    if (rand() < 0.5) continue;
-    const kx = rand() * size, ky = rand() * size, kr = 6 + rand() * 10;
-    const grad = g.createRadialGradient(kx, ky, 1, kx, ky, kr);
-    grad.addColorStop(0, streak);
-    grad.addColorStop(1, base);
-    g.globalAlpha = 0.5;
-    g.fillStyle = grad;
-    g.beginPath(); g.arc(kx, ky, kr, 0, Math.PI * 2); g.fill();
-  }
-  g.globalAlpha = 1;
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  woodTextureCache.set(key, tex);
-  return tex;
+  geometry.setAttribute('endGrain', new THREE.BufferAttribute(end, 1));
 }
 
 // ---------- loading ----------
@@ -589,7 +554,7 @@ function showToast(msg, { undo = false, ms = 0 } = {}) {
   el.classList.add('show');
   el.querySelector('[data-act="undo"]')?.addEventListener('click', () => undoEdit());
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), ms || (undo ? 6000 : 2500));
+  toastTimer = setTimeout(() => el.classList.remove('show'), ms || (undo ? 9000 : 3000));
 }
 
 function prepareMeshes(materialNames) {
@@ -598,23 +563,27 @@ function prepareMeshes(materialNames) {
     // parts with SketchUp's default (no) material are configured as "(none)"
     const mtlName = materialNames[child.material && child.material.name];
     const realName = mtlName === 'default' && config.materials?.['(none)'] ? '(none)' : mtlName;
-    const tex = config.materials?.[realName]?.texture;
-    if (tex) {
-      generateGrainUV(child.geometry, tex.tile || 5, objectDims[child.name]);
-      child.material = new THREE.MeshStandardMaterial({ map: getWoodTexture(realName, tex), roughness: 0.85, metalness: 0.0 });
+    const mc = config.materials?.[realName];
+    if (mc?.texture || mc?.species) {
+      // wood: the species set in Set up, else guessed from the material's names
+      const seed = [...child.name].reduce((h, ch) => (Math.imul(h, 31) + ch.charCodeAt(0)) | 0, 17);
+      generateGrainUV(child.geometry, 6, objectDims[child.name], seed);
+      child.material = woodMaterial(mc.species || speciesFor(mc.label, realName), mc.texture);
+      child.material.color.multiplyScalar(0.9 + 0.14 * (((seed >>> 0) % 97) / 97)); // no two boards quite the same shade
     } else {
       child.material = child.material.clone(); // own copy so clipping/wireframe flags are per mesh
     }
     const orig = child.material;
-    const dim = orig.clone();
+    const endMap = endMapOf(orig);
+    const dim = addEndGrain(orig.clone(), endMap);
     dim.transparent = true;
     dim.opacity = 0.18;
     dim.depthWrite = false;
-    const hl = orig.clone();
+    const hl = addEndGrain(orig.clone(), endMap);
     hl.emissive = new THREE.Color(0xff5b3d);
     hl.emissiveIntensity = 0.55;
     if (!hl.map) hl.color = new THREE.Color(0xff8a66);
-    const hlPiece = hl.clone(); // the one piece clicked of a part with several
+    const hlPiece = addEndGrain(hl.clone(), endMap); // the one piece clicked of a part with several
     hlPiece.emissive = new THREE.Color(0xffb020);
     if (!hlPiece.map) hlPiece.color = new THREE.Color(0xffc266);
     const row = rowByMeshName.get(child.name);

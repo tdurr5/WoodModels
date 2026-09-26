@@ -18,6 +18,7 @@ A 3D cut-list viewer for woodworking plans, starting with the Lie-Nielsen/Brian 
   - `angles.js`, `format.js` - compound-angle math, fractions, rough stock, board feet (pure, unit-tested)
   - `library.js`, `collada.js`, `zip.js`, `modelstore.js` - uploading models in the browser: COLLADA parser (a port of `parse_dae.py`), zip/KMZ reading, saved models (IndexedDB)
   - `edits.js` - your renames, deleted parts and parts set aside, per model
+  - `woodtex.js` - species wood textures (side and end grain) generated in the browser
   - `settings.js` - per-browser preferences (units, allowances, parts ticked off)
   - `model.json` - per-model settings: title, friendly part names, notes, materials, axis names, view presets
   - `vendor/three/` - pinned three.js 0.160 build and the three addons used (MIT)
@@ -64,6 +65,7 @@ It only publishes when you run it by hand. Open the published page once while on
 - ⚠ notes flag known problems in the source model (e.g. rods whose name says 8-1/4" but are modeled 6-7/8").
 
 **3D view**
+- **Realistic wood**: each species has its own look - colour, growth rings with cathedral grain along the board, open pores in oak and ash, oak's ray fleck, knots in pine - with end grain on the ends of boards. The species is guessed from the material's name (in several languages); pick it yourself under **Looks like** in Set up. Textures are generated in the browser, so they work offline.
 - Click a part (on the model or in the list) to isolate it. You'll see its dimensions drawn on the part's own axes and a card with size, quantity and angles.
 - Angled parts can show their lean: click **∠ Show angles** on the part's card (it's off until you ask, so only your own measurements are drawn). You get the total lean from plumb (or level) as arcs, split into front-to-back and side-to-side components. Legs also get the chairmaker's resultant/sightline angle and a bevel-gauge setting.
 - The card lists what the part **joins** (click to jump there) and its **holes**, e.g. "4 × ⌀1/2" for Threaded Rod". A rod's card is a drilling list of the parts it passes through.

@@ -354,6 +354,8 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
   .ps-diagrams .board-svg text, .ps-diagrams .board-svg text.dim { fill: #000; }
 }
 .setup-mats input { width: 100%; min-width: 90px; box-sizing: border-box; }
+.lib-box.setup-box { width: min(760px, calc(100% - 24px)); }
+@media (max-width: 800px) { .setup-mats th:nth-child(2), .setup-mats td:nth-child(2) { display: none; } }
 .group-title .gt-name { cursor: pointer; }
 .group-title .gt-name:hover { text-decoration: underline; }
 .group-title.active .gt-name { color: var(--accent-text); }
