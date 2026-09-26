@@ -115,6 +115,8 @@ try {
   const report = JSON.parse(fs.readFileSync(path.join(VIEWER, 'parts_report.json'), 'utf8'));
   const rowCount = await page.locator('#clList .row').count();
   check(rowCount === report.length, `sidebar has one row per cut-list entry (${rowCount}/${report.length})`);
+  const warns = await page.locator('#clList .note.warn').allInnerTexts();
+  check(warns.length === 2 && warns.some((w) => w.includes('Named 8-1/4"')), `rods whose names disagree with their geometry are flagged (${warns.length})`);
   const disabled = await page.locator('#clList .row.disabled').count();
   const expectedDisabled = report.filter((r) => !r.obj_names || !r.obj_names.length).length;
   check(disabled === expectedDisabled, `rows with no 3D geometry are disabled (${disabled}/${expectedDisabled})`);

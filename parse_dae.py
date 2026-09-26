@@ -525,8 +525,35 @@ def build_report(instances, geoms, material_info):
         d = r['dims']
         out_rows.append({**r, 'materials': sorted(r['materials']),
                          'dims_str': f"{to_frac(d[0])} x {to_frac(d[1])} x {to_frac(d[2])}"})
+    for r in out_rows:
+        w = named_length_warning(r['label'], r['dims'])
+        if w:
+            r['warning'] = w
     apply_manual_corrections(out_rows)
     return out_rows
+
+
+# whole_numerator_denominator; a lookahead so matches can overlap (in
+# 'Shaft_1_2_-13_8_1_4' the thread '13_8_1' must not swallow the '8_1_4')
+NAMED_LENGTH = re.compile(r'(?<![0-9])(?=(\d+)_(\d+)_(\d+)(?![0-9]))')
+
+
+def named_length_warning(label, dims):
+    """SketchUp component names often carry a size, e.g. 'Shaft_1_2_-13_8_1_4'
+    = a 1/2"-13 rod 8-1/4" long (whole_numerator_denominator). If a name
+    states a length that none of the part's measured dimensions match (to
+    1/16"), the model and its name disagree - worth checking the plan."""
+    named = []
+    for whole, num, den in NAMED_LENGTH.findall(label):
+        whole, num, den = int(whole), int(num), int(den)
+        if 0 < num < den and den in (2, 4, 8, 16, 32, 64):
+            named.append(whole + num / den)
+    if not named:
+        return None
+    if any(abs(n - d) <= 1 / 16 for n in named for d in dims):
+        return None
+    n = max(named)
+    return f'Named {to_frac(n)} in the source model but modeled {to_frac(max(dims))} long - check the plan.'
 
 
 def apply_manual_corrections(rows):

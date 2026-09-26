@@ -20,7 +20,9 @@ export function prepareRows(rawRows, config) {
     // parse_dae.py writes dims_str as sixteenths L x W x T; anything else is a
     // hand-written override (e.g. hex hardware) that should be shown as-is.
     const standard = `${toFraction(l)} x ${toFraction(w)} x ${toFraction(t)}`;
-    const notes = [r.note, (config.notes || {})[r.label]].filter(Boolean);
+    // r.warning: parse_dae.py found the part's name disagrees with its geometry
+    const warning = r.warning || (config.notes || {})[r.label];
+    const notes = [r.note, warning].filter(Boolean);
     return {
       ...r,
       key: `${r.label}|${r.dims.join('x')}`,
@@ -32,7 +34,7 @@ export function prepareRows(rawRows, config) {
       color: (mats[matName] && mats[matName].color) || '#666',
       customDims: r.dims_str !== standard ? r.dims_str : null,
       notes,
-      warn: !!(config.notes || {})[r.label],
+      warn: !!warning,
       clickable: !!(r.obj_names && r.obj_names.length),
     };
   });

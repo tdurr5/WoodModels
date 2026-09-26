@@ -138,6 +138,20 @@ class ConvertFixture(unittest.TestCase):
                 os.environ['WOODMODELS_DAE'] = env
 
 
+class NamedLengths(unittest.TestCase):
+    def test_flags_names_that_disagree_with_the_geometry(self):
+        w = parse_dae.named_length_warning('Shaft_1_2_-13_8_1_4', [6.875, 0.5, 0.5])
+        self.assertEqual(w, 'Named 8-1/4" in the source model but modeled 6-7/8" long - check the plan.')
+        self.assertIsNotNone(parse_dae.named_length_warning('Shaft_1_2__-13_4_3_4', [5.0625, 0.5, 0.5]))
+
+    def test_quiet_when_name_matches_or_has_no_length(self):
+        self.assertIsNone(parse_dae.named_length_warning('Shaft_1_2_-13_6_7_8', [6.875, 0.5, 0.5]))
+        self.assertIsNone(parse_dae.named_length_warning('Nut_3_4', [0.75, 0.65, 0.4]))
+        self.assertIsNone(parse_dae.named_length_warning('Bolt_Head__6', [0.43, 0.375, 0.33]))
+        self.assertIsNone(parse_dae.named_length_warning('Treadle_Jaw_Upper__8', [2.75, 1, 1]))
+        self.assertIsNone(parse_dae.named_length_warning('Leg_2_3_5', [20, 3, 1]))  # not a real fraction
+
+
 class Units(unittest.TestCase):
     def test_metric_model_is_converted_to_inches(self):
         with tempfile.TemporaryDirectory() as tmp:
