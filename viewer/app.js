@@ -336,7 +336,9 @@ function applyMaterials() {
 let capMesh = null;
 const stencilHelpers = [];
 
+const singleSidedCache = new WeakMap();
 function singleSidedGeometry(geo) {
+  if (singleSidedCache.has(geo)) return singleSidedCache.get(geo);
   const src = geo.index ? geo.toNonIndexed() : geo;
   const pos = src.attributes.position.array;
   const seen = new Set();
@@ -350,6 +352,7 @@ function singleSidedGeometry(geo) {
   }
   const out = new THREE.BufferGeometry();
   out.setAttribute('position', new THREE.Float32BufferAttribute(keep, 3));
+  singleSidedCache.set(geo, out);
   return out;
 }
 
