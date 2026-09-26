@@ -204,7 +204,7 @@ export function initLibrary({ current, onOpen, builtIn }) {
         <td class="num">${uses[m] || 0} pc</td>
         <td><select data-mat="${escapeHtml(m)}">${CATEGORIES.map((c) => `<option${c === cfg.materials[m].category ? ' selected' : ''}>${c}</option>`).join('')}</select></td></tr>`).join('')}
       </tbody></table>
-      <p class="muted small">Only <b>Wood</b> parts go into rough stock, board feet, the cutting diagram and templates. Parts with no material count as Other.</p>`;
+      <p class="muted small">Only <b>Wood</b> parts go into rough stock, board feet, the cutting diagram and templates.</p>`;
     setup.dataset.id = id;
     setup.style.display = 'flex';
   }

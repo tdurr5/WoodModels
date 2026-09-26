@@ -16,6 +16,7 @@ A 3D cut-list viewer for woodworking plans, starting with the Lie-Nielsen/Brian 
   - `geometry.js` - oriented-box contact tests (what joins what, where holes go)
   - `measure.js` - distance / angle / bevel tools with snapping
   - `angles.js`, `format.js` - compound-angle math, fractions, rough stock, board feet (pure, unit-tested)
+  - `library.js`, `collada.js`, `zip.js`, `modelstore.js` - uploading models in the browser: COLLADA parser (a port of `parse_dae.py`), zip/KMZ reading, saved models (IndexedDB)
   - `settings.js` - per-browser preferences (units, allowances, parts ticked off)
   - `model.json` - per-model settings: title, friendly part names, notes, materials, axis names, view presets
   - `vendor/three/` - pinned three.js 0.160 build and the three addons used (MIT)
@@ -79,7 +80,17 @@ It only publishes when you run it by hand. Open the published page once while on
 - Moving along the part's length, width or thickness (or level/plumb) locks the point onto that line and shows a dashed guide, SketchUp-style. While locked, it also snaps to wherever that line meets an edge of the part, its surface or the outline box, so the next point lands exactly on, say, an angled cut. A marker previews the snap. `Backspace`/`Ctrl+Z` undoes.
 - Dragging to orbit or pan never changes the selection. Only a plain click does.
 
-Press `?` in the viewer for all shortcuts; the same panel has a button to reset your saved preferences.
+Press `M` to open the models list (upload / switch models). Press `?` in the viewer for all shortcuts; the same panel has a button to reset your saved preferences.
+
+## Uploading models (3D Warehouse)
+
+Click **Models** at the top of the sidebar (or press `M`), then choose a file - or just drag a file onto the page.
+
+1. On 3D Warehouse, open the model and use **Download → Collada File** (a `.zip`) or **KMZ**. The SketchUp `.skp` download can't be read in a browser; in SketchUp itself, **File → Export → 3D Model → COLLADA (.dae)** works too.
+2. Upload the `.zip`, `.kmz` or `.dae`. It's measured in the browser the same way `parse_dae.py` does it (any units, Z-up or Y-up, other exporters' COLLADA 1.4/1.5), so every tool - cut list, rough stock, joins, templates, cutting diagram, angle tools - works on it.
+3. A **Set up** dialog opens: name it, pick which materials count as **Wood** (only wood goes into rough stock, board feet and the cutting diagram), and which way the front of the piece faces. You can reopen it any time from the **Set up** button in the sidebar.
+
+Uploads are saved in this browser (nothing is sent anywhere), and the page reopens the model you had open last. Ticked-off parts, notes and preferences are kept per model. In the Models list you can switch between models, **Download** one as a zip of the six data files (to back it up, move it to another device - just upload the zip there - or add it to the repo as a `?model=` folder), or **Delete** it.
 
 ## Regenerating the data
 
@@ -110,7 +121,8 @@ npm test           # python parser tests, node unit tests, headless browser smok
 
 - `tests/test_parse_dae.py` runs the parser on a synthetic SketchUp-style COLLADA file (`tests/make_fixture.py`) and checks the committed viewer data for consistency.
 - `tests/unit.test.mjs` covers fractions, rough stock, board feet, compound angles and the board-nesting packer, including a randomized overlap/overhang check.
-- `tests/viewer_smoke.mjs` drives the real viewer in headless Chromium through every feature. It also checks that nothing is fetched from outside the viewer folder, and writes screenshots, a CSV and PDF cut sheet/template to `test-output/`.
+- `tests/parser_parity.mjs` runs the Python parser and the browser parser (`viewer/collada.js`) on the same COLLADA variants (units, Y-up, polygons, translate/rotate, COLLADA 1.5, no namespace) and checks they produce identical data. `PARITY_SAMPLES=/folder` adds your own `.dae` files.
+- `tests/viewer_smoke.mjs` drives the real viewer in headless Chromium through every feature, including uploading a Warehouse-style zip, a KMZ and a `.skp`. It also checks that nothing is fetched from outside the viewer folder, and writes screenshots, a CSV and PDF cut sheet/template to `test-output/`.
 
 CI runs the same `npm test` (`.github/workflows/test.yml`).
 

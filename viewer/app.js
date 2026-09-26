@@ -294,7 +294,10 @@ async function init() {
   rememberOpened(LOCAL_ID ? `local:${LOCAL_ID}` : MODEL_REF);
   applySettingsToScene();
   selectFromHash();
-  if (new URLSearchParams(location.search).has('setup') && LOCAL_ID) library.openSetup(LOCAL_ID);
+  if (new URLSearchParams(location.search).has('setup') && LOCAL_ID) {
+    history.replaceState(null, '', `${location.pathname}?model=${encodeURIComponent(MODEL_REF)}${location.hash}`); // a reload shouldn't reopen it
+    library.openSetup(LOCAL_ID);
+  }
   else if (!settings().seenIntro) $('introTip').style.display = 'block';
 }
 
@@ -1498,6 +1501,7 @@ window.__viewer = {
   get camera() { return camera; },
   get model() { return model; },
   get current() { return current; },
+  get config() { return config; },
   currentSelectionMeshes: () => (current ? current.meshes : []),
   measureClickCount: () => measure.points.length + measure.measurements.length * 2,
   setExplode, setView, selectRow, rows: () => rows,

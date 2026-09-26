@@ -12,6 +12,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 import { chromium } from 'playwright';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -586,6 +587,118 @@ try {
   } finally {
     await b2.close();
     fs.rmSync(sub, { recursive: true, force: true });
+  }
+}
+
+// ---------- uploading models (3D Warehouse Collada zip / KMZ / .dae) ----------
+{
+  console.log('upload a model');
+  const tmp = fs.mkdtempSync(path.join(OUT, 'upload-'));
+  const warehouseZip = path.join(tmp, 'Shaker Side Table.zip');
+  const kmz = path.join(tmp, 'Step Stool.kmz');
+  // what 3D Warehouse's "Collada File" download looks like: a deflated zip with
+  // the .dae in a folder next to its textures; KMZ is the same with doc.kml
+  execFileSync('python3', ['-c', `
+import sys, zipfile
+sys.path.insert(0, ${JSON.stringify(path.join(ROOT, 'tests'))})
+import make_fixture
+dae = make_fixture.build()
+with zipfile.ZipFile(${JSON.stringify(warehouseZip)}, 'w', zipfile.ZIP_DEFLATED) as z:
+    z.writestr('model/texture.jpg', b'x' * 10)
+    z.writestr('model/Shaker Side Table.dae', dae)
+    z.writestr('__MACOSX/model/._Shaker Side Table.dae', b'junk' * 100000)
+with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
+    z.writestr('doc.kml', '<kml/>')
+    z.writestr('models/untitled.dae', make_fixture.build(unit_meter=0.001, scale=25.4))
+`]);
+  fs.writeFileSync(path.join(tmp, 'chair.skp'), 'SketchUp binary');
+  const b2 = await chromium.launch(launchOpts);
+  const ctx = await b2.newContext({ viewport: { width: 1400, height: 900 }, acceptDownloads: true });
+  const p2 = await ctx.newPage();
+  const errs = [];
+  p2.on('pageerror', (e) => errs.push(`pageerror: ${e.message}`));
+  p2.on('console', (m) => { if (m.type() === 'error' && !/can't be read in a browser/.test(m.text())) errs.push(`console: ${m.text()}`); });
+  p2.on('dialog', (d) => d.accept());
+  const loaded = () => p2.waitForFunction(() => document.getElementById('loading').style.display === 'none', null, { timeout: 30000 });
+  try {
+    await p2.goto(base);
+    await loaded();
+    await p2.locator('#clLibrary').click();
+    check(await p2.locator('#library').isVisible(), 'Models button opens the library');
+    await p2.waitForSelector('#library .lib-empty');
+    check((await p2.locator('#library .lib-item').count()) === 1, 'library starts with just the built-in model');
+
+    await p2.locator('#libFile').setInputFiles(path.join(tmp, 'chair.skp'));
+    await p2.waitForFunction(() => document.querySelector('#library .lib-status').classList.contains('error'));
+    check(/Collada File/.test(await p2.locator('#library .lib-status').innerText()), '.skp upload explains how to get a Collada file instead');
+
+    await p2.locator('#libFile').setInputFiles(warehouseZip);
+    await p2.waitForURL(/\?model=local%3A\w+&setup=1/, { timeout: 30000 });
+    await loaded();
+    check(await p2.locator('#setup').isVisible(), 'a new upload opens straight into its setup');
+    check(!new URL(p2.url()).searchParams.has('setup'), 'the setup flag leaves the URL (a reload will not reopen it)');
+    check((await p2.locator('#setup [name=title]').inputValue()) === 'Shaker Side Table', 'model is named after the uploaded file');
+    const mats = await p2.locator('#setup select[data-mat]').evaluateAll((els) => els.map((e) => [e.dataset.mat, e.value]));
+    check(mats.some(([m, c]) => m === 'Wood' && c === 'Wood') && !mats.some(([m]) => /edge_color/.test(m)), `materials are listed with a guessed category (${JSON.stringify(mats)})`);
+    const rows1 = await p2.locator('#clList .row').count();
+    check(rows1 === 2, `uploaded model's cut list is built (${rows1} rows)`);
+    await p2.screenshot({ path: path.join(OUT, '40-upload-setup.png') });
+    await p2.locator('#setup [name=title]').fill('Side Table');
+    await p2.locator('#setup [name=front]').selectOption('+Z');
+    await Promise.all([p2.waitForEvent('load'), p2.locator('#setup .setup-save').click()]);
+    await loaded();
+    check((await p2.locator('#sidebar h1').innerText()) === 'Side Table', 'setup saves the new name');
+    const front = await p2.evaluate(() => window.__viewer.config.views.front.dir);
+    check(JSON.stringify(front) === '[0,0,1]', `setup saves which way is front (${front})`);
+    await p2.screenshot({ path: path.join(OUT, '41-uploaded.png') });
+
+    // select a part, tick it, then come back without any ?model=
+    await p2.locator('#clList .row', { hasText: 'Board' }).first().click();
+    const card = await p2.locator('#dimCard .dim-big').innerText();
+    check(/"/.test(card), `uploaded parts can be selected and measured (${card})`);
+    await p2.goto(base);
+    await loaded();
+    check((await p2.locator('#sidebar h1').innerText()) === 'Side Table', 'opening the page again reopens the last uploaded model');
+
+    // KMZ in millimetres lands at the same size
+    await p2.locator('#clLibrary').click();
+    await p2.locator('#libFile').setInputFiles(kmz);
+    await p2.waitForURL(/setup=1/, { timeout: 30000 });
+    await loaded();
+    await p2.locator('#setup .setup-cancel').click();
+    check((await p2.locator('#sidebar h1').innerText()) === 'Step Stool', 'KMZ uploads work and take the file name');
+    const dimsA = await p2.locator('#clList .row .dims').allInnerTexts();
+    await p2.locator('#clLibrary').click();
+    await p2.waitForFunction(() => document.querySelectorAll('#library .lib-item').length === 3).catch(() => {});
+    check((await p2.locator('#library .lib-item').count()) === 3, 'library lists built-in + both uploads');
+    await p2.locator('#library .lib-item', { hasText: 'Side Table' }).locator('[data-act=open]').click();
+    await loaded();
+    const dimsB = await p2.locator('#clList .row .dims').allInnerTexts();
+    check(dimsA.length > 0 && dimsA.join() === dimsB.join(), `millimetre KMZ measures the same as the inch zip (${dimsA[0]})`);
+
+    // download, delete, re-import the download
+    await p2.locator('#clLibrary').click();
+    const [dl] = await Promise.all([p2.waitForEvent('download'), p2.locator('#library .lib-item', { hasText: 'Side Table' }).locator('[data-act=export]').click()]);
+    const saved = path.join(tmp, dl.suggestedFilename());
+    await dl.saveAs(saved);
+    check(dl.suggestedFilename() === 'side-table.zip', `Download saves a zip named after the model (${dl.suggestedFilename()})`);
+    const listing = execFileSync('python3', ['-c', `import zipfile; print('\\n'.join(zipfile.ZipFile(${JSON.stringify(saved)}).namelist()))`]).toString();
+    check(/side-table\/model\.json/.test(listing) && /side-table\/scene\.obj/.test(listing), 'the zip holds the six data files in a folder (drop it next to the viewer and use ?model=)');
+    await p2.locator('#library .lib-item', { hasText: 'Side Table' }).locator('[data-act=delete]').click();
+    await p2.waitForURL(/\?model=$/);
+    await loaded();
+    check((await p2.locator('#sidebar h1').innerText()) === 'Shaving Horse', 'deleting the open model goes back to the built-in one');
+    await p2.locator('#clLibrary').click();
+    await p2.locator('#libFile').setInputFiles(saved);
+    await p2.waitForURL(/setup=1/, { timeout: 30000 });
+    await loaded();
+    await p2.locator('#setup .setup-cancel').click();
+    const again = await p2.evaluate(() => window.__viewer.config.views.front.dir);
+    check((await p2.locator('#sidebar h1').innerText()) === 'Side Table' && JSON.stringify(again) === '[0,0,1]', 're-importing a downloaded zip keeps its setup');
+    check(errs.length === 0, `no page errors during uploads${errs.length ? ':\n    ' + errs.join('\n    ') : ''}`);
+  } finally {
+    await b2.close();
+    fs.rmSync(tmp, { recursive: true, force: true });
   }
 }
 
