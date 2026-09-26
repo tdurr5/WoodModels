@@ -118,4 +118,4 @@ The source SketchUp file has a few quirks that `parse_dae.py` works around (comm
 - One hardware component's geometry is corrupted (huge bogus bounding box). It's left out of the 3D view, and its quantity is inferred from the matching rod count.
 - Two hardware parts are modeled as several small face facets per real fastener rather than one part per instance, so quantities are corrected to the real fastener count.
 - Some parts' mesh geometry is pre-rotated in the source file rather than transformed through the scene graph. `parse_dae.py` detects this by comparing an axis-aligned box against a PCA-fitted oriented one and uses whichever is tighter.
-- Two threaded rods are named for a different length than they're modeled at (8-1/4" named / 6-7/8" modeled, and 4-3/4" / 5-1/16"). The viewer flags them; check the paper plan before buying rod.
+- Two threaded rods are named for a different length than they're modeled at (8-1/4" named / 6-7/8" modeled, and 4-3/4" / 5-1/16"). `parse_dae.py` checks every part's name for a stated length like this and flags mismatches, and the viewer shows them with a ⚠. Check the paper plan before buying rod.
