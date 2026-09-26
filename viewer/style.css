@@ -344,3 +344,4 @@ body.dragging #dropHint { display: flex; }
 #dimCard .card-variants { margin: 3px 0 0 0; padding-left: 16px; font-style: normal; }
 #dimCard .card-variants li { margin: 1px 0; }
 #dimCard .card-piece { margin-top: 6px; font-size: 11.5px; color: var(--text-2); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+#dimCard .angle-toggle { margin-top: 5px; }

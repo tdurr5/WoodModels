@@ -1035,7 +1035,7 @@ function buildSelectionOverlays() {
     const sub = new THREE.Group();
     sub.position.copy(m.position); // exploded-view offset
     if (i < (current.row.customDims ? 1 : MAX_DIMENSIONED)) buildDimensionGizmo(sub, data, labelSpecs, m.position, i ? first : null);
-    buildAngleGizmo(sub, data, labelSpecs, m.position);
+    if (settings().showPartAngles) buildAngleGizmo(sub, data, labelSpecs, m.position);
     // several versions of the part: number each piece by its version
     if (variants.length > 1) {
       const v = variants.findIndex((g) => g.meshes.includes(m));
@@ -1397,7 +1397,8 @@ function renderDimCard() {
     ${row.status === 'aside' ? '<div class="card-aside">Set aside - not in the build (not counted in totals, shopping list or prints)</div>' : ''}
     <div class="dim-big">${escapeHtml(finishedDims(row))}</div>
     <div class="dim-axes">${row.customDims ? '' : 'Thickness × Width × Length'}</div>
-    ${angleHtml(data)}
+    ${settings().showPartAngles ? angleHtml(data) : ''}
+    ${angleHtml(data) ? `<button class="card-btn angle-toggle" data-act="angles" title="The part's lean / splay angles, worked out from the model">${settings().showPartAngles ? 'Hide angles' : '∠ Show angles'}</button>` : ''}
     <div class="meta">qty ${row.count} · ${escapeHtml(row.materialLabel)} · ${escapeHtml(row.groupName)}</div>
     ${variantsHtml(current.variants)}
     ${contactHtml(row)}
@@ -1442,6 +1443,7 @@ function renderDimCard() {
   const tplBtn = dimCard.querySelector('[data-act="template"]');
   if (tplBtn) tplBtn.addEventListener('click', () => printTemplate());
   dimCard.querySelector('.pn-edit').addEventListener('click', () => renameSelected());
+  dimCard.querySelector('[data-act="angles"]')?.addEventListener('click', () => updateSettings({ showPartAngles: !settings().showPartAngles }));
   dimCard.querySelector('[data-act="aside"]')?.addEventListener('click', () => setPartStatus([row], 'aside'));
   dimCard.querySelector('[data-act="build"]')?.addEventListener('click', () => setPartStatus([row], null));
   dimCard.querySelector('[data-act="delete"]').addEventListener('click', () => setPartStatus([row], 'deleted'));

@@ -145,8 +145,11 @@ try {
   console.log('angled part');
   await page.locator('#clList .row', { hasText: 'Leg Rear' }).first().click();
   await page.waitForTimeout(300);
+  check(!/off plumb/.test(await page.locator('#dimCard').innerText()) && !(await page.locator('#axisLabels .axisLabel').allInnerTexts()).some((t) => t.includes('°')),
+    'the part\'s own angles are hidden until asked for (only your measurements show)');
+  await page.locator('#dimCard [data-act=angles]').click();
   const legCard = await page.locator('#dimCard').innerText();
-  check(/off plumb/.test(legCard), 'splayed rear leg reports a compound angle');
+  check(/off plumb/.test(legCard) && (await page.locator('#axisLabels .axisLabel').allInnerTexts()).some((t) => t.includes('°')), '"Show angles" shows the splayed rear leg\'s compound angle');
   await page.screenshot({ path: path.join(OUT, '03-leg-rear.png') });
 
   console.log('click on model');

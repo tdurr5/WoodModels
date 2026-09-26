@@ -65,7 +65,7 @@ It only publishes when you run it by hand. Open the published page once while on
 
 **3D view**
 - Click a part (on the model or in the list) to isolate it. You'll see its dimensions drawn on the part's own axes and a card with size, quantity and angles.
-- Angled parts show their lean as arcs: total lean from plumb (or level), split into front-to-back and side-to-side components. Legs also get the chairmaker's resultant/sightline angle and a bevel-gauge setting.
+- Angled parts can show their lean: click **∠ Show angles** on the part's card (it's off until you ask, so only your own measurements are drawn). You get the total lean from plumb (or level) as arcs, split into front-to-back and side-to-side components. Legs also get the chairmaker's resultant/sightline angle and a bevel-gauge setting.
 - The card lists what the part **joins** (click to jump there) and its **holes**, e.g. "4 × ⌀1/2" for Threaded Rod". A rod's card is a drilling list of the parts it passes through.
 - **Print full-size template** (on a wood part's card): face and edge views at 1:1, tiled across letter pages with a 1" check square. Tape the tiles together and trace the part onto your stock.
 - **3D / Front / Side / Top** views (`1`-`4`). Straight-on views switch to **Ortho** for true-scale elevations (`O` toggles it).
