@@ -131,18 +131,34 @@ const axisLabelsEl = $('axisLabels');
 const AXIS_COLORS = { Length: '#ff6b4a', Width: '#7ee08a', Thickness: '#6ab7ff' };
 
 // ---------- procedural wood grain (no external texture assets needed) ----------
-function generateBoxUV(geometry, tileSize) {
+// Texture streaks run along the texture's V axis, so map V to the part's own
+// length axis: grain then runs along every board the way it's cut, whatever
+// its orientation in the model. U is whichever cross axis lies in the face.
+// Parts without dimension data fall back to world-axis box mapping.
+function generateGrainUV(geometry, tileSize, dims) {
   if (!geometry.attributes.normal) geometry.computeVertexNormals();
   const pos = geometry.attributes.position;
   const norm = geometry.attributes.normal;
   const uv = new Float32Array(pos.count * 2);
+  const byRole = dims ? Object.fromEntries(dims.axes.map((a) => [a.role, new THREE.Vector3(...a.direction)])) : {};
+  const L = byRole.Length, W = byRole.Width, T = byRole.Thickness;
+  const c = dims ? new THREE.Vector3(...dims.center) : new THREE.Vector3();
+  const p = new THREE.Vector3(), n = new THREE.Vector3();
   for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
-    const nx = Math.abs(norm.getX(i)), ny = Math.abs(norm.getY(i)), nz = Math.abs(norm.getZ(i));
+    p.fromBufferAttribute(pos, i);
+    n.fromBufferAttribute(norm, i);
     let u, v;
-    if (nx >= ny && nx >= nz) { u = y; v = z; }
-    else if (ny >= nx && ny >= nz) { u = x; v = z; }
-    else { u = x; v = y; }
+    if (L && W && T) {
+      p.sub(c);
+      const nl = Math.abs(n.dot(L)), nw = Math.abs(n.dot(W)), nt = Math.abs(n.dot(T));
+      if (nl > nw && nl > nt) { u = p.dot(W); v = p.dot(T); } // end grain
+      else { u = nw > nt ? p.dot(T) : p.dot(W); v = p.dot(L); }
+    } else {
+      const ax = Math.abs(n.x), ay = Math.abs(n.y), az = Math.abs(n.z);
+      if (ax >= ay && ax >= az) { u = p.y; v = p.z; }
+      else if (ay >= ax && ay >= az) { u = p.x; v = p.z; }
+      else { u = p.x; v = p.y; }
+    }
     uv[i * 2] = u / tileSize;
     uv[i * 2 + 1] = v / tileSize;
   }
@@ -248,7 +264,7 @@ function prepareMeshes(materialNames) {
     const realName = materialNames[child.material && child.material.name];
     const tex = config.materials?.[realName]?.texture;
     if (tex) {
-      generateBoxUV(child.geometry, tex.tile || 5);
+      generateGrainUV(child.geometry, tex.tile || 5, objectDims[child.name]);
       child.material = new THREE.MeshStandardMaterial({ map: getWoodTexture(realName, tex), roughness: 0.85, metalness: 0.0 });
     } else {
       child.material = child.material.clone(); // own copy so clipping/wireframe flags are per mesh
@@ -329,13 +345,17 @@ function setWireframe(on) {
   $('wireBtn').classList.toggle('on', on);
 }
 
-function setExplode(f) {
-  explode = f;
+function setExplodePositions(f) {
   meshes.forEach((m) => {
     const { baseCenter, groupCenter } = meshInfo.get(m);
     m.position.copy(groupCenter).sub(modelCenter).multiplyScalar(f)
       .add(baseCenter.clone().sub(groupCenter).multiplyScalar(f * 0.6));
   });
+}
+
+function setExplode(f) {
+  explode = f;
+  setExplodePositions(f);
   $('explodeRange').value = String(f);
   // measurements were taken on the parts' old positions
   if (measure.measurements.length) measure.clear();
@@ -821,7 +841,7 @@ renderer.domElement.addEventListener('click', (e) => {
   const row = rowByMeshName.get(hit.object.name);
   if (row && (!current || row.key !== current.row.key)) selectRow(row, { frame: false });
 });
-renderer.domElement.addEventListener('dblclick', () => { if (current) frameBox(current.box, null); });
+renderer.domElement.addEventListener('dblclick', () => { if (current?.box) frameBox(current.box, null); });
 
 let pendingMove = null;
 renderer.domElement.addEventListener('pointermove', (e) => { if (e.buttons === 0) pendingMove = e; });
@@ -915,10 +935,13 @@ function captureOverview() {
   perspCamera.aspect = W / H;
   perspCamera.updateProjectionMatrix();
   const savedVisible = meshes.map((m) => m.visible);
+  const savedExplode = explode, savedWire = wireOn;
   if (current?.gizmo) current.gizmo.visible = false;
   current = null;
   applyMaterials();
-  meshes.forEach((m) => { m.visible = true; });
+  meshes.forEach((m) => { m.visible = true; m.position.set(0, 0, 0); });
+  if (savedWire) allMaterials().forEach((m) => { m.wireframe = false; });
+  renderer.localClippingEnabled = false; // ignore any section cut
   grid.visible = false;
   scene.background = new THREE.Color(0xffffff);
   frameBox(modelBox, config.views?.iso?.dir || [0.7, 0.5, 0.7], false);
@@ -933,6 +956,9 @@ function captureOverview() {
   if (current?.gizmo) current.gizmo.visible = saved.gizmoVisible;
   applyMaterials();
   meshes.forEach((m, i) => { m.visible = savedVisible[i]; });
+  renderer.localClippingEnabled = true;
+  if (savedWire) setWireframe(true);
+  if (savedExplode) setExplodePositions(savedExplode);
   renderer.setSize(saved.size.x, saved.size.y, false);
   perspCamera.aspect = saved.aspect;
   perspCamera.updateProjectionMatrix();

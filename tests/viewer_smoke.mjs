@@ -287,7 +287,14 @@ try {
   check(csv.includes('Wood,Legs,Leg Rear,2,"1-5/8""","3-3/8""","20-7/8"""'), 'CSV export contains the rear legs (inch marks quoted)');
   fs.writeFileSync(path.join(OUT, 'cut-list.csv'), csv);
 
+  await page.locator('#explodeRange').fill('1');
+  await page.selectOption('#sectionAxis', 'x');
   await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+  const overviewSrc = await page.locator('#printSheet .ps-img').getAttribute('src');
+  fs.writeFileSync(path.join(OUT, 'print-overview.png'), Buffer.from(overviewSrc.split(',')[1], 'base64'));
+  check(await page.evaluate(() => window.__viewer.scene.getObjectByName('Legs_Leg_Front').position.length() > 1), 'explode state restored after the print capture');
+  await page.selectOption('#sectionAxis', 'off');
+  await page.locator('#resetBtn').click();
   const printRows = await page.locator('#printSheet > table tbody tr').count();
   check(await page.locator('#printSheet .ps-diagrams .cd-board').count() >= 5, 'print sheet includes the cutting diagrams');
   const drill = await page.locator('#printSheet h2', { hasText: 'Holes to drill' }).count();
