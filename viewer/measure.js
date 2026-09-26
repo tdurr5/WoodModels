@@ -18,6 +18,9 @@ const SNAP_NAMES = {
 const AXIS_LOCK_DEG = 2.5;
 const ACCENT = '#ffb454';
 
+// phones and tablets: tap, not click, and no Esc key
+const TOUCH = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
+
 export function initMeasure(ctx) {
   // ctx: { scene, getCamera, canvas, pickMeshes, selectionName, labelsEl, hintEl, units,
   //        guidePoints: () => [{ p, kind: 'corner'|'boxmid' }]  (off-mesh snap targets),
@@ -298,7 +301,8 @@ export function initMeasure(ctx) {
         text = `First face is ${s}. Click the second face.`;
       }
     }
-    ctx.hintEl.innerHTML = `<b>${{ distance: 'Distance', angle: 'Angle', bevel: 'Bevel' }[mode]}:</b> ${text} <span class="muted">Esc to cancel.</span>`;
+    if (TOUCH) text = text.replace(/\bClick/g, 'Tap');
+    ctx.hintEl.innerHTML = `<button class="hint-x" title="Stop measuring (Esc)" aria-label="Stop measuring">×</button><b>${{ distance: 'Distance', angle: 'Angle', bevel: 'Bevel' }[mode]}:</b> ${text}${TOUCH ? '' : ' <span class="muted">Esc to cancel.</span>'}`;
   }
 
   function slopeOfFace(n) {

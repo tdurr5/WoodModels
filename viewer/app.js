@@ -348,17 +348,20 @@ $('introClose').addEventListener('click', dismissIntro);
 // edits too (e.g. a downloaded model added to the repo).
 const editsStorageKey = () => `woodmodels:${modelKey}:edits`;
 function loadEdits(cfg) {
-  if (!LOCAL_ID) {
-    try {
-      const saved = JSON.parse(localStorage.getItem(editsStorageKey()) || 'null');
-      if (saved) return normalizeEdits(saved);
-    } catch { /* storage unavailable */ }
-  }
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(editsStorageKey()) || 'null'); } catch { /* storage unavailable */ }
+  if (!LOCAL_ID) return normalizeEdits(saved || cfg.edits);
+  // uploaded model: its model.json, unless the quick copy below is newer (a
+  // reload right after an edit can beat the model's asynchronous save)
+  if (saved?.t && saved.t > (cfg.editsSavedAt || 0)) return normalizeEdits(saved.edits);
   return normalizeEdits(cfg.edits);
 }
 function saveEdits() {
   if (LOCAL_ID) {
+    const t = Date.now();
+    try { localStorage.setItem(editsStorageKey(), JSON.stringify({ t, edits })); } catch { /* storage unavailable */ }
     config.edits = edits;
+    config.editsSavedAt = t;
     putModelFile(LOCAL_ID, 'model.json', JSON.stringify(config, null, 2))
       .catch((e) => showToast(`Couldn't save your change: ${e.message || e}`));
   } else {
@@ -1553,6 +1556,8 @@ function selectionGuideAxes() {
 const DRAG_PX = 5;
 let downAt = null;
 renderer.domElement.addEventListener('pointerdown', (e) => { downAt = { x: e.clientX, y: e.clientY }; }, true);
+// like wasDrag, without consuming the press (pointerup comes before click)
+const wasDragAt = (e) => !!downAt && Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > DRAG_PX;
 function wasDrag(e) {
   const drag = !!downAt && Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > DRAG_PX;
   if (e.type === 'click') downAt = null; // one pointerdown per click
@@ -1574,6 +1579,16 @@ renderer.domElement.addEventListener('click', (e) => {
   }
 });
 renderer.domElement.addEventListener('dblclick', (e) => { if (current?.box && !wasDrag(e)) frameBox(current.box, null); });
+// double-tap: not every mobile browser sends dblclick for a canvas
+let lastTap = null;
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (e.pointerType !== 'touch' || wasDragAt(e)) return;
+  const now = e.timeStamp;
+  if (lastTap && now - lastTap.t < 350 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 30 && current?.box) {
+    frameBox(current.box, null);
+    lastTap = null;
+  } else lastTap = { t: now, x: e.clientX, y: e.clientY };
+});
 
 let pendingMove = null;
 renderer.domElement.addEventListener('pointermove', (e) => { if (e.buttons === 0) pendingMove = e; });
@@ -1601,6 +1616,15 @@ $('wireBtn').addEventListener('click', () => setWireframe(!wireOn));
 $('isolateBtn').addEventListener('click', () => updateSettings({ isolate: !settings().isolate }));
 $('orthoBtn').addEventListener('click', () => { settingsOrthoAuto = false; setOrtho(!camera.isOrthographicCamera); });
 const toolButtons = { distance: $('measureDistBtn'), angle: $('measureAngleBtn'), bevel: $('measureBevelBtn') };
+// the hint's × stops measuring (phones have no Esc key)
+$('measureHint').addEventListener('click', (e) => {
+  if (!e.target.closest('.hint-x')) return;
+  measure.cancel();
+  syncToolButtons();
+});
+// iOS Safari: a pinch outside the 3D view would zoom the whole page
+document.addEventListener('gesturestart', (e) => e.preventDefault());
+
 function syncToolButtons() {
   Object.entries(toolButtons).forEach(([k, b]) => b.classList.toggle('on', k === measure.mode));
   if (!measure.mode) renderer.domElement.style.cursor = '';

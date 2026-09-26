@@ -73,6 +73,8 @@ export async function putModelFile(id, fileName, content, metaPatch = {}) {
 
 export async function deleteModel(id) {
   await tx(['meta', 'files'], 'readwrite', (meta, fs) => { meta.delete(id); fs.delete(id); });
+  // its preferences, ticks, notes and quick-saved edits (see settings.js, app.js)
+  try { ['settings', 'edits'].forEach((k) => localStorage.removeItem(`woodmodels:local-${id}:${k}`)); } catch { /* ignore */ }
   if (lastOpened() === `local:${id}`) rememberOpened('');
 }
 

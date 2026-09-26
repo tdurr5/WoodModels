@@ -47,11 +47,12 @@ body.sidebar-collapsed #sidebar { display: none; }
 #bottombar button:disabled, #bottombar input:disabled { opacity: 0.4; }
 
 #measureHint {
-  position: absolute; top: 50px; left: 10px; z-index: 5; display: none; max-width: min(640px, calc(100% - 40px));
+  position: absolute; top: 50px; left: 10px; z-index: 5; display: none; max-width: min(640px, calc(100% - 40px)); pointer-events: none;
   background: var(--hint-bg); border: 1px solid var(--accent); color: var(--accent-text);
   padding: 6px 10px; border-radius: 6px; font-size: 12px;
 }
 #measureHint .muted { color: var(--hint-muted); }
+#measureHint .hint-x { pointer-events: auto; float: right; margin: -3px -5px 0 8px; background: none; border: none; color: var(--accent-text); font-size: 18px; line-height: 1; padding: 2px 6px; cursor: pointer; }
 .measureLabel {
   position: absolute; transform: translate(-50%, -50%); pointer-events: none;
   background: var(--accent); color: var(--bg); font-size: 12px; font-weight: 700;
@@ -147,7 +148,6 @@ h1 { font-size: 16px; margin: 0 0 2px; }
 .group-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--blue); margin: 10px 0 4px; border-bottom: 1px solid var(--line); padding-bottom: 2px;; display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 18px; }
 .group-title .gt-actions { display: flex; gap: 3px; opacity: 0; transition: opacity 0.12s; }
 .group-title:hover .gt-actions, .group-title:focus-within .gt-actions { opacity: 1; }
-@media (hover: none) { .group-title .gt-actions { opacity: 1; } }
 .group-title .gt-actions button, .aside-actions button {
   background: none; border: 1px solid var(--border-2); color: var(--text-2); border-radius: 4px; font-size: 10px; padding: 0 5px;
   cursor: pointer; text-transform: none; letter-spacing: 0; line-height: 16px;
@@ -208,13 +208,14 @@ h1 { font-size: 16px; margin: 0 0 2px; }
 
 /* ---------- cutting diagram ---------- */
 #diagram { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 20; }
-.cd-box { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; width: min(1100px, calc(100% - 24px)); max-height: calc(100% - 24px); display: flex; flex-direction: column; }
+.cd-box { position: relative; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; width: min(1100px, calc(100% - 24px)); max-height: calc(100% - 24px); display: flex; flex-direction: column; }
 .cd-head { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 12px 16px; border-bottom: 1px solid var(--line); font-size: 12.5px; }
 .cd-head h2 { margin: 0 auto 0 0; font-size: 16px; }
 .cd-head input, .cd-head select { width: 64px; background: var(--input-bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px; padding: 2px 4px; }
 .cd-prices { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 14px; justify-content: flex-end; color: var(--muted); }
 .cd-prices:empty { display: none; }
-.cd-close { background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; }
+.cd-close { position: absolute; top: 6px; right: 8px; background: none; border: none; color: var(--muted); font-size: 22px; cursor: pointer; padding: 4px 8px; }
+.cd-head { padding-right: 44px; }
 .cd-body { overflow: auto; padding: 12px 16px 16px; }
 .cd-shop { background: var(--summary-bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; font-size: 12.5px; }
 .cd-shop ul { margin: 4px 0 0; padding-left: 18px; line-height: 1.6; }
@@ -275,12 +276,29 @@ body.dragging #dropHint { display: flex; }
   #app { flex-direction: column; }
   #viewport { flex: 1 1 55%; }
   #sidebar { width: 100%; flex: 1 1 45%; border-left: none; border-top: 1px solid var(--line); }
-  #toolbar { right: 50px; }
-  .tb-group button { padding: 5px 7px; font-size: 11px; }
+  /* one row that scrolls sideways, instead of three rows over the model */
+  #toolbar { right: 50px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; pointer-events: auto; padding-bottom: 4px; }
+  #toolbar::-webkit-scrollbar { display: none; }
+  .tb-group { flex: none; }
+  .tb-measure { order: 1; } .tb-display { order: 2; } #toolbar > .tb-group:last-child { order: 3; }
+  .tb-group button { padding: 6px 9px; font-size: 12px; white-space: nowrap; }
+  #measureHint { top: 48px; right: 10px; max-width: none; }
+  /* iOS zooms into text boxes with small type */
+  input, select, textarea { font-size: 16px !important; }
   #bottombar { gap: 6px; right: 10px; padding: 4px 6px; flex-wrap: nowrap; font-size: 11px; }
   #bottombar label { gap: 3px; }
   #bottombar input[type=range] { width: 56px; min-width: 0; }
-  #dimCard { width: auto; left: 10px; bottom: 50px; max-height: 45%; overflow: auto; }
+  #dimCard { width: auto; left: 8px; right: 8px; bottom: 50px; max-height: 48%; overflow: auto; }
+  #toast { bottom: 50px; }
+}
+/* touch screens: no double-tap zoom or tap delay on controls, bigger targets */
+html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
+@media (pointer: coarse) {
+  .tb-group button { min-height: 34px; }
+  .card-btn { padding: 6px 10px; font-size: 12.5px; }
+  .row { padding: 8px; }
+  .group-title .gt-actions { display: none; }
+  .group-title .gt-name { text-decoration: underline dotted; text-underline-offset: 3px; }
 }
 
 /* ---------- printed cut sheet ---------- */
@@ -345,3 +363,9 @@ body.dragging #dropHint { display: flex; }
 #dimCard .card-variants li { margin: 1px 0; }
 #dimCard .card-piece { margin-top: 6px; font-size: 11.5px; color: var(--text-2); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 #dimCard .angle-toggle { margin-top: 5px; }
+.if-touch, .if-touch-block { display: none; }
+@media (pointer: coarse) {
+  .if-touch { display: inline; } .if-touch-block { display: table; } .if-mouse, .if-mouse-block { display: none; }
+  h2.if-touch { display: block; }
+}
+.help-touch td:first-child { font-weight: 600; white-space: nowrap; padding-right: 12px; }

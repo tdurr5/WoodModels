@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
 <title>Cut List Viewer</title>
 <link rel="stylesheet" href="style.css" />
 <link rel="manifest" href="manifest.webmanifest" />
@@ -14,14 +14,14 @@
   <div id="viewport">
     <div id="toolbar">
       <div class="tb-group" id="viewBtns"></div>
-      <div class="tb-group">
+      <div class="tb-group tb-display">
         <button id="orthoBtn" title="Orthographic (no perspective) - true-scale elevations (O)">Ortho</button>
         <button id="resetBtn" title="Show the whole model and clear the selection">Show all</button>
         <button id="isolateBtn" title="Hide other parts instead of ghosting them (I)">Isolate</button>
         <button id="tagsBtn" title="Label every part with its cut-list letter (T) - try it with Explode">Labels</button>
         <button id="wireBtn" title="Wireframe (W)">Wireframe</button>
       </div>
-      <div class="tb-group">
+      <div class="tb-group tb-measure">
         <button id="measureDistBtn" title="Measure distance between two points (D)">Distance</button>
         <button id="measureAngleBtn" title="Measure an angle from three points (A)">Angle</button>
         <button id="measureBevelBtn" title="Angle between two faces - the bevel gauge setting (B)">Bevel</button>
@@ -69,8 +69,19 @@
 <div id="help">
   <div class="help-box">
     <button id="helpClose" title="Close">×</button>
-    <h2>Shortcuts</h2>
-    <table>
+    <h2 class="if-mouse">Shortcuts</h2>
+    <h2 class="if-touch">Touch</h2>
+    <table class="if-touch-block help-touch">
+      <tr><td>Tap</td><td>Select a part (in the model or the list); tap empty space to clear</td></tr>
+      <tr><td>Drag</td><td>Turn the model</td></tr>
+      <tr><td>Pinch</td><td>Zoom</td></tr>
+      <tr><td>Two-finger drag</td><td>Move the model</td></tr>
+      <tr><td>Double-tap</td><td>Zoom to the selected part</td></tr>
+      <tr><td>Group heading</td><td>Tap a group's name to see the whole group, and rename, set aside or delete it</td></tr>
+      <tr><td>☰</td><td>Hide the cut list for a full-screen model</td></tr>
+      <tr><td>Measuring</td><td>Distance / Angle / Bevel in the toolbar; tap × on the tip to stop</td></tr>
+    </table>
+    <table class="if-mouse-block">
       <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>Previous / next part</td></tr>
       <tr><td><kbd>Esc</kbd></td><td>Cancel tool / clear selection</td></tr>
       <tr><td><kbd>F</kbd> or double-click</td><td>Zoom to selection</td></tr>
@@ -118,7 +129,7 @@
   <div class="lib-box">
     <div class="lib-head"><h2>Models</h2><button class="lib-close" title="Close (Esc)">×</button></div>
     <div class="lib-drop" role="button" tabindex="0">
-      <b>Upload a model</b> - click, or drop a file anywhere on the page<br>
+      <b>Upload a model</b> - <span class="if-mouse">click, or drop a file anywhere on the page</span><span class="if-touch">tap to choose a file</span><br>
       <span class="muted small">From <b>3D Warehouse</b>: Download → <b>Collada File</b> (.zip) or <b>KMZ</b>. Also accepts .dae files and models downloaded from this list. SketchUp .skp files can't be read in a browser.</span>
       <input id="libFile" type="file" accept=".dae,.zip,.kmz,.skp" hidden />
     </div>

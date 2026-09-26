@@ -13,7 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { chromium } from 'playwright';
+import { chromium, devices } from 'playwright';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const VIEWER = path.join(ROOT, 'viewer');
@@ -868,6 +868,48 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     check(/qty 1/.test(await p2.locator('#dimCard').innerText()), 'the card updates to the pieces left');
     await p2.keyboard.press('Control+z');
     check(/×2/.test(await p2.locator('#clList > .row', { hasText: 'Bench' }).first().innerText()), 'undo brings the piece back');
+  } finally {
+    await b2.close();
+  }
+}
+
+// ---------- phone (touch) ----------
+{
+  console.log('phone');
+  const b2 = await chromium.launch(launchOpts);
+  const ctx = await b2.newContext({ ...devices['iPhone 13'] });
+  const p2 = await ctx.newPage();
+  const errs = [];
+  p2.on('pageerror', (e) => errs.push(e.message));
+  try {
+    await p2.goto(base);
+    await p2.waitForFunction(() => document.getElementById('loading').style.display === 'none', null, { timeout: 30000 });
+    await p2.locator('#introClose').tap();
+    const tops = await p2.locator('#toolbar button').evaluateAll((els) => [...new Set(els.map((e) => Math.round(e.getBoundingClientRect().top)))]);
+    check(tops.length === 1, `the toolbar is one row that scrolls sideways (${tops.length} rows)`);
+    const angleX = await p2.locator('#measureAngleBtn').evaluate((e) => e.getBoundingClientRect().right);
+    check(angleX < 390, 'the measuring tools are on screen without scrolling');
+    check(await p2.evaluate(() => getComputedStyle(document.documentElement).touchAction) === 'manipulation', 'no double-tap zoom on buttons (touch-action: manipulation)');
+    await p2.locator('#measureAngleBtn').tap();
+    const tb = await p2.locator('#toolbar').boundingBox(), hint = await p2.locator('#measureHint').boundingBox();
+    check(hint.y >= tb.y + 34, 'the measuring tip sits below the toolbar, not over its buttons');
+    check(/Tap the corner/.test(await p2.locator('#measureHint').innerText()), 'the tip says tap, not click');
+    await p2.locator('#measureHint .hint-x').tap();
+    check(!(await p2.locator('#measureHint').isVisible()) && await p2.locator('#measureAngleBtn.on').count() === 0, 'the tip\'s × stops measuring (no Esc key on a phone)');
+    const q = await p2.evaluate(() => {
+      const { THREE, camera } = window.__viewer; const m = window.__viewer.meshesOf('Bench')[0];
+      const c = new THREE.Box3().setFromObject(m).getCenter(new THREE.Vector3()).project(camera);
+      const r = document.querySelector('#viewport canvas').getBoundingClientRect();
+      return { x: r.left + (c.x * 0.5 + 0.5) * r.width, y: r.top + (0.5 - c.y * 0.5) * r.height };
+    });
+    await p2.touchscreen.tap(q.x, q.y);
+    await p2.waitForTimeout(300);
+    check((await p2.locator('#dimCard .pn-text').innerText().catch(() => '')) === 'Bench', 'tapping a part selects it');
+    check(await p2.locator('.group-title .gt-actions').first().isHidden(), 'group buttons stay out of the way on touch (tap the group name instead)');
+    await p2.locator('#helpBtn').tap();
+    check(await p2.locator('#help .help-touch').isVisible() && !(await p2.locator('#help .if-mouse-block').isVisible()), 'help shows touch gestures instead of keyboard shortcuts');
+    await p2.screenshot({ path: path.join(OUT, '50-phone-help.png') });
+    check(errs.length === 0, `no page errors on a phone (${errs.join('; ')})`);
   } finally {
     await b2.close();
   }
