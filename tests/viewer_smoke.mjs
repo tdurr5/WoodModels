@@ -64,6 +64,11 @@ await page.route(/^https:\/\/unpkg\.com\/three@[^/]+\/(.*)$/, (route) => {
 });
 
 
+// part names without the plan letter badge
+const nameOnly = (el) => [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join('').trim();
+const activeRowName = () => page.locator('#clList .row.active .name').evaluate(nameOnly);
+const cardName = () => page.locator('#dimCard .part-name').evaluate(nameOnly);
+
 async function selectPart(name) {
   await page.locator('#clList .row', { hasText: name }).first().click();
   await page.waitForTimeout(500);
@@ -271,14 +276,14 @@ try {
   console.log('keyboard navigation + deep link');
   await selectPart('Bench');
   await page.keyboard.press('ArrowDown');
-  const afterDown = await page.locator('#clList .row.active .name').innerText();
-  check(afterDown.trim() === 'Filler Front', `ArrowDown moves to the next part (${afterDown.trim()})`);
+  const afterDown = await activeRowName();
+  check(afterDown === 'Filler Front', `ArrowDown moves to the next part (${afterDown})`);
   check(page.url().endsWith('#part=Filler_Front'), `URL hash tracks the selection (${page.url().split('#')[1]})`);
 
   await page.locator('#clList .row', { hasText: 'Jaw Support' }).first().focus();
   await page.keyboard.press('Enter');
   await page.waitForTimeout(200);
-  check((await page.locator('#dimCard .part-name').innerText()) === 'Jaw Support', 'a focused cut-list row selects with Enter');
+  check((await cardName()) === 'Jaw Support', 'a focused cut-list row selects with Enter');
 
   console.log('cut list controls');
   await page.fill('#clSearch', 'leg');
@@ -300,8 +305,8 @@ try {
 
   const [download] = await Promise.all([page.waitForEvent('download'), page.click('#clCsv')]);
   const csv = fs.readFileSync(await download.path(), 'utf8');
-  check(csv.split('\r\n')[0].startsWith('Category,Group,Part,Qty,Thickness,Width,Length'), 'CSV export has a header row');
-  check(csv.includes('Wood,Legs,Leg Rear,2,"1-5/8""","3-3/8""","20-7/8"""'), 'CSV export contains the rear legs (inch marks quoted)');
+  check(csv.split('\r\n')[0].startsWith('Ref,Category,Group,Part,Qty,Thickness,Width,Length'), 'CSV export has a header row');
+  check(/,Wood,Legs,Leg Rear,2,/.test(csv) && csv.includes('Wood,Legs,Leg Rear,2,"1-5/8""","3-3/8""","20-7/8"""'), 'CSV export contains the rear legs (inch marks quoted)');
   fs.writeFileSync(path.join(OUT, 'cut-list.csv'), csv);
 
   await page.locator('#explodeRange').fill('1');
@@ -328,7 +333,7 @@ try {
   check(/Joins:.*Leg Rear/.test(rel) && /4 × ⌀1\/2"/.test(rel), `bench card lists joined parts and its 4 rod holes (${rel})`);
   await page.locator('#dimCard .card-rel a', { hasText: 'Leg Rear' }).click();
   await page.waitForTimeout(200);
-  check((await page.locator('#dimCard .part-name').innerText()) === 'Leg Rear', 'clicking a joined part selects it');
+  check((await cardName()) === 'Leg Rear', 'clicking a joined part selects it');
   await page.evaluate(() => { const v = window.__viewer; v.selectRow(v.rows().find((r) => r.label === 'Shaft_1_2_-13_6_7_8')); });
   const bore = await page.locator('#dimCard .card-rel').innerText();
   check(/Bore ⌀1\/2".*Bench ×2.*Filler Rear.*Leg Rear ×2/.test(bore), `rod card is a drilling list (${bore})`);
@@ -383,14 +388,14 @@ try {
   check((await page.locator('#clList .row.active .note.mine').innerText()).includes('walnut slab'), 'note shows in the cut list');
   check(await page.evaluate(() => window.__viewer.current !== null), 'typing a note (with letters like f/i/e) does not trigger shortcuts');
   await page.keyboard.press('Escape');
-  const selectedBeforeReload = (await page.locator('#clList .row.active .name').innerText()).trim();
+  const selectedBeforeReload = await activeRowName();
 
   console.log('cut tracking persists');
   await page.locator('#clList .row', { hasText: 'Leg Rear' }).first().locator('.cut-box').check();
   await page.reload();
   await page.waitForFunction(() => document.getElementById('loading').style.display === 'none', null, { timeout: 30000 });
   check(await page.locator('#clList .row.cut', { hasText: 'Leg Rear' }).count() === 1, 'ticked-off part stays ticked after reload');
-  const selectedAfterReload = (await page.locator('#clList .row.active .name').innerText().catch(() => '')).trim();
+  const selectedAfterReload = await activeRowName().catch(() => '');
   check(selectedAfterReload === selectedBeforeReload, `reload restores the selection from the URL hash (${selectedAfterReload})`);
   check(await page.locator('#clRough').isChecked(), 'settings persist across reload');
   check(await page.locator('#clList .note.mine', { hasText: 'walnut slab' }).count() === 1, 'user notes persist across reload');
@@ -400,6 +405,18 @@ try {
   check(await page.locator('#help').isVisible(), '? opens the shortcut sheet');
   await page.screenshot({ path: path.join(OUT, '13-help.png') });
   await page.keyboard.press('Escape');
+
+  console.log('part letters');
+  await page.locator('#resetBtn').click();
+  await page.locator('#explodeRange').fill('0.8');
+  await page.locator('#tagsBtn').click();
+  await page.waitForTimeout(200);
+  const tagCount = await page.locator('#partTags .partTag').count();
+  check(tagCount >= 30, `Labels tag every part in 3D (${tagCount})`);
+  await page.screenshot({ path: path.join(OUT, '19-exploded-labels.png') });
+  await page.locator('#tagsBtn').click();
+  await page.locator('#resetBtn').click();
+  check((await page.locator('#clList .row .letter').first().innerText()) === 'A', 'cut-list rows are lettered A, B, C…');
 
   console.log('light theme');
   await page.keyboard.press('l');

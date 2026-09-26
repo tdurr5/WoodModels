@@ -876,7 +876,7 @@ function renderDimCard() {
   const notes = row.notes.map((n) => `<div class="card-note${row.warn ? ' warn' : ''}">${row.warn ? '⚠ ' : ''}${escapeHtml(n)}</div>`).join('');
   dimCard.innerHTML = `
     <button class="card-close" title="Clear selection (Esc)">×</button>
-    <div class="part-name">${escapeHtml(row.name)}</div>
+    <div class="part-name"><span class="letter">${row.letter}</span>${escapeHtml(row.name)}</div>
     <div class="dim-big">${escapeHtml(finishedDims(row))}</div>
     <div class="dim-axes">${row.customDims ? '' : 'Thickness × Width × Length'}</div>
     ${angleHtml(data)}
@@ -958,7 +958,7 @@ function processHover() {
   renderer.domElement.style.cursor = row ? 'pointer' : '';
   if (!row) { hoverTip.style.display = 'none'; return; }
   const r = viewport.getBoundingClientRect();
-  hoverTip.innerHTML = `<b>${escapeHtml(row.name)}</b> <span>${escapeHtml(finishedDims(row))}</span>`;
+  hoverTip.innerHTML = `<b>${row.letter} · ${escapeHtml(row.name)}</b> <span>${escapeHtml(finishedDims(row))}</span>`;
   hoverTip.style.display = 'block';
   hoverTip.style.left = `${e.clientX - r.left + 14}px`;
   hoverTip.style.top = `${e.clientY - r.top + 14}px`;
@@ -1117,6 +1117,45 @@ window.addEventListener('beforeprint', () => {
   buildPrintSheet($('printSheet'), rows, config, img, drillingHtml() + (mill ? `<h2>Milling plan</h2>${mill}` : '') + diagrams);
 });
 
+// ---------- part letter tags in 3D ----------
+// One tag per part (not per bolt-head facet), at its oriented-box center;
+// positions follow the exploded view every frame.
+let tagsOn = false;
+let tags = [];
+function buildTags() {
+  $('partTags').innerHTML = '';
+  tags = [];
+  meshes.forEach((m) => {
+    const row = rowByMeshName.get(m.name);
+    const d = objectDims[m.name];
+    if (!row || !d || row.customDims) return;
+    const el = document.createElement('div');
+    el.className = 'partTag';
+    el.textContent = row.letter;
+    el.title = row.name;
+    $('partTags').appendChild(el);
+    tags.push({ mesh: m, center: new THREE.Vector3(...d.center), el });
+  });
+}
+function setTags(on) {
+  tagsOn = on;
+  if (on && !tags.length) buildTags();
+  $('partTags').style.display = on ? 'block' : 'none';
+  $('tagsBtn').classList.toggle('on', on);
+}
+function updateTags() {
+  if (!tagsOn) return;
+  tags.forEach(({ mesh, center, el }) => {
+    if (!mesh.visible) { el.style.display = 'none'; return; }
+    const s = project(center.clone().add(mesh.position));
+    el.style.display = s.behind ? 'none' : 'block';
+    el.style.left = `${s.x}px`;
+    el.style.top = `${s.y}px`;
+    el.classList.toggle('sel', !!current && current.meshes.includes(mesh));
+  });
+}
+$('tagsBtn').addEventListener('click', () => setTags(!tagsOn));
+
 // ---------- keyboard shortcuts ----------
 window.addEventListener('keydown', (e) => {
   const tag = (e.target.tagName || '').toLowerCase();
@@ -1142,6 +1181,7 @@ window.addEventListener('keydown', (e) => {
   else if (k === 'o') $('orthoBtn').click();
   else if (k === 'w') setWireframe(!wireOn);
   else if (k === 'l') $('themeBtn').click();
+  else if (k === 't') setTags(!tagsOn);
   else if (k === 'i') updateSettings({ isolate: !settings().isolate });
   else if (k === 'e') setExplode(explode > 0 ? 0 : 0.6);
   else if (k === 'd') setTool('distance');
@@ -1169,6 +1209,7 @@ function updateOverlays() {
     });
   }
   measure.update(project);
+  updateTags();
 }
 
 function animate(now) {

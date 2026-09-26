@@ -40,7 +40,9 @@ export function prepareRows(rawRows, config) {
   rows.sort((a, b) => catRank(a.category) - catRank(b.category)
     || String(a.top_group).localeCompare(String(b.top_group))
     || a.name.localeCompare(b.name));
-  rows.forEach((r, i) => { r.__id = i; });
+  // Plan-style part letters: A, B, ... Z, AA, AB ...
+  const letter = (i) => (i < 26 ? String.fromCharCode(65 + i) : letter(Math.floor(i / 26) - 1) + String.fromCharCode(65 + (i % 26)));
+  rows.forEach((r, i) => { r.__id = i; r.letter = letter(i); });
   return rows;
 }
 
@@ -233,7 +235,7 @@ function rowElement(r, isCut, s) {
   el.innerHTML = `
     ${trackable ? `<input type="checkbox" class="cut-box" title="Tick off when cut" ${isCut ? 'checked' : ''} />` : '<span class="cut-spacer"></span>'}
     <div class="row-main">
-      <div class="name"><span class="mat-swatch" style="background:${r.color}"></span>${escapeHtml(r.name)}</div>
+      <div class="name"><span class="letter">${r.letter}</span><span class="mat-swatch" style="background:${r.color}"></span>${escapeHtml(r.name)}</div>
       <div class="dims">${escapeHtml(finishedDims(r, s.units))}</div>
       ${rough}${notes}
     </div>
@@ -294,14 +296,14 @@ export function markActive(row, scroll = true) {
 // ---------- CSV ----------
 
 export function cutListTable(rows, units = settings().units) {
-  const header = ['Category', 'Group', 'Part', 'Qty', 'Thickness', 'Width', 'Length', 'Material',
+  const header = ['Ref', 'Category', 'Group', 'Part', 'Qty', 'Thickness', 'Width', 'Length', 'Material',
     'Rough thickness', 'Rough width', 'Rough length', 'Rough bf (total)', 'Notes', 'Source name'];
   const body = rows.map((r) => {
     const [l, w, t] = r.dims;
     const rough = roughFor(r);
     const fmt = (x) => formatLength(x, units);
     return [
-      r.category, r.groupName, r.name, r.count,
+      r.letter, r.category, r.groupName, r.name, r.count,
       r.customDims ? r.customDims : fmt(t), r.customDims ? '' : fmt(w), r.customDims ? '' : fmt(l),
       r.materialLabel,
       rough ? (units.startsWith('in') ? rough.thicknessLabel : fmt(rough.thickness)) : '',
@@ -349,7 +351,7 @@ export function buildPrintSheet(target, rows, config, imageDataUrl, extraHtml = 
         <tbody>${sec.rows.map((r) => `
           <tr>
             <td class="ps-chk"><span class="box"></span></td>
-            <td><b>${escapeHtml(r.name)}</b><div class="ps-grp">${escapeHtml(r.groupName)} · ${escapeHtml(r.materialLabel)}</div></td>
+            <td><b>${r.letter} · ${escapeHtml(r.name)}</b><div class="ps-grp">${escapeHtml(r.groupName)} · ${escapeHtml(r.materialLabel)}</div></td>
             <td class="num">${r.count}</td>
             <td>${escapeHtml(finishedDims(r, s.units))}</td>
             ${sec.cat === 'Wood' ? `<td>${escapeHtml(roughDims(r, s.units))}</td><td class="num">${(roughFor(r).boardFeet * r.count).toFixed(2)}</td>` : ''}

@@ -107,7 +107,7 @@ export function piecesByStock(rows, roughFor) {
     }
     for (let i = 0; i < row.count; i++) {
       groups.get(key).pieces.push({
-        id: `${row.key}#${i}`, rowKey: row.key, label: row.name,
+        id: `${row.key}#${i}`, rowKey: row.key, label: row.letter ? `${row.letter} ${row.name}` : row.name,
         length: rough.length, width: rough.width,
       });
     }
