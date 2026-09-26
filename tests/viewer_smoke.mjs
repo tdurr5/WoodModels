@@ -296,6 +296,23 @@ try {
   await page.screenshot({ path: path.join(OUT, '15-print.png'), clip: { x: 0, y: 0, width: 1400, height: 900 } });
   await page.emulateMedia({ media: 'screen' });
 
+  console.log('full-size template');
+  await selectPart('Leg Front');
+  check(await page.locator('#dimCard [data-act="template"]').count() === 1, 'wood part card offers a full-size template');
+  const tpl = await page.evaluate(() => {
+    window.__viewer.prepareTemplate();
+    const img = document.querySelector('#printSheet .tpl-tile img');
+    return { pages: document.querySelectorAll('#printSheet .tpl-page').length, w: img.style.width, h: img.style.height };
+  });
+  // Leg Front is 27-1/8" x 3-13/16" (+0.3" border each side): face view needs 4 letter tiles across
+  check(tpl.pages >= 5 && /^27\.7\d*in$/.test(tpl.w), `template is tiled at true size (${tpl.pages} pages, face ${tpl.w} × ${tpl.h})`);
+  await page.emulateMedia({ media: 'print' });
+  await page.pdf({ path: path.join(OUT, 'template-leg-front.pdf'), format: 'Letter' });
+  check(await page.locator('#printSheet .tpl-page').count() === tpl.pages, 'printing keeps the template (not the cut sheet)');
+  await page.screenshot({ path: path.join(OUT, '17-template-print.png') });
+  await page.emulateMedia({ media: 'screen' });
+  await page.evaluate(() => { window.__viewer.endTemplate(); document.getElementById('printSheet').innerHTML = ''; });
+
   console.log('cutting diagram');
   await page.keyboard.press('c');
   check(await page.locator('#diagram').isVisible(), 'C opens the cutting diagram');

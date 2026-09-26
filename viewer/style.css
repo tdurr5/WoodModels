@@ -73,6 +73,9 @@ body.sidebar-collapsed #sidebar { display: none; }
 #dimCard .angle-sub { font-size: 11px; color: #d9c48f; margin-top: 2px; }
 #dimCard .card-note { font-size: 11px; color: #ccc; margin-top: 4px; font-style: italic; }
 #dimCard .card-note.warn { color: var(--warn); font-style: normal; }
+#dimCard .card-actions { margin-top: 8px; display: flex; gap: 6px; }
+.card-btn { background: var(--panel-2); color: var(--text); border: 1px solid #555; border-radius: 5px; padding: 4px 8px; font-size: 11.5px; cursor: pointer; }
+.card-btn:hover { background: #3a3d44; }
 .axisLabel {
   position: absolute; transform: translate(-50%, -50%); pointer-events: none;
   font-size: 12px; font-weight: 700; padding: 2px 7px; border-radius: 5px;
@@ -185,6 +188,21 @@ h1 { font-size: 16px; margin: 0 0 2px; }
   #printSheet .ps-note { color: #444; font-size: 9.5px; max-width: 180px; }
   .ps-tot { margin-top: 10px; font-weight: 600; }
   #diagram { display: none !important; }
+  @page { margin: 0.5in; }
+  .tpl-page { page-break-after: always; }
+  .tpl-page:last-child { page-break-after: auto; }
+  .tpl-head { font-size: 10px; margin-bottom: 0.1in; line-height: 1.4; }
+  .tpl-check { display: flex; align-items: center; gap: 8px; color: #333; }
+  .tpl-inch { position: relative; display: inline-block; width: 1in; height: 1in; border: 1px solid #000; box-sizing: border-box; flex: none; }
+  .tpl-inch i { position: absolute; bottom: 0; width: 0; height: 0.12in; border-left: 1px solid #000; }
+  .tpl-tile { position: relative; overflow: hidden; outline: 0.5px solid #999; }
+  .tpl-tile img { position: absolute; max-width: none; }
+  /* dashed line = where the neighbouring tile's edge lands when overlapped
+     (borders, not shading: browsers drop backgrounds when printing) */
+  .tpl-overlap { position: absolute; }
+  .tpl-overlap.v { top: 0; bottom: 0; border-right: 1px dashed #666; }
+  .tpl-overlap.h { left: 0; right: 0; border-bottom: 1px dashed #666; }
+  .tpl-id { position: absolute; right: 4px; bottom: 2px; font-size: 9px; color: #666; }
   .ps-diagrams { page-break-before: always; }
   .ps-diagrams h3 { font-size: 12px; margin: 10px 0 4px; }
   .ps-diagrams .cd-shop ul { margin: 2px 0 8px; padding-left: 16px; }

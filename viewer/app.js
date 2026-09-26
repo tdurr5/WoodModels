@@ -10,6 +10,7 @@ import {
 } from './cutlist.js';
 import { initMeasure } from './measure.js';
 import { initDiagramModal, computeLayouts, layoutsHTML } from './diagram.js';
+import { buildTemplate } from './template.js';
 
 const $ = (id) => document.getElementById(id);
 const viewport = $('viewport');
@@ -668,9 +669,12 @@ function renderDimCard() {
     ${angleHtml(data)}
     <div class="meta">qty ${row.count} · ${escapeHtml(row.materialLabel)} · ${escapeHtml(row.groupName)}</div>
     ${notes}
+    ${data && row.category === 'Wood' ? '<div class="card-actions"><button class="card-btn" data-act="template" title="Print this part at full size to trace onto your stock">Print full-size template</button></div>' : ''}
   `;
   dimCard.style.display = 'block';
   dimCard.querySelector('.card-close').addEventListener('click', () => clearSelection());
+  const tplBtn = dimCard.querySelector('[data-act="template"]');
+  if (tplBtn) tplBtn.addEventListener('click', () => printTemplate());
 }
 
 // ---------- hover + click picking ----------
@@ -768,6 +772,21 @@ function captureImage() {
 }
 
 function printSheet() { window.print(); }
+
+// Full-size template of the selected part. Takes over #printSheet for one
+// print; the next print goes back to the cut sheet.
+let printingTemplate = false;
+function prepareTemplate() {
+  if (!current) return false;
+  const mesh = current.meshes[0];
+  const data = mesh && objectDims[mesh.name];
+  if (!data) return false;
+  $('printSheet').innerHTML = buildTemplate(renderer, mesh, data, current.row.name, settings().units);
+  printingTemplate = true;
+  return true;
+}
+function printTemplate() { if (prepareTemplate()) window.print(); }
+window.addEventListener('afterprint', () => { printingTemplate = false; });
 // A clean overview for the printed sheet: whole model from the 3D preset,
 // no highlight/ghosting/labels, on white - independent of the current view.
 function captureOverview() {
@@ -843,6 +862,7 @@ function cropToContent(glCanvas, pad) {
 }
 
 window.addEventListener('beforeprint', () => {
+  if (printingTemplate) return;
   const img = model ? captureOverview() : null;
   // print-sized diagrams: 7.5" printable width at 96 css px per inch
   const layouts = computeLayouts(rows);
@@ -939,4 +959,6 @@ window.__viewer = {
   currentSelectionMeshes: () => (current ? current.meshes : []),
   measureClickCount: () => measure.points.length + measure.measurements.length * 2,
   setExplode, setView, selectRow, rows: () => rows,
+  prepareTemplate,
+  endTemplate: () => { printingTemplate = false; },
 };
