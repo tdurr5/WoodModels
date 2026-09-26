@@ -1,0 +1,3405 @@
+{
+  "Seat_Seat__2": {
+    "center": [
+      11.8839,
+      20.332,
+      -6.3533
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 12.4697,
+        "role": "Length",
+        "label": "12-1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 5.6683,
+        "role": "Width",
+        "label": "5-11/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 2.6041,
+        "role": "Thickness",
+        "label": "2-5/8\""
+      }
+    ]
+  },
+  "Seat_Seat__2_1": {
+    "center": [
+      11.8839,
+      20.332,
+      -12.0217
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 12.4697,
+        "role": "Length",
+        "label": "12-1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 5.6683,
+        "role": "Width",
+        "label": "5-11/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 2.6041,
+        "role": "Thickness",
+        "label": "2-5/8\""
+      }
+    ]
+  },
+  "Seat_Seat_Block": {
+    "center": [
+      13.7513,
+      15.0299,
+      -9.1875
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 5.25,
+        "role": "Length",
+        "label": "5-1/4\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 3.0,
+        "role": "Width",
+        "label": "3\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Thickness",
+        "label": "1\""
+      }
+    ]
+  },
+  "Seat_Seat_Handle": {
+    "center": [
+      13.6501,
+      16.7795,
+      -9.1875
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 4.5009,
+        "role": "Length",
+        "label": "4-1/2\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.375,
+        "role": "Width",
+        "label": "3/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.375,
+        "role": "Thickness",
+        "label": "3/8\""
+      }
+    ]
+  },
+  "Rachet_Dove": {
+    "center": [
+      31.3173,
+      20.2567,
+      -9.1875
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 7.8771,
+        "role": "Length",
+        "label": "7-7/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 4.0119,
+        "role": "Width",
+        "label": "4\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 1.875,
+        "role": "Thickness",
+        "label": "1-7/8\""
+      }
+    ]
+  },
+  "Jaw_Lower_Assy_Jaw_Lower": {
+    "center": [
+      36.5382,
+      27.5982,
+      -9.1875
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.956812,
+          -0.290708,
+          1.9e-05
+        ],
+        "length": 8.8455,
+        "role": "Length",
+        "label": "8-7/8\"",
+        "angle": {
+          "reference": "+X",
+          "total_deg": 16.9,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": -16.9
+            },
+            {
+              "label": "front-to-back",
+              "deg": 0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          6.6e-05,
+          0.000152,
+          -1.0
+        ],
+        "length": 5.2504,
+        "role": "Width",
+        "label": "5-1/4\""
+      },
+      {
+        "direction": [
+          0.290708,
+          0.956812,
+          0.000165
+        ],
+        "length": 1.9094,
+        "role": "Thickness",
+        "label": "1-15/16\"",
+        "angle": {
+          "reference": "+Y (vertical)",
+          "total_deg": 16.9,
+          "components": [
+            {
+              "label": "side-to-side",
+              "deg": 16.9
+            },
+            {
+              "label": "front-to-back",
+              "deg": 0.0
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "Jaw_Lower_Assy_Jaw_Support": {
+    "center": [
+      36.5058,
+      21.2515,
+      -9.1875
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 11.9395,
+        "role": "Length",
+        "label": "11-15/16\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 3.5,
+        "role": "Width",
+        "label": "3-1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 1.875,
+        "role": "Thickness",
+        "label": "1-7/8\""
+      }
+    ]
+  },
+  "Jaw_Lower_Assy_Jaw_Support_Keys_Key": {
+    "center": [
+      35.1415,
+      20.9442,
+      -9.1875
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 1.875,
+        "role": "Length",
+        "label": "1-7/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.75,
+        "role": "Width",
+        "label": "3/4\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.7284,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Jaw_Lower_Assy_Jaw_Support_Keys_Key_1": {
+    "center": [
+      35.1415,
+      22.4442,
+      -9.1875
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          -0.0,
+          -1.0
+        ],
+        "length": 1.875,
+        "role": "Length",
+        "label": "1-7/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        "length": 0.75,
+        "role": "Width",
+        "label": "3/4\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.7284,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Jaw_Lower_Assy_Jaw_Support_Keys_Key_2": {
+    "center": [
+      35.1415,
+      24.6942,
+      -9.1875
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          -0.0,
+          -1.0
+        ],
+        "length": 1.875,
+        "role": "Length",
+        "label": "1-7/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        "length": 0.75,
+        "role": "Width",
+        "label": "3/4\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.7284,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Jaw_Lower_Assy_Jaw_Support_Keys_Key_3": {
+    "center": [
+      35.1415,
+      21.6942,
+      -9.1875
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          -0.0,
+          -1.0
+        ],
+        "length": 1.875,
+        "role": "Length",
+        "label": "1-7/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        "length": 0.75,
+        "role": "Width",
+        "label": "3/4\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.7284,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Jaw_Lower_Assy_Jaw_Support_Keys_Key_4": {
+    "center": [
+      35.1415,
+      23.1942,
+      -9.1875
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          -0.0,
+          -1.0
+        ],
+        "length": 1.875,
+        "role": "Length",
+        "label": "1-7/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        "length": 0.75,
+        "role": "Width",
+        "label": "3/4\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.7284,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Jaw_Lower_Assy_Jaw_Support_Keys_Key_5": {
+    "center": [
+      35.1415,
+      23.9442,
+      -9.1875
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          -0.0,
+          -1.0
+        ],
+        "length": 1.875,
+        "role": "Length",
+        "label": "1-7/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        "length": 0.75,
+        "role": "Width",
+        "label": "3/4\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.7284,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Jaw_Lower_Assy_Jaw_Lower_Cross_Piece": {
+    "center": [
+      36.4825,
+      25.6143,
+      -9.1875
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 5.25,
+        "role": "Length",
+        "label": "5-1/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 2.3883,
+        "role": "Width",
+        "label": "2-3/8\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Thickness",
+        "label": "1\""
+      }
+    ]
+  },
+  "Body_Bench": {
+    "center": [
+      24.7699,
+      19.4808,
+      -11.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 46.3443,
+        "role": "Length",
+        "label": "46-3/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 7.9017,
+        "role": "Width",
+        "label": "7-7/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 1.625,
+        "role": "Thickness",
+        "label": "1-5/8\""
+      }
+    ]
+  },
+  "Body_Filler_Front": {
+    "center": [
+      39.7592,
+      19.4808,
+      -9.1875
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 7.9017,
+        "role": "Length",
+        "label": "7-7/8\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 2.8818,
+        "role": "Width",
+        "label": "2-7/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 2.0,
+        "role": "Thickness",
+        "label": "2\""
+      }
+    ]
+  },
+  "Body_Bench_1": {
+    "center": [
+      24.7699,
+      19.4808,
+      -7.375
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 46.3443,
+        "role": "Length",
+        "label": "46-3/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 7.9017,
+        "role": "Width",
+        "label": "7-7/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 1.625,
+        "role": "Thickness",
+        "label": "1-5/8\""
+      }
+    ]
+  },
+  "Body_Filler_Rear": {
+    "center": [
+      4.1234,
+      17.28,
+      -9.1875
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 5.0513,
+        "role": "Length",
+        "label": "5-1/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 3.5,
+        "role": "Width",
+        "label": "3-1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 2.0,
+        "role": "Thickness",
+        "label": "2\""
+      }
+    ]
+  },
+  "Body_Filler_Middle": {
+    "center": [
+      32.6557,
+      17.7117,
+      -9.1875
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 4.3635,
+        "role": "Length",
+        "label": "4-3/8\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 4.0752,
+        "role": "Width",
+        "label": "4-1/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 2.0,
+        "role": "Thickness",
+        "label": "2\""
+      }
+    ]
+  },
+  "Hardware_Hardware_4_3_4_Shaft_1_2___13_4_3_4": {
+    "center": [
+      32.3908,
+      19.4835,
+      -9.3281
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 5.0529,
+        "role": "Length",
+        "label": "5-1/16\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.5,
+        "role": "Width",
+        "label": "1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.5,
+        "role": "Thickness",
+        "label": "1/2\""
+      }
+    ]
+  },
+  "Hardware_Hardware_4_3_4_Bolt_Head_3_4_Bolt_Head__6": {
+    "center": [
+      32.1202,
+      19.5773,
+      -6.7891
+    ],
+    "axes": [
+      {
+        "direction": [
+          -0.5,
+          0.866025,
+          -0.0
+        ],
+        "length": 0.433,
+        "role": "Length",
+        "label": "7/16\"",
+        "angle": {
+          "reference": "+Y (vertical)",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "side-to-side",
+              "deg": -30.0
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          -0.866025,
+          -0.5,
+          -0.0
+        ],
+        "length": 0.375,
+        "role": "Width",
+        "label": "3/8\"",
+        "angle": {
+          "reference": "-X",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": -30.0
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.3281,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Hardware_Hardware_4_3_4_Bolt_Head_3_4_Bolt_Head__6_1": {
+    "center": [
+      32.6073,
+      19.671,
+      -6.7891
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.433,
+        "role": "Length",
+        "label": "7/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.375,
+        "role": "Width",
+        "label": "3/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.3281,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Hardware_Hardware_4_3_4_Bolt_Head_3_4_Bolt_Head__6_2": {
+    "center": [
+      32.6615,
+      19.3898,
+      -6.7891
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.5,
+          -0.866025,
+          -0.0
+        ],
+        "length": 0.433,
+        "role": "Length",
+        "label": "7/16\"",
+        "angle": {
+          "reference": "-Y (vertical)",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "side-to-side",
+              "deg": 30.0
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.866025,
+          0.5,
+          -0.0
+        ],
+        "length": 0.375,
+        "role": "Width",
+        "label": "3/8\"",
+        "angle": {
+          "reference": "+X",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": 30.0
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.3281,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Hardware_Hardware_4_3_4_Bolt_Head_3_4_Bolt_Head__6_3": {
+    "center": [
+      32.445,
+      19.2023,
+      -6.7891
+    ],
+    "axes": [
+      {
+        "direction": [
+          -0.5,
+          -0.866025,
+          -0.0
+        ],
+        "length": 0.433,
+        "role": "Length",
+        "label": "7/16\"",
+        "angle": {
+          "reference": "-Y (vertical)",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "side-to-side",
+              "deg": -30.0
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.866025,
+          -0.5,
+          -0.0
+        ],
+        "length": 0.375,
+        "role": "Width",
+        "label": "3/8\"",
+        "angle": {
+          "reference": "+X",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": -30.0
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.3281,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Hardware_Hardware_4_3_4_Bolt_Head_3_4_Bolt_Head__6_4": {
+    "center": [
+      32.1743,
+      19.296,
+      -6.7891
+    ],
+    "axes": [
+      {
+        "direction": [
+          -1.0,
+          -0.0,
+          -0.0
+        ],
+        "length": 0.433,
+        "role": "Length",
+        "label": "7/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          -1.0,
+          -0.0
+        ],
+        "length": 0.375,
+        "role": "Width",
+        "label": "3/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.3281,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Hardware_Hardware_4_3_4_Bolt_Head_3_4_Bolt_Head__6_5": {
+    "center": [
+      32.3367,
+      19.7648,
+      -6.7891
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.5,
+          0.866025,
+          -0.0
+        ],
+        "length": 0.433,
+        "role": "Length",
+        "label": "7/16\"",
+        "angle": {
+          "reference": "+Y (vertical)",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "side-to-side",
+              "deg": 30.0
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          -0.866025,
+          0.5,
+          -0.0
+        ],
+        "length": 0.375,
+        "role": "Width",
+        "label": "3/8\"",
+        "angle": {
+          "reference": "-X",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": 30.0
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.3281,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Hardware_Hardware_8_1_4_Shaft_1_2__13_8_1_4": {
+    "center": [
+      39.1895,
+      22.6502,
+      -9.3288
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 6.8739,
+        "role": "Length",
+        "label": "6-7/8\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.5,
+        "role": "Width",
+        "label": "1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.5,
+        "role": "Thickness",
+        "label": "1/2\""
+      }
+    ]
+  },
+  "Hardware_Hardware_8_1_4_Bolt_Head_3_4_Bolt_Head__6": {
+    "center": [
+      38.9188,
+      22.744,
+      -5.0391
+    ],
+    "axes": [
+      {
+        "direction": [
+          -0.5,
+          0.866025,
+          -0.0
+        ],
+        "length": 0.433,
+        "role": "Length",
+        "label": "7/16\"",
+        "angle": {
+          "reference": "+Y (vertical)",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "side-to-side",
+              "deg": -30.0
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          -0.866025,
+          -0.5,
+          -0.0
+        ],
+        "length": 0.375,
+        "role": "Width",
+        "label": "3/8\"",
+        "angle": {
+          "reference": "-X",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": -30.0
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.3281,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Hardware_Hardware_8_1_4_Bolt_Head_3_4_Bolt_Head__6_1": {
+    "center": [
+      39.406,
+      22.8377,
+      -5.0391
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.433,
+        "role": "Length",
+        "label": "7/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.375,
+        "role": "Width",
+        "label": "3/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.3281,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Hardware_Hardware_8_1_4_Bolt_Head_3_4_Bolt_Head__6_2": {
+    "center": [
+      39.4601,
+      22.5565,
+      -5.0391
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.5,
+          -0.866025,
+          -0.0
+        ],
+        "length": 0.433,
+        "role": "Length",
+        "label": "7/16\"",
+        "angle": {
+          "reference": "-Y (vertical)",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "side-to-side",
+              "deg": 30.0
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.866025,
+          0.5,
+          -0.0
+        ],
+        "length": 0.375,
+        "role": "Width",
+        "label": "3/8\"",
+        "angle": {
+          "reference": "+X",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": 30.0
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.3281,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Hardware_Hardware_8_1_4_Bolt_Head_3_4_Bolt_Head__6_3": {
+    "center": [
+      39.2436,
+      22.369,
+      -5.0391
+    ],
+    "axes": [
+      {
+        "direction": [
+          -0.5,
+          -0.866025,
+          -0.0
+        ],
+        "length": 0.433,
+        "role": "Length",
+        "label": "7/16\"",
+        "angle": {
+          "reference": "-Y (vertical)",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "side-to-side",
+              "deg": -30.0
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.866025,
+          -0.5,
+          -0.0
+        ],
+        "length": 0.375,
+        "role": "Width",
+        "label": "3/8\"",
+        "angle": {
+          "reference": "+X",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": -30.0
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.3281,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Hardware_Hardware_8_1_4_Bolt_Head_3_4_Bolt_Head__6_4": {
+    "center": [
+      38.9729,
+      22.4627,
+      -5.0391
+    ],
+    "axes": [
+      {
+        "direction": [
+          -1.0,
+          -0.0,
+          -0.0
+        ],
+        "length": 0.433,
+        "role": "Length",
+        "label": "7/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          -1.0,
+          -0.0
+        ],
+        "length": 0.375,
+        "role": "Width",
+        "label": "3/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.3281,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Hardware_Hardware_8_1_4_Bolt_Head_3_4_Bolt_Head__6_5": {
+    "center": [
+      39.1353,
+      22.9315,
+      -5.0391
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.5,
+          0.866025,
+          -0.0
+        ],
+        "length": 0.433,
+        "role": "Length",
+        "label": "7/16\"",
+        "angle": {
+          "reference": "+Y (vertical)",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "side-to-side",
+              "deg": 30.0
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          -0.866025,
+          0.5,
+          -0.0
+        ],
+        "length": 0.375,
+        "role": "Width",
+        "label": "3/8\"",
+        "angle": {
+          "reference": "-X",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": 30.0
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.3281,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Hardware_Hardware_6_7_8_Bolt_Head_3_4_Bolt_Head__6": {
+    "center": [
+      4.1284,
+      16.8908,
+      -5.7457
+    ],
+    "axes": [
+      {
+        "direction": [
+          -0.5,
+          0.866025,
+          -0.0
+        ],
+        "length": 0.433,
+        "role": "Length",
+        "label": "7/16\"",
+        "angle": {
+          "reference": "+Y (vertical)",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "side-to-side",
+              "deg": -30.0
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          -0.866025,
+          -0.5,
+          -0.0
+        ],
+        "length": 0.375,
+        "role": "Width",
+        "label": "3/8\"",
+        "angle": {
+          "reference": "-X",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": -30.0
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.3281,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Hardware_Hardware_6_7_8_Bolt_Head_3_4_Bolt_Head__6_1": {
+    "center": [
+      4.6155,
+      16.9846,
+      -5.7457
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.433,
+        "role": "Length",
+        "label": "7/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.375,
+        "role": "Width",
+        "label": "3/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.3281,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Hardware_Hardware_6_7_8_Bolt_Head_3_4_Bolt_Head__6_2": {
+    "center": [
+      4.6696,
+      16.7033,
+      -5.7457
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.5,
+          -0.866025,
+          -0.0
+        ],
+        "length": 0.433,
+        "role": "Length",
+        "label": "7/16\"",
+        "angle": {
+          "reference": "-Y (vertical)",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "side-to-side",
+              "deg": 30.0
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.866025,
+          0.5,
+          -0.0
+        ],
+        "length": 0.375,
+        "role": "Width",
+        "label": "3/8\"",
+        "angle": {
+          "reference": "+X",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": 30.0
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.3281,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Hardware_Hardware_6_7_8_Bolt_Head_3_4_Bolt_Head__6_3": {
+    "center": [
+      4.4531,
+      16.5158,
+      -5.7457
+    ],
+    "axes": [
+      {
+        "direction": [
+          -0.5,
+          -0.866025,
+          -0.0
+        ],
+        "length": 0.433,
+        "role": "Length",
+        "label": "7/16\"",
+        "angle": {
+          "reference": "-Y (vertical)",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "side-to-side",
+              "deg": -30.0
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.866025,
+          -0.5,
+          -0.0
+        ],
+        "length": 0.375,
+        "role": "Width",
+        "label": "3/8\"",
+        "angle": {
+          "reference": "+X",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": -30.0
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.3281,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Hardware_Hardware_6_7_8_Bolt_Head_3_4_Bolt_Head__6_4": {
+    "center": [
+      4.1825,
+      16.6096,
+      -5.7457
+    ],
+    "axes": [
+      {
+        "direction": [
+          -1.0,
+          -0.0,
+          -0.0
+        ],
+        "length": 0.433,
+        "role": "Length",
+        "label": "7/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          -1.0,
+          -0.0
+        ],
+        "length": 0.375,
+        "role": "Width",
+        "label": "3/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.3281,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Hardware_Hardware_6_7_8_Bolt_Head_3_4_Bolt_Head__6_5": {
+    "center": [
+      4.3449,
+      17.0783,
+      -5.7457
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.5,
+          0.866025,
+          -0.0
+        ],
+        "length": 0.433,
+        "role": "Length",
+        "label": "7/16\"",
+        "angle": {
+          "reference": "+Y (vertical)",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "side-to-side",
+              "deg": 30.0
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          -0.866025,
+          0.5,
+          -0.0
+        ],
+        "length": 0.375,
+        "role": "Width",
+        "label": "3/8\"",
+        "angle": {
+          "reference": "-X",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": 30.0
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.3281,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Hardware_Hardware_6_7_8_Shaft_1_2__13_6_7_8": {
+    "center": [
+      4.399,
+      16.7971,
+      -9.3467
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 6.8739,
+        "role": "Length",
+        "label": "6-7/8\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.5,
+        "role": "Width",
+        "label": "1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.5,
+        "role": "Thickness",
+        "label": "1/2\""
+      }
+    ]
+  },
+  "Hardware_Hardware_4_3_4_Shaft_1_2___13_4_3_4_1": {
+    "center": [
+      45.1359,
+      17.7274,
+      -9.3281
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 5.0529,
+        "role": "Length",
+        "label": "5-1/16\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.5,
+        "role": "Width",
+        "label": "1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.5,
+        "role": "Thickness",
+        "label": "1/2\""
+      }
+    ]
+  },
+  "Hardware_Hardware_4_3_4_Bolt_Head_3_4_Bolt_Head__6_6": {
+    "center": [
+      44.8653,
+      17.8212,
+      -6.7891
+    ],
+    "axes": [
+      {
+        "direction": [
+          -0.5,
+          0.866025,
+          -0.0
+        ],
+        "length": 0.433,
+        "role": "Length",
+        "label": "7/16\"",
+        "angle": {
+          "reference": "+Y (vertical)",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "side-to-side",
+              "deg": -30.0
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          -0.866025,
+          -0.5,
+          -0.0
+        ],
+        "length": 0.375,
+        "role": "Width",
+        "label": "3/8\"",
+        "angle": {
+          "reference": "-X",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": -30.0
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.3281,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Hardware_Hardware_4_3_4_Bolt_Head_3_4_Bolt_Head__6_7": {
+    "center": [
+      45.3525,
+      17.9149,
+      -6.7891
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.433,
+        "role": "Length",
+        "label": "7/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.375,
+        "role": "Width",
+        "label": "3/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.3281,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Hardware_Hardware_4_3_4_Bolt_Head_3_4_Bolt_Head__6_8": {
+    "center": [
+      45.4066,
+      17.6337,
+      -6.7891
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.5,
+          -0.866025,
+          -0.0
+        ],
+        "length": 0.433,
+        "role": "Length",
+        "label": "7/16\"",
+        "angle": {
+          "reference": "-Y (vertical)",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "side-to-side",
+              "deg": 30.0
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.866025,
+          0.5,
+          -0.0
+        ],
+        "length": 0.375,
+        "role": "Width",
+        "label": "3/8\"",
+        "angle": {
+          "reference": "+X",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": 30.0
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.3281,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Hardware_Hardware_4_3_4_Bolt_Head_3_4_Bolt_Head__6_9": {
+    "center": [
+      45.1901,
+      17.4462,
+      -6.7891
+    ],
+    "axes": [
+      {
+        "direction": [
+          -0.5,
+          -0.866025,
+          -0.0
+        ],
+        "length": 0.433,
+        "role": "Length",
+        "label": "7/16\"",
+        "angle": {
+          "reference": "-Y (vertical)",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "side-to-side",
+              "deg": -30.0
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.866025,
+          -0.5,
+          -0.0
+        ],
+        "length": 0.375,
+        "role": "Width",
+        "label": "3/8\"",
+        "angle": {
+          "reference": "+X",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": -30.0
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.3281,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Hardware_Hardware_4_3_4_Bolt_Head_3_4_Bolt_Head__6_10": {
+    "center": [
+      44.9194,
+      17.5399,
+      -6.7891
+    ],
+    "axes": [
+      {
+        "direction": [
+          -1.0,
+          -0.0,
+          -0.0
+        ],
+        "length": 0.433,
+        "role": "Length",
+        "label": "7/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          -1.0,
+          -0.0
+        ],
+        "length": 0.375,
+        "role": "Width",
+        "label": "3/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.3281,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Hardware_Hardware_4_3_4_Bolt_Head_3_4_Bolt_Head__6_11": {
+    "center": [
+      45.0818,
+      18.0087,
+      -6.7891
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.5,
+          0.866025,
+          -0.0
+        ],
+        "length": 0.433,
+        "role": "Length",
+        "label": "7/16\"",
+        "angle": {
+          "reference": "+Y (vertical)",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "side-to-side",
+              "deg": 30.0
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          -0.866025,
+          0.5,
+          -0.0
+        ],
+        "length": 0.375,
+        "role": "Width",
+        "label": "3/8\"",
+        "angle": {
+          "reference": "-X",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": 30.0
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.3281,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Treadle_Treadle_Beam": {
+    "center": [
+      38.5869,
+      16.0621,
+      -5.625
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 29.4834,
+        "role": "Length",
+        "label": "29-1/2\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 3.0,
+        "role": "Width",
+        "label": "3\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 1.625,
+        "role": "Thickness",
+        "label": "1-5/8\""
+      }
+    ]
+  },
+  "Treadle_Treadle_Beam_Treadle_Dowel": {
+    "center": [
+      38.5869,
+      3.278,
+      -5.625
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 3.125,
+        "role": "Length",
+        "label": "3-1/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.5,
+        "role": "Width",
+        "label": "1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.5,
+        "role": "Thickness",
+        "label": "1/2\""
+      }
+    ]
+  },
+  "Treadle_Treadle_Beam_1": {
+    "center": [
+      38.5869,
+      16.0621,
+      -12.75
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 29.4834,
+        "role": "Length",
+        "label": "29-1/2\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 3.0,
+        "role": "Width",
+        "label": "3\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 1.625,
+        "role": "Thickness",
+        "label": "1-5/8\""
+      }
+    ]
+  },
+  "Treadle_Treadle_Beam_Treadle_Dowel_1": {
+    "center": [
+      38.5869,
+      3.278,
+      -12.75
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 3.125,
+        "role": "Length",
+        "label": "3-1/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.5,
+        "role": "Width",
+        "label": "1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.5,
+        "role": "Thickness",
+        "label": "1/2\""
+      }
+    ]
+  },
+  "Treadle_Treadle_Foot_Peg": {
+    "center": [
+      38.5869,
+      2.8204,
+      -9.1875
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 16.75,
+        "role": "Length",
+        "label": "16-3/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 3.0,
+        "role": "Width",
+        "label": "3\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Thickness",
+        "label": "1\""
+      }
+    ]
+  },
+  "Treadle_Treadle_Jaw_Upper_Treadle_Jaw_Upper__8": {
+    "center": [
+      39.2039,
+      29.6169,
+      -7.8125
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 2.75,
+        "role": "Length",
+        "label": "2-3/4\""
+      },
+      {
+        "direction": [
+          0.944949,
+          -0.327218,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Width",
+        "label": "1\"",
+        "angle": {
+          "reference": "+X",
+          "total_deg": 19.1,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": -19.1
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.327218,
+          0.944949,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Thickness",
+        "label": "1\"",
+        "angle": {
+          "reference": "+Y (vertical)",
+          "total_deg": 19.1,
+          "components": [
+            {
+              "label": "side-to-side",
+              "deg": 19.1
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "Treadle_Treadle_Jaw_Upper_Treadle_Jaw_Upper__8_1": {
+    "center": [
+      37.9317,
+      28.9992,
+      -7.8125
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 2.75,
+        "role": "Length",
+        "label": "2-3/4\""
+      },
+      {
+        "direction": [
+          -0.944949,
+          0.327218,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Width",
+        "label": "1\"",
+        "angle": {
+          "reference": "-X",
+          "total_deg": 19.1,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": 19.1
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          -0.327218,
+          -0.944949,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Thickness",
+        "label": "1\"",
+        "angle": {
+          "reference": "-Y (vertical)",
+          "total_deg": 19.1,
+          "components": [
+            {
+              "label": "side-to-side",
+              "deg": -19.1
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "Treadle_Treadle_Jaw_Upper_Treadle_Jaw_Upper__8_2": {
+    "center": [
+      37.9317,
+      28.9992,
+      -10.5625
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 2.75,
+        "role": "Length",
+        "label": "2-3/4\""
+      },
+      {
+        "direction": [
+          -0.944949,
+          0.327218,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Width",
+        "label": "1\"",
+        "angle": {
+          "reference": "-X",
+          "total_deg": 19.1,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": 19.1
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          -0.327218,
+          -0.944949,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Thickness",
+        "label": "1\"",
+        "angle": {
+          "reference": "-Y (vertical)",
+          "total_deg": 19.1,
+          "components": [
+            {
+              "label": "side-to-side",
+              "deg": -19.1
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "Treadle_Treadle_Jaw_Upper_Treadle_Jaw_Upper__8_3": {
+    "center": [
+      38.8767,
+      28.672,
+      -10.5625
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 2.75,
+        "role": "Length",
+        "label": "2-3/4\""
+      },
+      {
+        "direction": [
+          -0.327218,
+          -0.944949,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Width",
+        "label": "1\"",
+        "angle": {
+          "reference": "-Y (vertical)",
+          "total_deg": 19.1,
+          "components": [
+            {
+              "label": "side-to-side",
+              "deg": -19.1
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.944949,
+          -0.327218,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Thickness",
+        "label": "1\"",
+        "angle": {
+          "reference": "+X",
+          "total_deg": 19.1,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": -19.1
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "Treadle_Treadle_Jaw_Upper_Treadle_Jaw_Upper__8_4": {
+    "center": [
+      39.2039,
+      29.6169,
+      -10.5625
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 2.75,
+        "role": "Length",
+        "label": "2-3/4\""
+      },
+      {
+        "direction": [
+          0.944949,
+          -0.327218,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Width",
+        "label": "1\"",
+        "angle": {
+          "reference": "+X",
+          "total_deg": 19.1,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": -19.1
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.327218,
+          0.944949,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Thickness",
+        "label": "1\"",
+        "angle": {
+          "reference": "+Y (vertical)",
+          "total_deg": 19.1,
+          "components": [
+            {
+              "label": "side-to-side",
+              "deg": 19.1
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "Treadle_Treadle_Jaw_Upper_Treadle_Jaw_Upper__8_5": {
+    "center": [
+      38.2589,
+      29.9441,
+      -7.8125
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 2.75,
+        "role": "Length",
+        "label": "2-3/4\""
+      },
+      {
+        "direction": [
+          0.327218,
+          0.944949,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Width",
+        "label": "1\"",
+        "angle": {
+          "reference": "+Y (vertical)",
+          "total_deg": 19.1,
+          "components": [
+            {
+              "label": "side-to-side",
+              "deg": 19.1
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          -0.944949,
+          0.327218,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Thickness",
+        "label": "1\"",
+        "angle": {
+          "reference": "-X",
+          "total_deg": 19.1,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": 19.1
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "Treadle_Treadle_Jaw_Upper_Treadle_Jaw_Upper__8_6": {
+    "center": [
+      38.2589,
+      29.9441,
+      -10.5625
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 2.75,
+        "role": "Length",
+        "label": "2-3/4\""
+      },
+      {
+        "direction": [
+          0.327218,
+          0.944949,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Width",
+        "label": "1\"",
+        "angle": {
+          "reference": "+Y (vertical)",
+          "total_deg": 19.1,
+          "components": [
+            {
+              "label": "side-to-side",
+              "deg": 19.1
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          -0.944949,
+          0.327218,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Thickness",
+        "label": "1\"",
+        "angle": {
+          "reference": "-X",
+          "total_deg": 19.1,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": 19.1
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "Treadle_Treadle_Jaw_Upper_Treadle_Jaw_Upper__8_7": {
+    "center": [
+      38.8767,
+      28.672,
+      -7.8125
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 2.75,
+        "role": "Length",
+        "label": "2-3/4\""
+      },
+      {
+        "direction": [
+          -0.327218,
+          -0.944949,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Width",
+        "label": "1\"",
+        "angle": {
+          "reference": "-Y (vertical)",
+          "total_deg": 19.1,
+          "components": [
+            {
+              "label": "side-to-side",
+              "deg": -19.1
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.944949,
+          -0.327218,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Thickness",
+        "label": "1\"",
+        "angle": {
+          "reference": "+X",
+          "total_deg": 19.1,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": -19.1
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "Treadle_Treadle_Jaw_Upper_Treadle_Jaw_Upper_Tennon": {
+    "center": [
+      38.486,
+      29.0718,
+      -12.4375
+    ],
+    "axes": [
+      {
+        "direction": [
+          -0.327218,
+          -0.944949,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Length",
+        "label": "1\"",
+        "angle": {
+          "reference": "-Y (vertical)",
+          "total_deg": 19.1,
+          "components": [
+            {
+              "label": "side-to-side",
+              "deg": -19.1
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 1.0,
+        "role": "Width",
+        "label": "1\""
+      },
+      {
+        "direction": [
+          0.944949,
+          -0.327218,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Thickness",
+        "label": "1\"",
+        "angle": {
+          "reference": "+X",
+          "total_deg": 19.1,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": -19.1
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "Treadle_Treadle_Jaw_Upper_Treadle_Jaw_Upper_Tennon_1": {
+    "center": [
+      38.486,
+      29.0718,
+      -5.9375
+    ],
+    "axes": [
+      {
+        "direction": [
+          -0.327218,
+          -0.944949,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Length",
+        "label": "1\"",
+        "angle": {
+          "reference": "-Y (vertical)",
+          "total_deg": 19.1,
+          "components": [
+            {
+              "label": "side-to-side",
+              "deg": -19.1
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 1.0,
+        "role": "Width",
+        "label": "1\""
+      },
+      {
+        "direction": [
+          0.944949,
+          -0.327218,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Thickness",
+        "label": "1\"",
+        "angle": {
+          "reference": "+X",
+          "total_deg": 19.1,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": -19.1
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "Legs_Leg_Rear": {
+    "center": [
+      2.8036,
+      9.3859,
+      -14.3447
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.2065,
+          0.948805,
+          0.239014
+        ],
+        "length": 20.8953,
+        "role": "Length",
+        "label": "20-7/8\"",
+        "angle": {
+          "reference": "+Y (vertical)",
+          "total_deg": 18.4,
+          "components": [
+            {
+              "label": "side-to-side",
+              "deg": 12.3
+            },
+            {
+              "label": "front-to-back",
+              "deg": 14.1
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          -0.086548,
+          -0.225609,
+          0.970366
+        ],
+        "length": 3.367,
+        "role": "Width",
+        "label": "3-3/8\"",
+        "angle": {
+          "reference": "+Z",
+          "total_deg": 14.0,
+          "components": [
+            {
+              "label": "side-to-side",
+              "deg": -5.1
+            },
+            {
+              "label": "vertical",
+              "deg": -13.1
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          -0.974611,
+          0.221067,
+          -0.035529
+        ],
+        "length": 1.6031,
+        "role": "Thickness",
+        "label": "1-5/8\"",
+        "angle": {
+          "reference": "-X",
+          "total_deg": 12.9,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": 12.8
+            },
+            {
+              "label": "front-to-back",
+              "deg": -2.1
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "Legs_Leg_Front": {
+    "center": [
+      48.1987,
+      11.5067,
+      -9.1875
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.479498,
+          -0.877543,
+          -0.0
+        ],
+        "length": 27.1384,
+        "role": "Length",
+        "label": "27-1/8\"",
+        "angle": {
+          "reference": "-Y (vertical)",
+          "total_deg": 28.7,
+          "components": [
+            {
+              "label": "side-to-side",
+              "deg": 28.7
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.877543,
+          0.479498,
+          -1e-06
+        ],
+        "length": 3.8365,
+        "role": "Width",
+        "label": "3-13/16\"",
+        "angle": {
+          "reference": "+X",
+          "total_deg": 28.7,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": 28.7
+            },
+            {
+              "label": "front-to-back",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          1e-06,
+          0.0,
+          1.0
+        ],
+        "length": 2.0,
+        "role": "Thickness",
+        "label": "2\""
+      }
+    ]
+  },
+  "Legs_Leg_Rear_1": {
+    "center": [
+      2.8036,
+      9.3859,
+      -4.0303
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.2065,
+          0.948805,
+          -0.239014
+        ],
+        "length": 20.8953,
+        "role": "Length",
+        "label": "20-7/8\"",
+        "angle": {
+          "reference": "+Y (vertical)",
+          "total_deg": 18.4,
+          "components": [
+            {
+              "label": "side-to-side",
+              "deg": 12.3
+            },
+            {
+              "label": "front-to-back",
+              "deg": -14.1
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          -0.086548,
+          -0.225609,
+          -0.970366
+        ],
+        "length": 3.367,
+        "role": "Width",
+        "label": "3-3/8\"",
+        "angle": {
+          "reference": "-Z",
+          "total_deg": 14.0,
+          "components": [
+            {
+              "label": "side-to-side",
+              "deg": -5.1
+            },
+            {
+              "label": "vertical",
+              "deg": -13.1
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          -0.974611,
+          0.221067,
+          0.035529
+        ],
+        "length": 1.6031,
+        "role": "Thickness",
+        "label": "1-5/8\"",
+        "angle": {
+          "reference": "-X",
+          "total_deg": 12.9,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": 12.8
+            },
+            {
+              "label": "front-to-back",
+              "deg": 2.1
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

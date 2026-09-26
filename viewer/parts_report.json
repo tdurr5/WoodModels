@@ -1,0 +1,613 @@
+[
+  {
+    "label": "Bench",
+    "top_group": "Body",
+    "dims": [
+      46.344,
+      7.902,
+      1.625
+    ],
+    "count": 2,
+    "materials": [
+      "Wood"
+    ],
+    "paths": [
+      "Body/Bench",
+      "Body/Bench"
+    ],
+    "obj_names": [
+      "Body_Bench",
+      "Body_Bench_1"
+    ],
+    "dims_str": "46-3/8\" x 7-7/8\" x 1-5/8\""
+  },
+  {
+    "label": "Filler_Front",
+    "top_group": "Body",
+    "dims": [
+      7.902,
+      2.882,
+      2.0
+    ],
+    "count": 1,
+    "materials": [
+      "Wood"
+    ],
+    "paths": [
+      "Body/Filler_Front"
+    ],
+    "obj_names": [
+      "Body_Filler_Front"
+    ],
+    "dims_str": "7-7/8\" x 2-7/8\" x 2\""
+  },
+  {
+    "label": "Filler_Middle",
+    "top_group": "Body",
+    "dims": [
+      4.363,
+      4.075,
+      2.0
+    ],
+    "count": 1,
+    "materials": [
+      "Wood"
+    ],
+    "paths": [
+      "Body/Filler_Middle"
+    ],
+    "obj_names": [
+      "Body_Filler_Middle"
+    ],
+    "dims_str": "4-3/8\" x 4-1/16\" x 2\""
+  },
+  {
+    "label": "Filler_Rear",
+    "top_group": "Body",
+    "dims": [
+      5.051,
+      3.5,
+      2.0
+    ],
+    "count": 1,
+    "materials": [
+      "Wood"
+    ],
+    "paths": [
+      "Body/Filler_Rear"
+    ],
+    "obj_names": [
+      "Body_Filler_Rear"
+    ],
+    "dims_str": "5-1/16\" x 3-1/2\" x 2\""
+  },
+  {
+    "label": "Bolt_Head__6",
+    "top_group": "Hardware",
+    "dims": [
+      0.433,
+      0.375,
+      0.328
+    ],
+    "count": 4,
+    "materials": [
+      "_____Metal"
+    ],
+    "paths": [
+      "Hardware/Hardware_4_3_4/Bolt_Head_3_4/Bolt_Head__6",
+      "Hardware/Hardware_4_3_4/Bolt_Head_3_4/Bolt_Head__6",
+      "Hardware/Hardware_4_3_4/Bolt_Head_3_4/Bolt_Head__6",
+      "Hardware/Hardware_4_3_4/Bolt_Head_3_4/Bolt_Head__6",
+      "Hardware/Hardware_4_3_4/Bolt_Head_3_4/Bolt_Head__6",
+      "Hardware/Hardware_4_3_4/Bolt_Head_3_4/Bolt_Head__6",
+      "Hardware/Hardware_8_1_4/Bolt_Head_3_4/Bolt_Head__6",
+      "Hardware/Hardware_8_1_4/Bolt_Head_3_4/Bolt_Head__6",
+      "Hardware/Hardware_8_1_4/Bolt_Head_3_4/Bolt_Head__6",
+      "Hardware/Hardware_8_1_4/Bolt_Head_3_4/Bolt_Head__6",
+      "Hardware/Hardware_8_1_4/Bolt_Head_3_4/Bolt_Head__6",
+      "Hardware/Hardware_8_1_4/Bolt_Head_3_4/Bolt_Head__6",
+      "Hardware/Hardware_6_7_8/Bolt_Head_3_4/Bolt_Head__6",
+      "Hardware/Hardware_6_7_8/Bolt_Head_3_4/Bolt_Head__6",
+      "Hardware/Hardware_6_7_8/Bolt_Head_3_4/Bolt_Head__6",
+      "Hardware/Hardware_6_7_8/Bolt_Head_3_4/Bolt_Head__6",
+      "Hardware/Hardware_6_7_8/Bolt_Head_3_4/Bolt_Head__6",
+      "Hardware/Hardware_6_7_8/Bolt_Head_3_4/Bolt_Head__6",
+      "Hardware/Hardware_4_3_4/Bolt_Head_3_4/Bolt_Head__6",
+      "Hardware/Hardware_4_3_4/Bolt_Head_3_4/Bolt_Head__6",
+      "Hardware/Hardware_4_3_4/Bolt_Head_3_4/Bolt_Head__6",
+      "Hardware/Hardware_4_3_4/Bolt_Head_3_4/Bolt_Head__6",
+      "Hardware/Hardware_4_3_4/Bolt_Head_3_4/Bolt_Head__6",
+      "Hardware/Hardware_4_3_4/Bolt_Head_3_4/Bolt_Head__6"
+    ],
+    "obj_names": [
+      "Hardware_Hardware_4_3_4_Bolt_Head_3_4_Bolt_Head__6",
+      "Hardware_Hardware_4_3_4_Bolt_Head_3_4_Bolt_Head__6_1",
+      "Hardware_Hardware_4_3_4_Bolt_Head_3_4_Bolt_Head__6_2",
+      "Hardware_Hardware_4_3_4_Bolt_Head_3_4_Bolt_Head__6_3",
+      "Hardware_Hardware_4_3_4_Bolt_Head_3_4_Bolt_Head__6_4",
+      "Hardware_Hardware_4_3_4_Bolt_Head_3_4_Bolt_Head__6_5",
+      "Hardware_Hardware_8_1_4_Bolt_Head_3_4_Bolt_Head__6",
+      "Hardware_Hardware_8_1_4_Bolt_Head_3_4_Bolt_Head__6_1",
+      "Hardware_Hardware_8_1_4_Bolt_Head_3_4_Bolt_Head__6_2",
+      "Hardware_Hardware_8_1_4_Bolt_Head_3_4_Bolt_Head__6_3",
+      "Hardware_Hardware_8_1_4_Bolt_Head_3_4_Bolt_Head__6_4",
+      "Hardware_Hardware_8_1_4_Bolt_Head_3_4_Bolt_Head__6_5",
+      "Hardware_Hardware_6_7_8_Bolt_Head_3_4_Bolt_Head__6",
+      "Hardware_Hardware_6_7_8_Bolt_Head_3_4_Bolt_Head__6_1",
+      "Hardware_Hardware_6_7_8_Bolt_Head_3_4_Bolt_Head__6_2",
+      "Hardware_Hardware_6_7_8_Bolt_Head_3_4_Bolt_Head__6_3",
+      "Hardware_Hardware_6_7_8_Bolt_Head_3_4_Bolt_Head__6_4",
+      "Hardware_Hardware_6_7_8_Bolt_Head_3_4_Bolt_Head__6_5",
+      "Hardware_Hardware_4_3_4_Bolt_Head_3_4_Bolt_Head__6_6",
+      "Hardware_Hardware_4_3_4_Bolt_Head_3_4_Bolt_Head__6_7",
+      "Hardware_Hardware_4_3_4_Bolt_Head_3_4_Bolt_Head__6_8",
+      "Hardware_Hardware_4_3_4_Bolt_Head_3_4_Bolt_Head__6_9",
+      "Hardware_Hardware_4_3_4_Bolt_Head_3_4_Bolt_Head__6_10",
+      "Hardware_Hardware_4_3_4_Bolt_Head_3_4_Bolt_Head__6_11"
+    ],
+    "dims_str": "3/4\" hex head (fits 1/2\"-13 rod)",
+    "note": "source file models each head as 6 face facets; qty corrected to real fastener count"
+  },
+  {
+    "label": "Nut_3_4",
+    "top_group": "Hardware",
+    "dims": [
+      37.5,
+      30.801,
+      15.625
+    ],
+    "count": 4,
+    "materials": [
+      "_____Metal"
+    ],
+    "paths": [
+      "Hardware/Hardware_4_3_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_4_3_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_4_3_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_4_3_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_4_3_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_4_3_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_4_3_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_4_3_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_4_3_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_4_3_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_4_3_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_4_3_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_8_1_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_8_1_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_8_1_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_8_1_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_8_1_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_8_1_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_8_1_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_8_1_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_8_1_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_8_1_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_8_1_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_8_1_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_6_7_8/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_6_7_8/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_6_7_8/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_6_7_8/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_6_7_8/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_6_7_8/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_6_7_8/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_6_7_8/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_6_7_8/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_6_7_8/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_6_7_8/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_6_7_8/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_4_3_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_4_3_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_4_3_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_4_3_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_4_3_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_4_3_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_4_3_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_4_3_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_4_3_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_4_3_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_4_3_4/Nut_3_4/Head__2__6",
+      "Hardware/Hardware_4_3_4/Nut_3_4/Head__2__6"
+    ],
+    "obj_names": [],
+    "dims_str": "3/4\" hex nut (fits 1/2\"-13 rod)",
+    "note": "source geometry for this part is corrupted (huge bogus bbox); not shown in 3D view, qty inferred from matching rod count"
+  },
+  {
+    "label": "Shaft_1_2_-13_6_7_8",
+    "top_group": "Hardware",
+    "dims": [
+      6.874,
+      0.5,
+      0.5
+    ],
+    "count": 1,
+    "materials": [
+      "_____Metal"
+    ],
+    "paths": [
+      "Hardware/Hardware_6_7_8/Shaft_1_2_-13_6_7_8"
+    ],
+    "obj_names": [
+      "Hardware_Hardware_6_7_8_Shaft_1_2__13_6_7_8"
+    ],
+    "dims_str": "6-7/8\" x 1/2\" x 1/2\""
+  },
+  {
+    "label": "Shaft_1_2_-13_8_1_4",
+    "top_group": "Hardware",
+    "dims": [
+      6.874,
+      0.5,
+      0.5
+    ],
+    "count": 1,
+    "materials": [
+      "_____Metal"
+    ],
+    "paths": [
+      "Hardware/Hardware_8_1_4/Shaft_1_2_-13_8_1_4"
+    ],
+    "obj_names": [
+      "Hardware_Hardware_8_1_4_Shaft_1_2__13_8_1_4"
+    ],
+    "dims_str": "6-7/8\" x 1/2\" x 1/2\""
+  },
+  {
+    "label": "Shaft_1_2__-13_4_3_4",
+    "top_group": "Hardware",
+    "dims": [
+      5.053,
+      0.5,
+      0.5
+    ],
+    "count": 2,
+    "materials": [
+      "_____Metal"
+    ],
+    "paths": [
+      "Hardware/Hardware_4_3_4/Shaft_1_2__-13_4_3_4",
+      "Hardware/Hardware_4_3_4/Shaft_1_2__-13_4_3_4"
+    ],
+    "obj_names": [
+      "Hardware_Hardware_4_3_4_Shaft_1_2___13_4_3_4",
+      "Hardware_Hardware_4_3_4_Shaft_1_2___13_4_3_4_1"
+    ],
+    "dims_str": "5-1/16\" x 1/2\" x 1/2\""
+  },
+  {
+    "label": "Jaw_Lower",
+    "top_group": "Jaw_Lower_Assy",
+    "dims": [
+      8.846,
+      5.25,
+      1.909
+    ],
+    "count": 1,
+    "materials": [
+      "Wood"
+    ],
+    "paths": [
+      "Jaw_Lower_Assy/Jaw_Lower"
+    ],
+    "obj_names": [
+      "Jaw_Lower_Assy_Jaw_Lower"
+    ],
+    "dims_str": "8-7/8\" x 5-1/4\" x 1-15/16\""
+  },
+  {
+    "label": "Jaw_Lower_Cross_Piece",
+    "top_group": "Jaw_Lower_Assy",
+    "dims": [
+      5.25,
+      2.388,
+      1.0
+    ],
+    "count": 1,
+    "materials": [
+      "Wood"
+    ],
+    "paths": [
+      "Jaw_Lower_Assy/Jaw_Lower_Cross_Piece"
+    ],
+    "obj_names": [
+      "Jaw_Lower_Assy_Jaw_Lower_Cross_Piece"
+    ],
+    "dims_str": "5-1/4\" x 2-3/8\" x 1\""
+  },
+  {
+    "label": "Jaw_Support",
+    "top_group": "Jaw_Lower_Assy",
+    "dims": [
+      11.939,
+      3.5,
+      1.875
+    ],
+    "count": 1,
+    "materials": [
+      "Wood"
+    ],
+    "paths": [
+      "Jaw_Lower_Assy/Jaw_Support"
+    ],
+    "obj_names": [
+      "Jaw_Lower_Assy_Jaw_Support"
+    ],
+    "dims_str": "11-15/16\" x 3-1/2\" x 1-7/8\""
+  },
+  {
+    "label": "Key",
+    "top_group": "Jaw_Lower_Assy",
+    "dims": [
+      1.875,
+      0.75,
+      0.728
+    ],
+    "count": 6,
+    "materials": [
+      "Wood"
+    ],
+    "paths": [
+      "Jaw_Lower_Assy/Jaw_Support/Keys/Key",
+      "Jaw_Lower_Assy/Jaw_Support/Keys/Key",
+      "Jaw_Lower_Assy/Jaw_Support/Keys/Key",
+      "Jaw_Lower_Assy/Jaw_Support/Keys/Key",
+      "Jaw_Lower_Assy/Jaw_Support/Keys/Key",
+      "Jaw_Lower_Assy/Jaw_Support/Keys/Key"
+    ],
+    "obj_names": [
+      "Jaw_Lower_Assy_Jaw_Support_Keys_Key",
+      "Jaw_Lower_Assy_Jaw_Support_Keys_Key_1",
+      "Jaw_Lower_Assy_Jaw_Support_Keys_Key_2",
+      "Jaw_Lower_Assy_Jaw_Support_Keys_Key_3",
+      "Jaw_Lower_Assy_Jaw_Support_Keys_Key_4",
+      "Jaw_Lower_Assy_Jaw_Support_Keys_Key_5"
+    ],
+    "dims_str": "1-7/8\" x 3/4\" x 3/4\""
+  },
+  {
+    "label": "Leg_Front",
+    "top_group": "Legs",
+    "dims": [
+      27.138,
+      3.837,
+      2.0
+    ],
+    "count": 1,
+    "materials": [
+      "Wood"
+    ],
+    "paths": [
+      "Legs/Leg_Front"
+    ],
+    "obj_names": [
+      "Legs_Leg_Front"
+    ],
+    "dims_str": "27-1/8\" x 3-13/16\" x 2\""
+  },
+  {
+    "label": "Leg_Rear",
+    "top_group": "Legs",
+    "dims": [
+      20.895,
+      3.367,
+      1.603
+    ],
+    "count": 2,
+    "materials": [
+      "Wood"
+    ],
+    "paths": [
+      "Legs/Leg_Rear",
+      "Legs/Leg_Rear"
+    ],
+    "obj_names": [
+      "Legs_Leg_Rear",
+      "Legs_Leg_Rear_1"
+    ],
+    "dims_str": "20-7/8\" x 3-3/8\" x 1-5/8\""
+  },
+  {
+    "label": "Rachet_Dove",
+    "top_group": "Rachet_Dove",
+    "dims": [
+      7.877,
+      4.012,
+      1.875
+    ],
+    "count": 1,
+    "materials": [
+      "Wood_contrast"
+    ],
+    "paths": [
+      "Rachet_Dove"
+    ],
+    "obj_names": [
+      "Rachet_Dove"
+    ],
+    "dims_str": "7-7/8\" x 4\" x 1-7/8\""
+  },
+  {
+    "label": "Seat_Block",
+    "top_group": "Seat",
+    "dims": [
+      5.25,
+      3.0,
+      1.0
+    ],
+    "count": 1,
+    "materials": [
+      "Wood"
+    ],
+    "paths": [
+      "Seat/Seat_Block"
+    ],
+    "obj_names": [
+      "Seat_Seat_Block"
+    ],
+    "dims_str": "5-1/4\" x 3\" x 1\""
+  },
+  {
+    "label": "Seat_Handle",
+    "top_group": "Seat",
+    "dims": [
+      4.501,
+      0.375,
+      0.375
+    ],
+    "count": 1,
+    "materials": [
+      "_____Metal"
+    ],
+    "paths": [
+      "Seat/Seat_Handle"
+    ],
+    "obj_names": [
+      "Seat_Seat_Handle"
+    ],
+    "dims_str": "4-1/2\" x 3/8\" x 3/8\""
+  },
+  {
+    "label": "Seat__2",
+    "top_group": "Seat",
+    "dims": [
+      12.47,
+      5.668,
+      2.604
+    ],
+    "count": 2,
+    "materials": [
+      "Wood"
+    ],
+    "paths": [
+      "Seat/Seat__2",
+      "Seat/Seat__2"
+    ],
+    "obj_names": [
+      "Seat_Seat__2",
+      "Seat_Seat__2_1"
+    ],
+    "dims_str": "12-1/2\" x 5-11/16\" x 2-5/8\""
+  },
+  {
+    "label": "Treadle_Beam",
+    "top_group": "Treadle",
+    "dims": [
+      29.483,
+      3.0,
+      1.625
+    ],
+    "count": 2,
+    "materials": [
+      "Wood"
+    ],
+    "paths": [
+      "Treadle/Treadle_Beam",
+      "Treadle/Treadle_Beam"
+    ],
+    "obj_names": [
+      "Treadle_Treadle_Beam",
+      "Treadle_Treadle_Beam_1"
+    ],
+    "dims_str": "29-1/2\" x 3\" x 1-5/8\""
+  },
+  {
+    "label": "Treadle_Dowel",
+    "top_group": "Treadle",
+    "dims": [
+      3.125,
+      0.5,
+      0.5
+    ],
+    "count": 2,
+    "materials": [
+      "Wood"
+    ],
+    "paths": [
+      "Treadle/Treadle_Beam/Treadle_Dowel",
+      "Treadle/Treadle_Beam/Treadle_Dowel"
+    ],
+    "obj_names": [
+      "Treadle_Treadle_Beam_Treadle_Dowel",
+      "Treadle_Treadle_Beam_Treadle_Dowel_1"
+    ],
+    "dims_str": "3-1/8\" x 1/2\" x 1/2\""
+  },
+  {
+    "label": "Treadle_Foot_Peg",
+    "top_group": "Treadle",
+    "dims": [
+      16.75,
+      3.0,
+      1.0
+    ],
+    "count": 1,
+    "materials": [
+      "Wood"
+    ],
+    "paths": [
+      "Treadle/Treadle_Foot_Peg"
+    ],
+    "obj_names": [
+      "Treadle_Treadle_Foot_Peg"
+    ],
+    "dims_str": "16-3/4\" x 3\" x 1\""
+  },
+  {
+    "label": "Treadle_Jaw_Upper_Tennon",
+    "top_group": "Treadle",
+    "dims": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "count": 2,
+    "materials": [
+      "Leather"
+    ],
+    "paths": [
+      "Treadle/Treadle_Jaw_Upper/Treadle_Jaw_Upper_Tennon",
+      "Treadle/Treadle_Jaw_Upper/Treadle_Jaw_Upper_Tennon"
+    ],
+    "obj_names": [
+      "Treadle_Treadle_Jaw_Upper_Treadle_Jaw_Upper_Tennon",
+      "Treadle_Treadle_Jaw_Upper_Treadle_Jaw_Upper_Tennon_1"
+    ],
+    "dims_str": "1\" x 1\" x 1\""
+  },
+  {
+    "label": "Treadle_Jaw_Upper__8",
+    "top_group": "Treadle",
+    "dims": [
+      2.75,
+      1.0,
+      1.0
+    ],
+    "count": 8,
+    "materials": [
+      "Leather"
+    ],
+    "paths": [
+      "Treadle/Treadle_Jaw_Upper/Treadle_Jaw_Upper__8",
+      "Treadle/Treadle_Jaw_Upper/Treadle_Jaw_Upper__8",
+      "Treadle/Treadle_Jaw_Upper/Treadle_Jaw_Upper__8",
+      "Treadle/Treadle_Jaw_Upper/Treadle_Jaw_Upper__8",
+      "Treadle/Treadle_Jaw_Upper/Treadle_Jaw_Upper__8",
+      "Treadle/Treadle_Jaw_Upper/Treadle_Jaw_Upper__8",
+      "Treadle/Treadle_Jaw_Upper/Treadle_Jaw_Upper__8",
+      "Treadle/Treadle_Jaw_Upper/Treadle_Jaw_Upper__8"
+    ],
+    "obj_names": [
+      "Treadle_Treadle_Jaw_Upper_Treadle_Jaw_Upper__8",
+      "Treadle_Treadle_Jaw_Upper_Treadle_Jaw_Upper__8_1",
+      "Treadle_Treadle_Jaw_Upper_Treadle_Jaw_Upper__8_2",
+      "Treadle_Treadle_Jaw_Upper_Treadle_Jaw_Upper__8_3",
+      "Treadle_Treadle_Jaw_Upper_Treadle_Jaw_Upper__8_4",
+      "Treadle_Treadle_Jaw_Upper_Treadle_Jaw_Upper__8_5",
+      "Treadle_Treadle_Jaw_Upper_Treadle_Jaw_Upper__8_6",
+      "Treadle_Treadle_Jaw_Upper_Treadle_Jaw_Upper__8_7"
+    ],
+    "dims_str": "2-3/4\" x 1\" x 1\""
+  }
+]
