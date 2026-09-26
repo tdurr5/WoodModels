@@ -374,7 +374,7 @@ test('edits: names are trimmed and cleared by an empty name', () => {
   assert.deepEqual(e.names, {});
   e = withGroupName(e, 'group_7', 'Base');
   assert.deepEqual(e.groups, { group_7: 'Base' });
-  assert.deepEqual(normalizeEdits({ names: [], status: 'x' }), { names: {}, groups: {}, status: {}, pieces: {} }, 'bad data is ignored');
+  assert.deepEqual(normalizeEdits({ names: [], status: 'x' }), { names: {}, groups: {}, status: {}, pieces: {}, joins: [] }, 'bad data is ignored');
 });
 
 // ---------- overlapping copies and single-piece edits ----------
@@ -411,4 +411,30 @@ test('prepareRows: one deleted piece splits off its own row', () => {
   assert.deepEqual(gone.obj_names, ['r2']);
   assert.notEqual(gone.key, main.key);
   assert.equal(gone.letter, '');
+});
+
+import { applyJoins } from '../viewer/geometry.js';
+import { withJoin, withoutJoins } from '../viewer/edits.js';
+
+test('applyJoins: two overlapping boards become one piece measured end to end', () => {
+  const dims = { a: board(0, 0), b: board(0, 12), c: board(5, 0) };
+  const raw = [{ label: 'Rail', top_group: 'Base', dims: [68, 3.5, 1.5], count: 3, materials: ['Oak'], obj_names: ['a', 'b', 'c'], dims_str: 'x' }];
+  const { rows, dims: out } = applyJoins(raw, withJoin(null, ['a', 'b']).joins, dims, (x) => `${x}"`);
+  const single = rows.find((r) => !r.joined), joined = rows.find((r) => r.joined);
+  assert.deepEqual(single.obj_names, ['c']);
+  assert.equal(single.count, 1);
+  assert.deepEqual(joined.dims, [80, 3.5, 1.5]);
+  assert.deepEqual(joined.pieces, [['a', 'b']]);
+  assert.equal(joined.dims_str, '80" x 3.5" x 1.5"');
+  near(out['a+b'].axes[0].length, 80);
+  near(out['a+b'].center[2], 6); // midway between -34 and 46
+});
+
+test('joins: joining again replaces, splitting removes; stale joins are ignored', () => {
+  let e = withJoin(null, ['a', 'b']);
+  e = withJoin(e, ['b', 'c']);
+  assert.deepEqual(e.joins, [['b', 'c']]);
+  assert.deepEqual(withoutJoins(e, ['c']).joins, []);
+  const raw = [{ label: 'Rail', dims: [68, 3.5, 1.5], count: 1, obj_names: ['a'] }];
+  assert.equal(applyJoins(raw, [['a', 'gone']], { a: board(0, 0) }).rows, raw);
 });

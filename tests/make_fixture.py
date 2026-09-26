@@ -9,6 +9,8 @@ Covers the paths parse_dae.py has to handle in the real export:
   - two instances of one component with different transforms (qty 2)
   - a real material plus an "edge_color" material that must be ignored
   - a flat printed plan sheet that must be excluded
+  - optionally (overlap=True) a third board slid 6" along the first, so
+    the two overlap by 4" (a rail modeled as two boards)
   - optionally (scaled=True) a copy of the board component stretched 2x
     along its length, the way SketchUp's Scale tool leaves it
   - optionally (sketchup2023=True) an unnamed group the way newer SketchUp
@@ -169,19 +171,19 @@ def polygons_geometry(gid, verts, material_symbol):
 
 
 def build(unit_meter=0.0254, scale=1.0, up_axis='Z_UP', leg_as='polylist', transforms='matrix', namespace=NS,
-          sketchup2023=False, scaled=False):
+          sketchup2023=False, scaled=False, overlap=False):
     """`scale` multiplies every length, for writing the same model in another
     unit (e.g. unit_meter=0.001, scale=25.4 for millimetres). `leg_as` picks
     the primitive the leg is written with ('polylist' or 'polygons');
     `transforms='trs'` places parts with <translate>/<rotate> instead of
     <matrix>; `namespace` may be the COLLADA 1.5 one or '' (none)."""
-    xml = _build(unit_meter, scale, up_axis, leg_as, transforms, sketchup2023, scaled)
+    xml = _build(unit_meter, scale, up_axis, leg_as, transforms, sketchup2023, scaled, overlap)
     if namespace != NS:
         xml = xml.replace(f' xmlns="{NS}"', f' xmlns="{namespace}"' if namespace else '')
     return xml
 
 
-def _build(unit_meter, scale, up_axis, leg_as, transforms, sketchup2023=False, scaled=False):
+def _build(unit_meter, scale, up_axis, leg_as, transforms, sketchup2023=False, scaled=False, overlap=False):
     if transforms == 'trs':
         place_board = lambda y: f'<translate>0 {6 * scale if y else 0} {20 * scale}</translate>'  # noqa: E731
         place_leg = f'<translate>{2 * scale} 0 0</translate><rotate>1 0 0 90</rotate>'
@@ -204,6 +206,11 @@ def _build(unit_meter, scale, up_axis, leg_as, transforms, sketchup2023=False, s
           <node name="Board">{matrix((2, 0, 0, 0, 0, 1, 0, 12 * scale, 0, 0, 1, 20 * scale, 0, 0, 0, 1))}
             <instance_geometry url="#geom_board">{bind()}</instance_geometry>
           </node>''' if scaled else ''
+    if overlap:
+        scaled_node += f'''
+          <node name="Board">{matrix(translate(6 * scale, 0, 20 * scale))}
+            <instance_geometry url="#geom_board">{bind()}</instance_geometry>
+          </node>'''
     geoms += extra_geoms
     return f'''<?xml version="1.0" encoding="utf-8"?>
 <COLLADA xmlns="{NS}" version="1.4.1">

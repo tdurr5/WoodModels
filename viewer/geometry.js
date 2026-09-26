@@ -119,3 +119,69 @@ export function findOverlaps(dims, { tol = 1 / 16, minOverlap = 1 } = {}) {
   });
   return out;
 }
+
+// ---------- joining overlapping pieces into one ----------
+// A rail modeled as two overlapping boards is one longer piece: its size
+// runs from the first board's end to the last one's. list: object_dims
+// entries lying on one line (as findOverlaps reports them).
+export function joinDims(list, toLabel = (x) => `${x}`) {
+  const A = list[0];
+  if (!A?.axes || A.axes.length !== 3) return null;
+  const ax = A.axes[0].direction;
+  let lo = Infinity, hi = -Infinity;
+  for (const d of list) {
+    if (!d?.axes || Math.abs(dot(d.axes[0].direction, ax)) < 0.999) return null;
+    const t = dot(sub(d.center, A.center), ax);
+    lo = Math.min(lo, t - d.axes[0].length / 2);
+    hi = Math.max(hi, t + d.axes[0].length / 2);
+  }
+  const mid = (lo + hi) / 2;
+  const length = Math.round((hi - lo) * 1e4) / 1e4;
+  return {
+    center: A.center.map((c, k) => Math.round((c + ax[k] * mid) * 1e4) / 1e4),
+    axes: [{ ...A.axes[0], length, label: toLabel(length) }, ...A.axes.slice(1)],
+  };
+}
+
+// Apply edits.joins (lists of mesh names) to parts_report rows and
+// object_dims: the joined meshes leave their rows and form a part of their
+// own (one piece per join, identical joins sharing a row); each join gets a
+// dims entry named "meshA+meshB". Joins that no longer apply are skipped.
+export function applyJoins(rawRows, joins, dims, toLabel = (x) => `${x}`) {
+  if (!joins || !joins.length) return { rows: rawRows, dims };
+  const outDims = { ...dims };
+  const rowOf = new Map();
+  rawRows.forEach((r) => (r.obj_names || []).forEach((n) => rowOf.set(n, r)));
+  const taken = new Set();
+  const joined = new Map();
+  for (const names of joins) {
+    const rows = names.map((n) => rowOf.get(n));
+    if (names.length < 2 || names.some((n) => taken.has(n) || !dims[n]) || rows.some((r) => !r || r.count !== r.obj_names.length)) continue;
+    const d = joinDims(names.map((n) => dims[n]), toLabel);
+    if (!d) continue;
+    names.forEach((n) => taken.add(n));
+    const key = names.join('+');
+    outDims[key] = d;
+    const size = d.axes.map((a) => Math.round(a.length * 1000) / 1000).sort((a, b) => b - a);
+    const base = rows[0];
+    const rk = `${base.label}|${size.join('x')}`;
+    if (!joined.has(rk)) {
+      joined.set(rk, {
+        label: base.label, top_group: base.top_group, dims: size, count: 0, materials: base.materials || [],
+        paths: [], obj_names: [], pieces: [], joined: true, auto_name: base.auto_name,
+        dims_str: size.map((x) => toLabel(x)).join(' x '),
+      });
+    }
+    const jr = joined.get(rk);
+    jr.count += 1;
+    jr.obj_names.push(...names);
+    jr.pieces.push(names);
+  }
+  if (!taken.size) return { rows: rawRows, dims };
+  const rows = rawRows.map((r) => {
+    const keep = (r.obj_names || []).filter((n) => !taken.has(n));
+    if (keep.length === (r.obj_names || []).length) return r;
+    return keep.length ? { ...r, obj_names: keep, count: keep.length } : null;
+  }).filter(Boolean);
+  return { rows: [...rows, ...joined.values()], dims: outDims };
+}

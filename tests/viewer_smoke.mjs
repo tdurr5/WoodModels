@@ -772,6 +772,48 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
   }
 }
 
+// ---------- overlapping copies: join into one piece, or delete the copy ----------
+{
+  console.log('overlapping pieces');
+  const tmp = fs.mkdtempSync(path.join(OUT, 'overlap-'));
+  const dae = path.join(tmp, 'Rail Test.dae');
+  execFileSync('python3', ['-c', `import sys; sys.path.insert(0, ${JSON.stringify(path.join(ROOT, 'tests'))}); import make_fixture; open(${JSON.stringify(dae)}, 'w').write(make_fixture.build(overlap=True))`]);
+  const b2 = await chromium.launch(launchOpts);
+  const p2 = await b2.newPage({ viewport: { width: 1400, height: 900 } });
+  const errs = [];
+  p2.on('pageerror', (e) => errs.push(e.message));
+  const loaded = () => p2.waitForFunction(() => document.getElementById('loading').style.display === 'none', null, { timeout: 30000 });
+  const boardRows = () => p2.locator('#clList > .row', { hasText: 'Board' }).evaluateAll((els) => els.map((e) => e.querySelector('.dims').textContent + ' ' + e.querySelector('.qty').textContent));
+  try {
+    await p2.goto(base);
+    await loaded();
+    await p2.locator('#clLibrary').click();
+    await p2.locator('#libFile').setInputFiles(dae);
+    await p2.waitForURL(/setup=1/, { timeout: 30000 });
+    await loaded();
+    await p2.locator('#setup .setup-cancel').click();
+    const row = p2.locator('#clList > .row', { hasText: 'Board' }).first();
+    check(/Overlaps another piece of this part by 4" .*together 16" long/.test(await row.innerText()), 'a board slid along another is flagged, with the combined length');
+    await row.click();
+    await p2.locator('#dimCard [data-act=join-overlap]').click();
+    check(JSON.stringify(await boardRows()) === JSON.stringify(['1" × 4" × 10" ×1', '1" × 4" × 16" ×1']), `"Join" makes the pair one 16" piece (${await boardRows()})`);
+    check((await p2.locator('#dimCard .dim-big').innerText()).includes('16"') && (await p2.locator('#axisLabels .axisLabel').allInnerTexts()).includes('16"'), 'the joined piece is selected and dimensioned end to end');
+    await p2.reload();
+    await loaded();
+    check(JSON.stringify(await boardRows()) === JSON.stringify(['1" × 4" × 10" ×1', '1" × 4" × 16" ×1']), 'the join is saved with the model');
+    await p2.locator('#clList > .row', { hasText: '16"' }).click();
+    await p2.locator('#dimCard [data-act=split]').click();
+    check(JSON.stringify(await boardRows()) === JSON.stringify(['1" × 4" × 10" ×3']), '"Split apart" undoes it');
+    await p2.locator('#clList > .row', { hasText: 'Board' }).first().click();
+    await p2.locator('#dimCard [data-act=del-overlap]').click();
+    check(JSON.stringify(await boardRows()) === JSON.stringify(['1" × 4" × 10" ×2']) && !/Overlaps/.test(await p2.locator('#clList > .row', { hasText: 'Board' }).first().innerText()), '"Delete the overlapping copy" removes one piece and the warning');
+    check(errs.length === 0, `no page errors (${errs.join('; ')})`);
+  } finally {
+    await b2.close();
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
 // ---------- edits on the built-in model live in this browser ----------
 {
   console.log('edits on a built-in model');

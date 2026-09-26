@@ -2,20 +2,20 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
-import { formatLength, escapeHtml } from './format.js';
+import { formatLength, escapeHtml, toFraction } from './format.js';
 import { compoundAngle, describeAngle, round1, DEFAULT_AXIS_NAMES } from './angles.js';
 import { initSettings, settings, updateSettings, onSettingsChange, resetSettings } from './settings.js';
 import {
   prepareRows, renderCutList, renderRows, markActive, visibleRows, focusSearch, finishedDims, buildPrintSheet, isRod, userNote,
   millingPlanHTML, setCutListRows, inlineEdit, markActiveGroup,
 } from './cutlist.js';
-import { normalizeEdits, withStatus, withName, withGroupName, withPieceStatus } from './edits.js';
+import { normalizeEdits, withStatus, withName, withGroupName, withPieceStatus, withJoin, withoutJoins } from './edits.js';
 import { initMeasure } from './measure.js';
 import { initDiagramModal, computeLayouts, layoutsHTML } from './diagram.js';
 import { buildTemplate } from './template.js';
 import { initLibrary } from './library.js';
 import { getModelFiles, lastOpened, rememberOpened, putModelFile } from './modelstore.js';
-import { obbFromDims, partsTouch, findOverlaps } from './geometry.js';
+import { obbFromDims, partsTouch, findOverlaps, applyJoins } from './geometry.js';
 
 const $ = (id) => document.getElementById(id);
 const viewport = $('viewport');
@@ -117,7 +117,8 @@ scene.add(grid);
 // ---------- state ----------
 let config = {};
 let axisNames = DEFAULT_AXIS_NAMES;
-let objectDims = {};  // safe_name -> { center, axes: [{direction,length,role,label}] }
+let objectDims = {};  // safe_name -> { center, axes: [{direction,length,role,label}] }, plus "a+b" for joined pieces
+let baseObjectDims = {}; // object_dims.json as loaded
 let rows = [];          // parts in the build (what the cut list, totals, diagrams and prints use)
 let allPartRows = [];   // plus parts set aside or deleted (edits.js)
 let rawRows = [];       // parts_report.json as loaded
@@ -274,7 +275,7 @@ async function init() {
   const materialNames = JSON.parse(files['materials.json']);
   config = cfg;
   axisNames = { ...DEFAULT_AXIS_NAMES, ...(cfg.axisNames || {}) };
-  objectDims = JSON.parse(files['object_dims.json']);
+  baseObjectDims = objectDims = JSON.parse(files['object_dims.json']);
   document.title = `${cfg.title || 'Model'} — Cut List Viewer`;
   // preferences, ticks and notes are kept per model
   modelKey = LOCAL_ID ? `local-${LOCAL_ID}` : (cfg.title || 'model').toLowerCase().replace(/[^a-z0-9]+/g, '-');
@@ -282,9 +283,8 @@ async function init() {
   applyTheme();
   rawRows = JSON.parse(files['parts_report.json']);
   edits = loadEdits(cfg);
-  overlaps = findOverlaps(objectDims);
-  allPartRows = prepareRows(rawRows, cfg, edits);
-  addOverlapNotes(allPartRows);
+  overlaps = findOverlaps(baseObjectDims);
+  computeRows();
   rows = allPartRows.filter((r) => !r.status);
   allPartRows.forEach((r) => (r.obj_names || []).forEach((n) => rowByMeshName.set(n, r)));
 
@@ -405,12 +405,13 @@ function addOverlapNotes(all) {
   overlaps.forEach((o) => {
     const ra = rowOf.get(o.a), rb = rowOf.get(o.b);
     if (!ra || !rb || ra.status || rb.status) return;
-    const text = (other) => `Overlaps ${other === ra && ra === rb ? 'another piece of this part' : `"${other.name}"`} by ${formatLength(o.overlap, units)} - two pieces in the same space (together ${formatLength(o.span, units)} long). Probably a copy left in the model, or meant as one longer piece.`;
-    [[ra, rb, o.b], [rb, ra, o.a]].forEach(([r, other, otherMesh]) => {
+    if (ra.joined && ra.pieces.some((p) => p.includes(o.a) && p.includes(o.b))) return; // already joined
+    const text = (other) => `Overlaps ${other === ra && ra === rb ? 'another piece of this part' : `"${other.name}"`} by ${formatLength(o.overlap, units)} - two pieces in the same space (together ${formatLength(o.span, units)} long). Either a copy left in the model, or one ${formatLength(o.span, units)} piece modeled as two.`;
+    [[ra, rb, o.b], [rb, ra, o.a]].forEach(([r, other]) => {
       const t = text(other);
       if (!r.notes.includes(t)) r.notes.push(t);
       r.warn = true;
-      (r.overlapPieces = r.overlapPieces || []).push(otherMesh);
+      (r.overlapPairs = r.overlapPairs || []).push(o);
     });
   });
 }
@@ -418,9 +419,16 @@ function renamePart(row, name) { commitEdits(withName(edits, row.key, name), nam
 function renameGroup(group, name) { commitEdits(withGroupName(edits, group, name), name ? `Group renamed to "${name}"` : 'Group name reset'); }
 
 // Rebuild the rows after an edit, keeping the 3D scene, camera and selection.
-function refreshRows() {
-  allPartRows = prepareRows(rawRows, config, edits);
+// rows (and joined pieces' dimensions) from the model data plus your edits
+function computeRows() {
+  const j = applyJoins(rawRows, edits.joins, baseObjectDims, toFraction);
+  objectDims = j.dims;
+  allPartRows = prepareRows(j.rows, config, edits);
   addOverlapNotes(allPartRows);
+}
+
+function refreshRows() {
+  computeRows();
   rows = allPartRows.filter((r) => !r.status);
   rowByMeshName.clear();
   allPartRows.forEach((r) => (r.obj_names || []).forEach((n) => rowByMeshName.set(n, r)));
@@ -908,15 +916,18 @@ function buildSelectionOverlays() {
   // not always their holes and cuts, and a named part can differ slightly);
   // a measurement that differs from the first piece's is flagged. Show the
   // lean on each, since mirrored pairs lean in opposite directions.
-  const first = objectDims[current.meshes[0]?.name];
+  const pieces = rowPieces(current.row);
+  const first = objectDims[pieces[0]?.key];
   // (hardware with a hand-written size is stored as one mesh per facet: not versions)
-  const variants = current.row.customDims ? [] : pieceVariants(current.meshes);
-  current.meshes.forEach((m, i) => {
-    const data = objectDims[m.name];
+  const variants = current.row.customDims || current.row.joined ? [] : pieceVariants(current.meshes);
+  pieces.forEach(({ key, meshes: pm }, i) => {
+    const m = pm[0];
+    if (!m) return;
+    const data = objectDims[key];
     if (!data || !data.axes) return;
     const sub = new THREE.Group();
     sub.position.copy(m.position); // exploded-view offset
-    if (i < MAX_DIMENSIONED) buildDimensionGizmo(sub, data, labelSpecs, m.position, i ? first : null);
+    if (i < (current.row.customDims ? 1 : MAX_DIMENSIONED)) buildDimensionGizmo(sub, data, labelSpecs, m.position, i ? first : null);
     buildAngleGizmo(sub, data, labelSpecs, m.position);
     // several versions of the part: number each piece by its version
     if (variants.length > 1) {
@@ -945,6 +956,12 @@ const MARGIN = 0.6;   // inches, how far the dimension line stands off the part'
 const TICK_LEN = 0.5; // inches, length of the little perpendicular end-ticks
 
 const MAX_DIMENSIONED = 12; // pieces of one row that get dimension lines
+
+// A row's pieces: one mesh each, or several meshes joined into one piece.
+function rowPieces(row) {
+  if (row.pieces) return row.pieces.map((names) => ({ key: names.join('+'), meshes: names.map((n) => meshByName.get(n)).filter(Boolean) }));
+  return (row.obj_names || []).map((n) => ({ key: n, meshes: [meshByName.get(n)].filter(Boolean) }));
+}
 
 // The selected pieces grouped into versions: same size (in the units shown)
 // and the same surface area (holes, slots and notches change it).
@@ -1243,6 +1260,17 @@ function renderGroupCard(box) {
   act('delete', () => setPartStatus(inGroup, 'deleted'));
 }
 
+// one geometry holding several (non-indexed OBJ) geometries' triangles
+function mergePositions(geos) {
+  const arrays = geos.map((g) => g.attributes.position.array);
+  const out = new Float32Array(arrays.reduce((n, a) => n + a.length, 0));
+  let o = 0;
+  arrays.forEach((a) => { out.set(a, o); o += a.length; });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(out, 3));
+  return g;
+}
+
 function renameSelected() {
   if (!current) return;
   if (cardCollapsed) { cardCollapsed = false; renderDimCard(); }
@@ -1252,7 +1280,7 @@ function renameSelected() {
 
 function renderDimCard() {
   const row = current.row;
-  const data = objectDims[current.meshes[0]?.name];
+  const data = objectDims[rowPieces(current.row)[0]?.key];
   const notes = row.notes.map((n) => `<div class="card-note${row.warn ? ' warn' : ''}">${row.warn ? '⚠ ' : ''}${escapeHtml(n)}</div>`).join('');
   dimCard.classList.toggle('collapsed', cardCollapsed);
   dimCard.innerHTML = `
@@ -1271,8 +1299,11 @@ function renderDimCard() {
       <summary>${userNote(row) ? 'Your note' : 'Add a note'}</summary>
       <textarea rows="2" placeholder="e.g. use the quartersawn offcut; check grain runout">${escapeHtml(userNote(row))}</textarea>
     </details>
-    ${row.overlapPieces?.length && !row.status ? '<div class="card-actions"><button class="card-btn danger" data-act="del-overlap" title="Delete the overlapping copy (you can restore it from Deleted)">Delete the overlapping copy</button></div>' : ''}
-    ${current.piece && row.count > 1 && !row.pieceStatus && !row.status ? `<div class="card-piece">The piece you clicked:
+    ${row.overlapPairs?.length && !row.status ? `<div class="card-actions">
+      <button class="card-btn" data-act="join-overlap" title="They're one longer piece: measure them end to end as one part">Join into one ${escapeHtml(formatLength(row.overlapPairs[0].span, settings().units))} piece</button>
+      <button class="card-btn danger" data-act="del-overlap" title="It's a copy left in the model: delete it (you can restore it from Deleted)">Delete the overlapping copy</button></div>` : ''}
+    ${row.joined ? `<div class="card-note">Joined from ${row.pieces[0].length} overlapping pieces in the model, measured end to end. <button class="card-btn" data-act="split" title="Undo the join">Split ${row.count > 1 ? `all ×${row.count} ` : ''}apart</button></div>` : ''}
+    ${current.piece && row.count > 1 && !row.pieceStatus && !row.status && !row.joined ? `<div class="card-piece">The piece you clicked:
       <button class="card-btn" data-act="piece-aside" title="Set aside just this piece">Set aside</button>
       <button class="card-btn danger" data-act="piece-delete" title="Delete just this piece, not all ${row.count}">Delete</button></div>` : ''}
     <div class="card-actions">
@@ -1310,8 +1341,18 @@ function renderDimCard() {
   dimCard.querySelector('[data-act="piece-aside"]')?.addEventListener('click', () => setPieceStatus(current.piece, 'aside'));
   dimCard.querySelector('[data-act="piece-delete"]')?.addEventListener('click', () => setPieceStatus(current.piece, 'deleted'));
   dimCard.querySelector('[data-act="del-overlap"]')?.addEventListener('click', () => {
-    const m = meshByName.get(row.overlapPieces[0]);
+    const o = row.overlapPairs[0];
+    // delete the copy that isn't the piece you clicked, if you clicked one
+    const m = meshByName.get(current.piece?.name === o.b ? o.a : o.b);
     if (m) setPieceStatus(m, 'deleted');
+  });
+  dimCard.querySelector('[data-act="join-overlap"]')?.addEventListener('click', () => {
+    const o = row.overlapPairs[0];
+    commitEdits(withJoin(edits, [o.a, o.b]), `Joined into one ${formatLength(o.span, settings().units)} piece`);
+    selectRow(allPartRows.find((r) => r.obj_names.includes(o.a)), { frame: false });
+  });
+  dimCard.querySelector('[data-act="split"]')?.addEventListener('click', () => {
+    commitEdits(withoutJoins(edits, row.obj_names), 'Split back into the pieces in the model');
   });
 }
 
@@ -1498,9 +1539,11 @@ function printSheet() { window.print(); }
 let printingTemplate = false;
 function prepareTemplate() {
   if (!current) return false;
-  const mesh = current.meshes[0];
-  const data = mesh && objectDims[mesh.name];
+  const piece = rowPieces(current.row)[0];
+  const data = piece && objectDims[piece.key];
   if (!data) return false;
+  // a joined piece is drawn from all of its meshes
+  const mesh = piece.meshes.length === 1 ? piece.meshes[0] : new THREE.Mesh(mergePositions(piece.meshes.map((m) => m.geometry)));
   $('printSheet').innerHTML = buildTemplate(renderer, mesh, data, current.row.name, settings().units);
   printingTemplate = true;
   return true;

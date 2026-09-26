@@ -8,12 +8,15 @@
 //                    | 'build'  (overrides a default, e.g. a flat face)
 //   pieces  mesh name -> 'deleted' | 'aside' for one piece of a part with
 //           several (e.g. one of two copies of a board left on top of each other)
+//   joins   [[mesh names]...]: overlapping pieces that are really one longer
+//           piece (a rail modeled as two boards slid along each other)
 // Row keys are `${label}|${dims}` like everywhere else. Pure functions; app.js
 // stores the result (in the uploaded model itself, or in browser storage).
 
 export function normalizeEdits(e) {
   const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? { ...v } : {});
-  return { names: obj(e?.names), groups: obj(e?.groups), status: obj(e?.status), pieces: obj(e?.pieces) };
+  const joins = Array.isArray(e?.joins) ? e.joins.filter((j) => Array.isArray(j) && j.length > 1 && j.every((n) => typeof n === 'string')).map((j) => [...j]) : [];
+  return { names: obj(e?.names), groups: obj(e?.groups), status: obj(e?.status), pieces: obj(e?.pieces), joins };
 }
 
 // A loose face with no thickness isn't a piece of wood: set aside by default.
@@ -43,6 +46,19 @@ export function withPieceStatus(edits, names, status) {
   return next;
 }
 
+// join pieces into one (names: mesh names), or split every join touching them
+export function withJoin(edits, names) {
+  const next = normalizeEdits(edits);
+  next.joins = next.joins.filter((j) => !j.some((n) => names.includes(n)));
+  next.joins.push([...names]);
+  return next;
+}
+export function withoutJoins(edits, names) {
+  const next = normalizeEdits(edits);
+  next.joins = next.joins.filter((j) => !j.some((n) => names.includes(n)));
+  return next;
+}
+
 export function withName(edits, key, name) {
   const next = normalizeEdits(edits);
   if (name && name.trim()) next.names[key] = name.trim(); else delete next.names[key];
@@ -55,4 +71,4 @@ export function withGroupName(edits, group, name) {
   return next;
 }
 
-export const hasEdits = (e) => ['names', 'groups', 'status', 'pieces'].some((k) => Object.keys(e[k]).length > 0);
+export const hasEdits = (e) => ['names', 'groups', 'status', 'pieces', 'joins'].some((k) => Object.keys(e[k]).length > 0);
