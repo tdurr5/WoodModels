@@ -243,6 +243,8 @@ try {
   await page.locator('#resetBtn').click();
   check(await page.evaluate(() => window.__viewer.scene.getObjectByName('Legs_Leg_Front').position.length()) < 1e-6, 'Show all resets the explode');
   await page.selectOption('#sectionAxis', 'z');
+  const cutAt = await page.evaluate(() => window.__viewer.scene.getObjectByName('Body_Bench').material.clippingPlanes[0]?.constant);
+  check(Math.abs(Math.abs(cutAt) - 9.19) < 0.2, `choosing a section axis cuts through the middle straight away (${cutAt?.toFixed(2)})`);
   await page.locator('#sectionRange').fill('0.5');
   await page.waitForTimeout(100);
   const clipped = await page.evaluate(() => window.__viewer.scene.getObjectByName('Body_Bench').material.clippingPlanes.length);
