@@ -275,6 +275,11 @@ try {
   check(afterDown.trim() === 'Filler Front', `ArrowDown moves to the next part (${afterDown.trim()})`);
   check(page.url().endsWith('#part=Filler_Front'), `URL hash tracks the selection (${page.url().split('#')[1]})`);
 
+  await page.locator('#clList .row', { hasText: 'Jaw Support' }).first().focus();
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(200);
+  check((await page.locator('#dimCard .part-name').innerText()) === 'Jaw Support', 'a focused cut-list row selects with Enter');
+
   console.log('cut list controls');
   await page.fill('#clSearch', 'leg');
   const filtered = await page.locator('#clList .row').count();

@@ -248,7 +248,16 @@ function rowElement(r, isCut, s) {
       updateSettings({ cut: [...next] });
     });
   }
-  if (r.clickable) el.addEventListener('click', () => handlers.onSelect(r));
+  if (r.clickable) {
+    el.tabIndex = 0;
+    el.setAttribute('role', 'button');
+    el.addEventListener('click', () => handlers.onSelect(r));
+    el.addEventListener('keydown', (e) => {
+      if (e.target !== el || (e.key !== 'Enter' && e.key !== ' ')) return;
+      e.preventDefault();
+      handlers.onSelect(r);
+    });
+  }
   el.title = r.label !== r.name ? `${r.label} (${r.materialLabel})` : r.materialLabel;
   return el;
 }
