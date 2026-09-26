@@ -23,7 +23,7 @@ const OUT = path.join(ROOT, 'test-output');
 fs.mkdirSync(OUT, { recursive: true });
 
 const MIME = {
-  '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json',
+  '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
   '.obj': 'text/plain', '.mtl': 'text/plain', '.png': 'image/png', '.jpg': 'image/jpeg',
 };
 
@@ -64,21 +64,66 @@ await page.route(/^https:\/\/unpkg\.com\/three@[^/]+\/(.*)$/, (route) => {
   route.fulfill({ status: 200, contentType: 'text/javascript', body: fs.readFileSync(file) });
 });
 
+
+async function selectPart(name) {
+  await page.locator('#clList .row', { hasText: name }).first().click();
+  await page.waitForTimeout(500);
+}
+
+// Runs in the page: screen points on `n` visible faces of the selected part
+// that have clearly different normals.
+function visibleFacePoints(n) {
+  const { THREE, camera, currentSelectionMeshes } = window.__viewer;
+  const canvas = document.querySelector('#viewport canvas');
+  const rect = canvas.getBoundingClientRect();
+  const ray = new THREE.Raycaster();
+  const meshes = currentSelectionMeshes();
+  const found = [];
+  for (const m of meshes) {
+    const pos = m.geometry.attributes.position;
+    const tris = [];
+    for (let t = 0; t < pos.count / 3; t++) {
+      const a = m.localToWorld(new THREE.Vector3().fromBufferAttribute(pos, t * 3));
+      const b = m.localToWorld(new THREE.Vector3().fromBufferAttribute(pos, t * 3 + 1));
+      const c = m.localToWorld(new THREE.Vector3().fromBufferAttribute(pos, t * 3 + 2));
+      const tri = new THREE.Triangle(a, b, c);
+      tris.push({ tri, area: tri.getArea() });
+    }
+    tris.sort((x, y) => y.area - x.area);
+    for (const { tri } of tris) {
+      const normal = tri.getNormal(new THREE.Vector3());
+      const centroid = tri.getMidpoint(new THREE.Vector3());
+      // SketchUp exports double-sided faces as back-to-back triangle pairs;
+      // only consider the side facing the camera.
+      if (normal.dot(camera.position.clone().sub(centroid)) <= 0) continue;
+      if (found.some((f) => f.normal.dot(normal) > 0.9)) continue;
+      const ndc = centroid.clone().project(camera);
+      if (Math.abs(ndc.x) > 0.95 || Math.abs(ndc.y) > 0.95) continue;
+      ray.setFromCamera(new THREE.Vector2(ndc.x, ndc.y), camera);
+      const hit = ray.intersectObjects(meshes, false)[0];
+      if (!hit || hit.point.distanceTo(centroid) > 0.05) continue;
+      found.push({ normal, x: rect.left + (ndc.x * 0.5 + 0.5) * rect.width, y: rect.top + (0.5 - ndc.y * 0.5) * rect.height });
+      if (found.length === n) return found.map(({ x, y }) => ({ x, y }));
+    }
+  }
+  return found.map(({ x, y }) => ({ x, y }));
+}
+
 try {
   console.log('load');
   await page.goto(base);
   await page.waitForFunction(() => document.getElementById('loading').style.display === 'none', null, { timeout: 30000 });
-  await page.waitForSelector('#list .row');
+  await page.waitForSelector('#clList .row');
   const report = JSON.parse(fs.readFileSync(path.join(VIEWER, 'parts_report.json'), 'utf8'));
-  const rowCount = await page.locator('#list .row').count();
+  const rowCount = await page.locator('#clList .row').count();
   check(rowCount === report.length, `sidebar has one row per cut-list entry (${rowCount}/${report.length})`);
-  const disabled = await page.locator('#list .row.disabled').count();
+  const disabled = await page.locator('#clList .row.disabled').count();
   const expectedDisabled = report.filter((r) => !r.obj_names || !r.obj_names.length).length;
   check(disabled === expectedDisabled, `rows with no 3D geometry are disabled (${disabled}/${expectedDisabled})`);
   await page.screenshot({ path: path.join(OUT, '01-loaded.png') });
 
   console.log('select from sidebar');
-  const bench = page.locator('#list .row', { hasText: 'Bench' }).first();
+  const bench = page.locator('#clList .row', { hasText: 'Bench' }).first();
   await bench.click();
   await page.waitForTimeout(300);
   check(await bench.evaluate((el) => el.classList.contains('active')), 'clicked row is marked active');
@@ -89,7 +134,7 @@ try {
   await page.screenshot({ path: path.join(OUT, '02-bench.png') });
 
   console.log('angled part');
-  await page.locator('#list .row', { hasText: 'Leg_Rear' }).first().click();
+  await page.locator('#clList .row', { hasText: 'Leg Rear' }).first().click();
   await page.waitForTimeout(300);
   const legCard = await page.locator('#dimCard').innerText();
   check(/off plumb/.test(legCard), 'splayed rear leg reports a compound angle');
@@ -98,7 +143,7 @@ try {
   console.log('click on model');
   await page.locator('#resetBtn').click();
   await page.waitForTimeout(300);
-  check(await page.locator('#list .row.active').count() === 0, 'Show all clears the selection');
+  check(await page.locator('#clList .row.active').count() === 0, 'Show all clears the selection');
   const vp = await page.locator('#viewport canvas').boundingBox();
   const picked = await page.evaluate(({ w, h }) => {
     // Scan a coarse grid of screen points until one lands on the model.
@@ -107,7 +152,7 @@ try {
     for (let y = 0.2; y < 0.9; y += 0.05) {
       for (let x = 0.2; x < 0.8; x += 0.05) {
         canvas.dispatchEvent(new MouseEvent('click', { clientX: rect.left + x * w, clientY: rect.top + y * h, bubbles: true }));
-        if (document.querySelector('#list .row.active')) return document.querySelector('#list .row.active .name').textContent.trim();
+        if (document.querySelector('#clList .row.active')) return document.querySelector('#clList .row.active .name').textContent.trim();
       }
     }
     return null;
@@ -115,7 +160,7 @@ try {
   check(!!picked, `clicking the 3D model selects a part (${picked})`);
 
   console.log('measure distance');
-  await page.locator('#list .row', { hasText: 'Treadle_Foot_Peg' }).first().click();
+  await page.locator('#clList .row', { hasText: 'Treadle Foot Peg' }).first().click();
   await page.waitForTimeout(300);
   await page.locator('#measureDistBtn').click();
   // Click two different vertices of the selected part: project its mesh
@@ -155,7 +200,121 @@ try {
 
   console.log('wireframe');
   await page.locator('#wireBtn').click();
+  check(await page.locator('#wireBtn.on').count() === 1, 'wireframe toggles on');
   await page.locator('#wireBtn').click();
+
+  console.log('bevel (face angle) tool');
+  await selectPart('Bench');
+  await page.keyboard.press('b');
+  const facePts = await page.evaluate(visibleFacePoints, 2);
+  check(facePts.length === 2, `found two visible faces with different normals on the Bench (${facePts.length})`);
+  for (const pt of facePts) await page.mouse.click(pt.x, pt.y);
+  const bevelText = await page.locator('#measureLabels .measureLabel').last().innerText().catch(() => '');
+  check(/90\.0° between faces/.test(bevelText), `bevel between two faces of a square board reads 90.0° (${bevelText})`);
+  await page.screenshot({ path: path.join(OUT, '05-bevel.png') });
+  await page.keyboard.press('Control+z');
+  check(await page.locator('#measureLabels .measureLabel').count() === 0, 'Ctrl+Z undoes the last measurement');
+  await page.keyboard.press('Escape');
+  check(await page.locator('#measureBevelBtn.on').count() === 0, 'Esc leaves the measuring tool');
+
+  console.log('angle referenced to level');
+  await selectPart('Jaw Lower');
+  const jawCard = await page.locator('#dimCard').innerText();
+  check(/16\.9° off level/.test(jawCard), `a part tilted off level is described against level (${jawCard.split('\n').find((l) => l.includes('°'))})`);
+  await page.screenshot({ path: path.join(OUT, '06-jaw-lower.png') });
+
+  console.log('views, ortho, explode, section, isolate');
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('2');
+  await page.waitForTimeout(600);
+  check(await page.evaluate(() => window.__viewer.camera.isOrthographicCamera), 'Front view switches to orthographic');
+  await page.screenshot({ path: path.join(OUT, '07-front-ortho.png') });
+  await page.keyboard.press('1');
+  await page.waitForTimeout(600);
+  check(await page.evaluate(() => !window.__viewer.camera.isOrthographicCamera), '3D view switches back to perspective');
+  await page.locator('#explodeRange').fill('1');
+  await page.waitForTimeout(100);
+  const moved = await page.evaluate(() => window.__viewer.scene.getObjectByName('Legs_Leg_Front').position.length());
+  check(moved > 1, `explode moves parts apart (${moved.toFixed(1)}")`);
+  await page.screenshot({ path: path.join(OUT, '08-exploded.png') });
+  await selectPart('Leg Front');
+  const labelsExploded = await page.locator('#axisLabels .axisLabel').count();
+  check(labelsExploded >= 3, 'dimension callouts still drawn on an exploded part');
+  await page.screenshot({ path: path.join(OUT, '09-exploded-selected.png') });
+  await page.locator('#resetBtn').click();
+  check(await page.evaluate(() => window.__viewer.scene.getObjectByName('Legs_Leg_Front').position.length()) < 1e-6, 'Show all resets the explode');
+  await page.selectOption('#sectionAxis', 'z');
+  await page.locator('#sectionRange').fill('0.5');
+  await page.waitForTimeout(100);
+  const clipped = await page.evaluate(() => window.__viewer.scene.getObjectByName('Body_Bench').material.clippingPlanes.length);
+  check(clipped === 1, 'section cut applies a clipping plane');
+  await page.screenshot({ path: path.join(OUT, '10-section.png') });
+  await page.selectOption('#sectionAxis', 'off');
+  await selectPart('Seat Block');
+  await page.keyboard.press('i');
+  const hiddenOthers = await page.evaluate(() => window.__viewer.scene.getObjectByName('Body_Bench').visible);
+  check(hiddenOthers === false, 'Isolate hides the other parts');
+  await page.screenshot({ path: path.join(OUT, '11-isolate.png') });
+  await page.keyboard.press('i');
+
+  console.log('keyboard navigation + deep link');
+  await selectPart('Bench');
+  await page.keyboard.press('ArrowDown');
+  const afterDown = await page.locator('#clList .row.active .name').innerText();
+  check(afterDown.trim() === 'Filler Front', `ArrowDown moves to the next part (${afterDown.trim()})`);
+  check(page.url().endsWith('#part=Filler_Front'), `URL hash tracks the selection (${page.url().split('#')[1]})`);
+
+  console.log('cut list controls');
+  await page.fill('#clSearch', 'leg');
+  const filtered = await page.locator('#clList .row').count();
+  check(filtered === 2, `filter narrows the list (${filtered} rows for "leg")`);
+  await page.fill('#clSearch', '');
+  await page.selectOption('#clUnits', 'mm');
+  const mmDims = await page.locator('#clList .row', { hasText: 'Bench' }).first().locator('.dims').innerText();
+  check(/41\.3 mm × 201 mm × 1177 mm/.test(mmDims), `metric units (${mmDims})`);
+  await page.selectOption('#clUnits', 'in16');
+  await page.check('#clRough');
+  const rough = await page.locator('#clList .row', { hasText: 'Bench' }).first().locator('.rough').innerText();
+  check(/8\/4 × 8-1\/8" × 47-3\/8"/.test(rough), `rough stock for the Bench (${rough})`);
+  await page.screenshot({ path: path.join(OUT, '12-rough.png') });
+  await page.locator('.cat-title', { hasText: 'Hardware' }).locator('.eye').click();
+  const rodVisible = await page.evaluate(() => window.__viewer.scene.getObjectByName('Hardware_Hardware_6_7_8_Shaft_1_2__13_6_7_8')?.visible);
+  check(rodVisible === false, 'hiding a category hides its parts in 3D');
+  await page.locator('.cat-title', { hasText: 'Hardware' }).locator('.eye').click();
+
+  const [download] = await Promise.all([page.waitForEvent('download'), page.click('#clCsv')]);
+  const csv = fs.readFileSync(await download.path(), 'utf8');
+  check(csv.split('\r\n')[0].startsWith('Category,Group,Part,Qty,Thickness,Width,Length'), 'CSV export has a header row');
+  check(csv.includes('Wood,Legs,Leg Rear,2,"1-5/8""","3-3/8""","20-7/8"""'), 'CSV export contains the rear legs (inch marks quoted)');
+  fs.writeFileSync(path.join(OUT, 'cut-list.csv'), csv);
+
+  await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+  const printRows = await page.locator('#printSheet tbody tr').count();
+  check(printRows === 24, `print sheet lists every part (${printRows})`);
+  await page.emulateMedia({ media: 'print' });
+  await page.pdf({ path: path.join(OUT, 'cut-sheet.pdf'), format: 'Letter', margin: { top: '0.5in', bottom: '0.5in', left: '0.5in', right: '0.5in' } });
+  await page.emulateMedia({ media: 'screen' });
+
+  console.log('cut tracking persists');
+  await page.locator('#clList .row', { hasText: 'Leg Rear' }).first().locator('.cut-box').check();
+  await page.reload();
+  await page.waitForFunction(() => document.getElementById('loading').style.display === 'none', null, { timeout: 30000 });
+  check(await page.locator('#clList .row.cut', { hasText: 'Leg Rear' }).count() === 1, 'ticked-off part stays ticked after reload');
+  check(await page.locator('#clList .row.active .name').innerText().catch(() => '') === 'Filler Front', 'reload restores the selection from the URL hash');
+  check(await page.locator('#clRough').isChecked(), 'settings persist across reload');
+
+  console.log('help');
+  await page.keyboard.press('?');
+  check(await page.locator('#help').isVisible(), '? opens the shortcut sheet');
+  await page.screenshot({ path: path.join(OUT, '13-help.png') });
+  await page.keyboard.press('Escape');
+
+  console.log('mobile layout');
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: path.join(OUT, '14-mobile.png') });
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+  check(!overflow, 'no horizontal overflow at phone width');
 
   check(errors.length === 0, `no page errors${errors.length ? ':\n    ' + errors.join('\n    ') : ''}`);
 } finally {

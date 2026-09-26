@@ -2,31 +2,81 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Shaving Horse — Cut List Viewer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Cut List Viewer</title>
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 <div id="app">
   <div id="viewport">
     <div id="toolbar">
-      <button id="resetBtn">Show all</button>
-      <button id="wireBtn">Toggle wireframe</button>
-      <button id="measureDistBtn">Measure distance</button>
-      <button id="measureAngleBtn">Measure angle</button>
-      <button id="clearMeasureBtn">Clear measurements</button>
+      <div class="tb-group" id="viewBtns"></div>
+      <div class="tb-group">
+        <button id="orthoBtn" title="Orthographic (no perspective) - true-scale elevations (O)">Ortho</button>
+        <button id="resetBtn" title="Show the whole model and clear the selection">Show all</button>
+        <button id="isolateBtn" title="Hide other parts instead of ghosting them (I)">Isolate</button>
+        <button id="wireBtn" title="Wireframe (W)">Wireframe</button>
+      </div>
+      <div class="tb-group">
+        <button id="measureDistBtn" title="Measure distance between two points (D)">Distance</button>
+        <button id="measureAngleBtn" title="Measure an angle from three points (A)">Angle</button>
+        <button id="measureBevelBtn" title="Angle between two faces - the bevel gauge setting (B)">Bevel</button>
+        <button id="clearMeasureBtn" title="Remove all measurements">Clear</button>
+      </div>
+      <div class="tb-group">
+        <button id="shotBtn" title="Save the current view as a PNG">Screenshot</button>
+        <button id="helpBtn" title="Keyboard shortcuts (?)">?</button>
+      </div>
     </div>
     <div id="measureHint"></div>
     <div id="loading">Loading model…</div>
-    <div id="dimCard"><div class="arrow"></div></div>
+    <div id="dimCard"></div>
     <div id="axisLabels"></div>
     <div id="measureLabels"></div>
+    <div id="hoverTip"></div>
+    <div id="bottombar">
+      <label title="Pull the assemblies apart to see hidden parts and joinery (E)">Explode
+        <input id="explodeRange" type="range" min="0" max="1.5" step="0.01" value="0" /></label>
+      <label title="Slice through the model to see inside joints">Section
+        <select id="sectionAxis">
+          <option value="off">off</option>
+          <option value="x">front-back</option>
+          <option value="z">side-side</option>
+          <option value="y">height</option>
+        </select>
+        <input id="sectionRange" type="range" min="0" max="1" step="0.005" value="0.5" disabled />
+        <button id="sectionFlip" title="Flip which side is cut away" disabled>Flip</button>
+      </label>
+    </div>
+    <button id="sidebarToggle" title="Show/hide the cut list">☰</button>
   </div>
-  <div id="sidebar">
-    <h1>Shaving Horse — Cut List</h1>
-    <div class="sub">Click a part here <b>or click it directly on the model</b> to isolate it. Drag to orbit, scroll to zoom, right-drag to pan.</div>
-    <div id="list"></div>
+  <div id="sidebar"></div>
+</div>
+
+<div id="help">
+  <div class="help-box">
+    <button id="helpClose" title="Close">×</button>
+    <h2>Shortcuts</h2>
+    <table>
+      <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>Previous / next part</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>Cancel tool / clear selection</td></tr>
+      <tr><td><kbd>F</kbd> or double-click</td><td>Zoom to selection</td></tr>
+      <tr><td><kbd>1</kbd>–<kbd>4</kbd></td><td>3D / Front / Side / Top view</td></tr>
+      <tr><td><kbd>O</kbd></td><td>Toggle orthographic</td></tr>
+      <tr><td><kbd>I</kbd></td><td>Isolate selected part</td></tr>
+      <tr><td><kbd>E</kbd></td><td>Toggle exploded view</td></tr>
+      <tr><td><kbd>W</kbd></td><td>Wireframe</td></tr>
+      <tr><td><kbd>D</kbd> <kbd>A</kbd> <kbd>B</kbd></td><td>Distance / Angle / Bevel tool</td></tr>
+      <tr><td><kbd>Backspace</kbd> / <kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>Undo last measure point</td></tr>
+      <tr><td><kbd>/</kbd></td><td>Filter the cut list</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>P</kbd></td><td>Print cut sheet</td></tr>
+    </table>
+    <p>Measuring snaps to <span class="snap-e">endpoints</span>, <span class="snap-m">midpoints</span> and <span class="snap-g">edges</span> within a few pixels, otherwise to the face you click. With a part selected, only that part can be measured, so joints with neighbouring parts don't get in the way.</p>
+    <p>Link to a part: the address bar updates as you select, e.g. <code>#part=Leg_Rear</code>.</p>
   </div>
 </div>
+
+<div id="printSheet"></div>
 
 <script type="importmap">
 { "imports": {
