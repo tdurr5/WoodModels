@@ -1,2 +1,6 @@
 # Third-party reference clone (kovacsv/Online3DViewer) evaluated separately - not part of this project
 viewer2/
+node_modules/
+__pycache__/
+test-output/
+overnight-work.bundle

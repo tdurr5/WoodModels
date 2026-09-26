@@ -252,7 +252,8 @@
     "obj_names": [
       "Hardware_Hardware_8_1_4_Shaft_1_2__13_8_1_4"
     ],
-    "dims_str": "6-7/8\" x 1/2\" x 1/2\""
+    "dims_str": "6-7/8\" x 1/2\" x 1/2\"",
+    "warning": "Named 8-1/4\" in the source model but modeled 6-7/8\" long - check the plan."
   },
   {
     "label": "Shaft_1_2__-13_4_3_4",
@@ -274,7 +275,8 @@
       "Hardware_Hardware_4_3_4_Shaft_1_2___13_4_3_4",
       "Hardware_Hardware_4_3_4_Shaft_1_2___13_4_3_4_1"
     ],
-    "dims_str": "5-1/16\" x 1/2\" x 1/2\""
+    "dims_str": "5-1/16\" x 1/2\" x 1/2\"",
+    "warning": "Named 4-3/4\" in the source model but modeled 5-1/16\" long - check the plan."
   },
   {
     "label": "Jaw_Lower",

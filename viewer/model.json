@@ -1,0 +1,92 @@
+{
+  "title": "Shaving Horse",
+  "subtitle": "Lie-Nielsen / Brian Boggs shaving horse plan",
+  "axisNames": {
+    "x": "front-to-back",
+    "y": "vertical",
+    "z": "side-to-side"
+  },
+  "views": {
+    "iso": {
+      "label": "3D",
+      "dir": [
+        0.7,
+        0.5,
+        0.7
+      ]
+    },
+    "front": {
+      "label": "Front",
+      "dir": [
+        1,
+        0,
+        0
+      ]
+    },
+    "side": {
+      "label": "Side",
+      "dir": [
+        0,
+        0,
+        1
+      ]
+    },
+    "top": {
+      "label": "Top",
+      "dir": [
+        0,
+        1,
+        0.0001
+      ]
+    }
+  },
+  "materials": {
+    "Wood": {
+      "category": "Wood",
+      "color": "#d9b26a",
+      "texture": {
+        "base": "#c9975c",
+        "streak": "#a06f3b",
+        "ring": "#8a5a2c",
+        "tile": 5
+      }
+    },
+    "Wood_contrast": {
+      "category": "Wood",
+      "color": "#f2e8d5",
+      "label": "Wood (contrast)",
+      "texture": {
+        "base": "#5b3a24",
+        "streak": "#3d2515",
+        "ring": "#2c1a0e",
+        "tile": 4
+      }
+    },
+    "_____Metal": {
+      "category": "Hardware",
+      "color": "#9aa0a6",
+      "label": "Steel"
+    },
+    "Leather": {
+      "category": "Leather",
+      "color": "#8b4a2b"
+    }
+  },
+  "categoryOrder": [
+    "Wood",
+    "Hardware",
+    "Leather",
+    "Other"
+  ],
+  "displayNames": {
+    "Seat__2": "Seat",
+    "Rachet_Dove": "Ratchet Dove",
+    "Treadle_Jaw_Upper__8": "Treadle Jaw Upper",
+    "Treadle_Jaw_Upper_Tennon": "Treadle Jaw Upper Tenon",
+    "Bolt_Head__6": "Bolt Head",
+    "Nut_3_4": "Hex Nut",
+    "Shaft_1_2_-13_6_7_8": "Threaded Rod 1/2\"-13",
+    "Shaft_1_2_-13_8_1_4": "Threaded Rod 1/2\"-13",
+    "Shaft_1_2__-13_4_3_4": "Threaded Rod 1/2\"-13"
+  }
+}

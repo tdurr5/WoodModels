@@ -219,7 +219,7 @@
               "deg": -16.9
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": 0.0
             }
           ]
@@ -249,11 +249,11 @@
           "total_deg": 16.9,
           "components": [
             {
-              "label": "side-to-side",
+              "label": "x",
               "deg": 16.9
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": 0.0
             }
           ]
@@ -828,11 +828,11 @@
           "total_deg": 30.0,
           "components": [
             {
-              "label": "side-to-side",
+              "label": "x",
               "deg": -30.0
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -856,7 +856,7 @@
               "deg": -30.0
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -934,11 +934,11 @@
           "total_deg": 30.0,
           "components": [
             {
-              "label": "side-to-side",
+              "label": "x",
               "deg": 30.0
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -962,7 +962,7 @@
               "deg": 30.0
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -1001,11 +1001,11 @@
           "total_deg": 30.0,
           "components": [
             {
-              "label": "side-to-side",
+              "label": "x",
               "deg": -30.0
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -1029,7 +1029,7 @@
               "deg": -30.0
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -1107,11 +1107,11 @@
           "total_deg": 30.0,
           "components": [
             {
-              "label": "side-to-side",
+              "label": "x",
               "deg": 30.0
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -1135,7 +1135,7 @@
               "deg": 30.0
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -1213,11 +1213,11 @@
           "total_deg": 30.0,
           "components": [
             {
-              "label": "side-to-side",
+              "label": "x",
               "deg": -30.0
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -1241,7 +1241,7 @@
               "deg": -30.0
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -1319,11 +1319,11 @@
           "total_deg": 30.0,
           "components": [
             {
-              "label": "side-to-side",
+              "label": "x",
               "deg": 30.0
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -1347,7 +1347,7 @@
               "deg": 30.0
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -1386,11 +1386,11 @@
           "total_deg": 30.0,
           "components": [
             {
-              "label": "side-to-side",
+              "label": "x",
               "deg": -30.0
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -1414,7 +1414,7 @@
               "deg": -30.0
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -1492,11 +1492,11 @@
           "total_deg": 30.0,
           "components": [
             {
-              "label": "side-to-side",
+              "label": "x",
               "deg": 30.0
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -1520,7 +1520,7 @@
               "deg": 30.0
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -1559,11 +1559,11 @@
           "total_deg": 30.0,
           "components": [
             {
-              "label": "side-to-side",
+              "label": "x",
               "deg": -30.0
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -1587,7 +1587,7 @@
               "deg": -30.0
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -1665,11 +1665,11 @@
           "total_deg": 30.0,
           "components": [
             {
-              "label": "side-to-side",
+              "label": "x",
               "deg": 30.0
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -1693,7 +1693,7 @@
               "deg": 30.0
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -1732,11 +1732,11 @@
           "total_deg": 30.0,
           "components": [
             {
-              "label": "side-to-side",
+              "label": "x",
               "deg": -30.0
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -1760,7 +1760,7 @@
               "deg": -30.0
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -1838,11 +1838,11 @@
           "total_deg": 30.0,
           "components": [
             {
-              "label": "side-to-side",
+              "label": "x",
               "deg": 30.0
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -1866,7 +1866,7 @@
               "deg": 30.0
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -1983,11 +1983,11 @@
           "total_deg": 30.0,
           "components": [
             {
-              "label": "side-to-side",
+              "label": "x",
               "deg": -30.0
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -2011,7 +2011,7 @@
               "deg": -30.0
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -2089,11 +2089,11 @@
           "total_deg": 30.0,
           "components": [
             {
-              "label": "side-to-side",
+              "label": "x",
               "deg": 30.0
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -2117,7 +2117,7 @@
               "deg": 30.0
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -2156,11 +2156,11 @@
           "total_deg": 30.0,
           "components": [
             {
-              "label": "side-to-side",
+              "label": "x",
               "deg": -30.0
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -2184,7 +2184,7 @@
               "deg": -30.0
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -2262,11 +2262,11 @@
           "total_deg": 30.0,
           "components": [
             {
-              "label": "side-to-side",
+              "label": "x",
               "deg": 30.0
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -2290,7 +2290,7 @@
               "deg": 30.0
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -2538,7 +2538,7 @@
               "deg": -19.1
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -2558,11 +2558,11 @@
           "total_deg": 19.1,
           "components": [
             {
-              "label": "side-to-side",
+              "label": "x",
               "deg": 19.1
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -2605,7 +2605,7 @@
               "deg": 19.1
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -2625,11 +2625,11 @@
           "total_deg": 19.1,
           "components": [
             {
-              "label": "side-to-side",
+              "label": "x",
               "deg": -19.1
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -2672,7 +2672,7 @@
               "deg": 19.1
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -2692,11 +2692,11 @@
           "total_deg": 19.1,
           "components": [
             {
-              "label": "side-to-side",
+              "label": "x",
               "deg": -19.1
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -2735,11 +2735,11 @@
           "total_deg": 19.1,
           "components": [
             {
-              "label": "side-to-side",
+              "label": "x",
               "deg": -19.1
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -2763,7 +2763,7 @@
               "deg": -19.1
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -2806,7 +2806,7 @@
               "deg": -19.1
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -2826,11 +2826,11 @@
           "total_deg": 19.1,
           "components": [
             {
-              "label": "side-to-side",
+              "label": "x",
               "deg": 19.1
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -2869,11 +2869,11 @@
           "total_deg": 19.1,
           "components": [
             {
-              "label": "side-to-side",
+              "label": "x",
               "deg": 19.1
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -2897,7 +2897,7 @@
               "deg": 19.1
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -2936,11 +2936,11 @@
           "total_deg": 19.1,
           "components": [
             {
-              "label": "side-to-side",
+              "label": "x",
               "deg": 19.1
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -2964,7 +2964,7 @@
               "deg": 19.1
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -3003,11 +3003,11 @@
           "total_deg": 19.1,
           "components": [
             {
-              "label": "side-to-side",
+              "label": "x",
               "deg": -19.1
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -3031,7 +3031,7 @@
               "deg": -19.1
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -3060,11 +3060,11 @@
           "total_deg": 19.1,
           "components": [
             {
-              "label": "side-to-side",
+              "label": "x",
               "deg": -19.1
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -3098,7 +3098,7 @@
               "deg": -19.1
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -3127,11 +3127,11 @@
           "total_deg": 19.1,
           "components": [
             {
-              "label": "side-to-side",
+              "label": "x",
               "deg": -19.1
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -3165,7 +3165,7 @@
               "deg": -19.1
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -3194,11 +3194,11 @@
           "total_deg": 18.4,
           "components": [
             {
-              "label": "side-to-side",
+              "label": "x",
               "deg": 12.3
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": 14.1
             }
           ]
@@ -3218,7 +3218,7 @@
           "total_deg": 14.0,
           "components": [
             {
-              "label": "side-to-side",
+              "label": "x",
               "deg": -5.1
             },
             {
@@ -3246,7 +3246,7 @@
               "deg": 12.8
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -2.1
             }
           ]
@@ -3275,11 +3275,11 @@
           "total_deg": 28.7,
           "components": [
             {
-              "label": "side-to-side",
+              "label": "x",
               "deg": 28.7
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -3303,7 +3303,7 @@
               "deg": 28.7
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -0.0
             }
           ]
@@ -3342,11 +3342,11 @@
           "total_deg": 18.4,
           "components": [
             {
-              "label": "side-to-side",
+              "label": "x",
               "deg": 12.3
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": -14.1
             }
           ]
@@ -3366,7 +3366,7 @@
           "total_deg": 14.0,
           "components": [
             {
-              "label": "side-to-side",
+              "label": "x",
               "deg": -5.1
             },
             {
@@ -3394,7 +3394,7 @@
               "deg": 12.8
             },
             {
-              "label": "front-to-back",
+              "label": "z",
               "deg": 2.1
             }
           ]
