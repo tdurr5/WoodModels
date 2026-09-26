@@ -46,6 +46,7 @@
       <b>Print cut sheet</b> gives you a shop-ready checklist. Press <kbd>?</kbd> any time for shortcuts.
     </div>
     <div id="hoverTip"></div>
+    <div id="toast" role="status" aria-live="polite"></div>
     <div id="bottombar">
       <label title="Pull the assemblies apart to see hidden parts and joinery (E)">Explode
         <input id="explodeRange" type="range" min="0" max="1.5" step="0.01" value="0" /></label>
@@ -81,7 +82,10 @@
       <tr><td><kbd>W</kbd></td><td>Wireframe</td></tr>
       <tr><td><kbd>L</kbd></td><td>Light / dark theme</td></tr>
       <tr><td><kbd>D</kbd> <kbd>A</kbd> <kbd>B</kbd></td><td>Distance / Angle / Bevel tool</td></tr>
-      <tr><td><kbd>Backspace</kbd> / <kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>Undo last measure point</td></tr>
+      <tr><td><kbd>Backspace</kbd></td><td>Undo last measure point</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>Undo (measure point, delete, set aside, rename)</td></tr>
+      <tr><td><kbd>Del</kbd></td><td>Delete the selected part from the model (restore it from Deleted at the bottom of the cut list)</td></tr>
+      <tr><td><kbd>F2</kbd></td><td>Rename the selected part</td></tr>
       <tr><td><kbd>/</kbd></td><td>Filter the cut list</td></tr>
       <tr><td><kbd>C</kbd></td><td>Shopping list &amp; cutting diagram</td></tr>
       <tr><td><kbd>M</kbd></td><td>Models: upload / switch</td></tr>

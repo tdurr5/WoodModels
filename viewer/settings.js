@@ -15,6 +15,7 @@ const DEFAULTS = {
   prices: {},       // $ per board foot by material label, for cost estimates
   userNotes: {},    // row key -> the user's own note for that part
   seenIntro: false, // first-visit tips dismissed
+  showAside: false, // draw parts that are set aside (not in the build) in 3D
 };
 
 let storageKey = 'woodmodels:settings';

@@ -147,7 +147,12 @@ export function layoutsHTML(layouts, { pxPerInch, units, colorFor, hardware = nu
 export function initDiagramModal({ rows, onSelectRow, finishArea = () => 0 }) {
   const modal = document.getElementById('diagram');
   const body = modal.querySelector('.cd-body');
-  const rowColor = new Map(rows.map((r, i) => [r.key, PART_COLORS[i % PART_COLORS.length]]));
+  let rowColor = new Map(rows.map((r, i) => [r.key, PART_COLORS[i % PART_COLORS.length]]));
+  // parts renamed, deleted or set aside
+  function setRows(next) {
+    rows = next;
+    rowColor = new Map(rows.map((r, i) => [r.key, PART_COLORS[i % PART_COLORS.length]]));
+  }
   const colorFor = (k) => rowColor.get(k) || PART_COLORS[0];
 
   const inputs = {
@@ -202,5 +207,5 @@ export function initDiagramModal({ rows, onSelectRow, finishArea = () => 0 }) {
   }));
   modal.querySelector('.cd-close').addEventListener('click', close);
   modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
-  return { open, close, isOpen: () => modal.style.display === 'flex', render, colorFor };
+  return { open, close, isOpen: () => modal.style.display === 'flex', render, colorFor, setRows };
 }

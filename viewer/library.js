@@ -65,7 +65,20 @@ export function frontOf(cfg) {
   const k = Math.abs(f[0]) >= Math.abs(f[2]) ? (f[0] >= 0 ? '+X' : '-X') : (f[2] >= 0 ? '+Z' : '-Z');
   return k;
 }
-export function applySetup(cfg, { title, subtitle, categories, front }) {
+// A readable species/material name from a SketchUp material name, so the
+// variants a model uses for grain direction or texture copies ("Mélèse_Verticale1_0",
+// "Mélèse_Horizontal1_1") read - and total up - as one: "Mélèse".
+export function cleanMaterialName(name) {
+  const out = String(name || '')
+    .replace(/_+/g, ' ')
+    .replace(/\b(?:copy|finished|horizontal|vertical|verticale|horizontale|grain|end|side|top|rough|texture|color|colour|material)\d*\b/gi, ' ')
+    .replace(/\s\d+\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return out || String(name || '').replace(/^_+/, '');
+}
+
+export function applySetup(cfg, { title, subtitle, categories, front, labels = {} }) {
   const out = structuredClone(cfg);
   out.title = title || out.title;
   out.subtitle = subtitle ?? out.subtitle;
@@ -74,6 +87,12 @@ export function applySetup(cfg, { title, subtitle, categories, front }) {
     m.category = cat;
     if (cat === 'Wood' && !m.texture) m.texture = { base: '#c9975c', streak: '#a06f3b', ring: '#8a5a2c', tile: 5 };
     if (cat !== 'Wood') delete m.texture;
+  });
+  // materials given the same name are one species: totals and shopping list combine them
+  Object.entries(labels).forEach(([name, label]) => {
+    const m = out.materials[name];
+    if (!m) return;
+    if (label && label.trim()) m.label = label.trim(); else delete m.label;
   });
   const f = FRONTS[front] || FRONTS['+X'];
   out.axisNames = { x: f.x, y: 'vertical', z: f.z };
@@ -199,12 +218,13 @@ export function initLibrary({ current, onOpen, builtIn }) {
       <label class="setup-field">Front of the piece faces
         <select name="front">${Object.keys(FRONTS).map((k) => `<option value="${k}"${k === frontOf(cfg) ? ' selected' : ''}>${k} (${k.includes('X') ? 'red' : 'blue'} axis ${k.startsWith('+') ? 'positive' : 'negative'})</option>`).join('')}</select></label>
       <p class="muted small">Tip: use the Front view button afterwards - if you see the back, pick the opposite direction.</p>
-      <table class="setup-mats"><thead><tr><th>Material</th><th>Used by</th><th>Counts as</th></tr></thead><tbody>
+      <table class="setup-mats"><thead><tr><th>Material</th><th>Used by</th><th>Counts as</th><th title="Species or material name. Materials with the same name are added up together.">Called</th></tr></thead><tbody>
       ${mats.map((m) => `<tr><td><span class="mat-swatch" style="background:${escapeHtml(cfg.materials[m].color || '#999')}"></span>${escapeHtml(m === '(none)' ? 'No material (unpainted)' : m.replace(/^_+/, ''))}</td>
         <td class="num">${uses[m] || 0} pc</td>
-        <td><select data-mat="${escapeHtml(m)}">${CATEGORIES.map((c) => `<option${c === cfg.materials[m].category ? ' selected' : ''}>${c}</option>`).join('')}</select></td></tr>`).join('')}
+        <td><select data-mat="${escapeHtml(m)}">${CATEGORIES.map((c) => `<option${c === cfg.materials[m].category ? ' selected' : ''}>${c}</option>`).join('')}</select></td>
+        <td><input data-label="${escapeHtml(m)}" value="${escapeHtml(cfg.materials[m].label || (m === '(none)' ? 'No material' : cleanMaterialName(m)))}" /></td></tr>`).join('')}
       </tbody></table>
-      <p class="muted small">Only <b>Wood</b> parts go into rough stock, board feet, the cutting diagram and templates.</p>`;
+      <p class="muted small">Only <b>Wood</b> parts go into rough stock, board feet, the cutting diagram and templates. Give materials the same name (e.g. all the oak textures "Red oak") to total them as one species.</p>`;
     setup.dataset.id = id;
     setup.style.display = 'flex';
   }
@@ -216,11 +236,14 @@ export function initLibrary({ current, onOpen, builtIn }) {
     const body = setup.querySelector('.setup-body');
     const categories = {};
     body.querySelectorAll('select[data-mat]').forEach((s) => { categories[s.dataset.mat] = s.value; });
+    const labels = {};
+    body.querySelectorAll('input[data-label]').forEach((i) => { labels[i.dataset.label] = i.value; });
     const next = applySetup(cfg, {
       title: body.querySelector('[name=title]').value.trim(),
       subtitle: body.querySelector('[name=subtitle]').value.trim(),
       front: body.querySelector('[name=front]').value,
       categories,
+      labels,
     });
     await putModelFile(id, 'model.json', JSON.stringify(next, null, 2), { name: next.title });
     setup.style.display = 'none';

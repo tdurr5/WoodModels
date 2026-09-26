@@ -20,7 +20,10 @@ import os
 import re
 import shutil
 import sys
+import tempfile
+import unicodedata
 import xml.etree.ElementTree as ET
+import zipfile
 from fractions import Fraction
 
 # COLLADA 1.4 namespace; use_namespace() switches to whatever a file declares
@@ -412,7 +415,7 @@ def resolve_instances(root, scale=1.0):
 
     instances = []
 
-    def add_instance(el, gid, world, name_path, top_group):
+    def add_instance(el, gid, world, name_path, top_group, visit_id=None):
         label = name_path[-1] if name_path else gid
         # Exporter quirk in the shaving horse model: the "Nut_3_4"
         # component's geometry group kept a leftover internal name
@@ -427,7 +430,10 @@ def resolve_instances(root, scale=1.0):
             geom_id=gid,
             world_matrix=world,
             material_bindings=get_material_bindings(el),
+            visit=visit_id,
         ))
+
+    visits = [0]
 
     def visit(node, parent_matrix, name_path, top_group):
         world = mat_mul(parent_matrix, parse_matrix(node, scale))
@@ -439,8 +445,9 @@ def resolve_instances(root, scale=1.0):
             if top_group is None:
                 top_group = name
 
+        visits[0] += 1
         for ig in node.findall(q('instance_geometry'), NS):
-            add_instance(ig, ig.get('url').lstrip('#'), world, name_path, top_group)
+            add_instance(ig, ig.get('url').lstrip('#'), world, name_path, top_group, visits[0])
         for ic in node.findall(q('instance_controller'), NS):
             ctrl = controllers.get(ic.get('url').lstrip('#'))
             if ctrl:
@@ -466,6 +473,194 @@ def resolve_instances(root, scale=1.0):
         for node in roots:
             visit(node, IDENTITY4, [], None)
     return instances
+
+
+# ---------- one part per physical piece ----------
+
+def vkey(p):
+    # vertex position quantised to 1/10000" (same arithmetic as the JS port)
+    return (math.floor(p[0] * 10000 + 0.5), math.floor(p[1] * 10000 + 0.5), math.floor(p[2] * 10000 + 0.5))
+
+
+def mesh_topology(geo):
+    """(vertex keys used by faces, closed?) for a geometry. Closed = every
+    edge is shared by at least two distinct triangles (a solid), as opposed
+    to a loose face or an open shell. Back-to-back duplicate triangles
+    (double-sided faces) count once."""
+    if 'vkeys' not in geo:
+        keys = [vkey(p) for p in geo['positions']]
+        tris = set()
+        edges = {}
+        for f in geo['faces']:
+            a, b, c = keys[f[0]], keys[f[1]], keys[f[2]]
+            if a == b or b == c or a == c:
+                continue
+            t = tuple(sorted((a, b, c)))
+            if t in tris:
+                continue
+            tris.add(t)
+            for e in ((t[0], t[1]), (t[0], t[2]), (t[1], t[2])):
+                edges[e] = edges.get(e, 0) + 1
+        geo['vkeys'] = {v for t in tris for v in t}
+        geo['closed'] = bool(edges) and all(n >= 2 for n in edges.values())
+    return geo['vkeys'], geo['closed']
+
+
+def merge_open_shells(instances, geoms):
+    """Newer SketchUp versions export one board as several meshes - one per
+    face material (end grain painted differently), or as loose faces. Open
+    meshes in the same group that touch are merged back into one part when
+    together they still form a tight box (a board and its end faces, a board
+    and its tenon), but not when they're separate boards drawn touching (a
+    rail butting into a leg: the combined box would be far bigger than the
+    two). Closed meshes (a dowel in a hole, a complete board) stay separate."""
+    by_visit = {}
+    for i, inst in enumerate(instances):
+        geo = geoms.get(inst['geom_id'])
+        if inst.get('visit') is not None and geo and geo['faces']:
+            by_visit.setdefault(inst['visit'], []).append(i)
+    drop = set()
+    for idxs in by_visit.values():
+        open_idx = [i for i in idxs if not mesh_topology(geoms[instances[i]['geom_id']])[1]]
+        if len(open_idx) < 2:
+            continue
+        # boxes here are axis-aligned in the group's own frame (all siblings share it)
+        comps = []
+        for i in open_idx:
+            g = geoms[instances[i]['geom_id']]
+            pos = g['positions']
+            lo = tuple(min(p[k] for p in pos) for k in range(3))
+            hi = tuple(max(p[k] for p in pos) for k in range(3))
+            comps.append(dict(members=[i], vkeys=set(mesh_topology(g)[0]), lo=lo, hi=hi,
+                              flat=min(g['bbox']) < 1 / 64))
+
+        def vol(lo, hi):
+            return (hi[0] - lo[0]) * (hi[1] - lo[1]) * (hi[2] - lo[2])
+
+        def join(a, b):
+            ca, cb = comps[a], comps[b]
+            return dict(members=sorted(ca['members'] + cb['members']), vkeys=ca['vkeys'] | cb['vkeys'],
+                        lo=tuple(min(ca['lo'][k], cb['lo'][k]) for k in range(3)),
+                        hi=tuple(max(ca['hi'][k], cb['hi'][k]) for k in range(3)),
+                        flat=ca['flat'] and cb['flat'])
+
+        # loose flat faces that touch are one surface (e.g. a board drawn as faces)
+        a = 0
+        while a < len(comps):
+            b = a + 1
+            while b < len(comps):
+                if comps[a]['flat'] and comps[b]['flat'] and not comps[a]['vkeys'].isdisjoint(comps[b]['vkeys']):
+                    comps[a] = join(a, b)
+                    del comps[b]
+                    b = a + 1
+                else:
+                    b += 1
+            a += 1
+        # then merge touching pieces whose combined box is barely bigger than the two
+        while True:
+            best = None
+            for a in range(len(comps)):
+                for b in range(a + 1, len(comps)):
+                    ca, cb = comps[a], comps[b]
+                    if ca['vkeys'].isdisjoint(cb['vkeys']):
+                        continue
+                    lo = tuple(min(ca['lo'][k], cb['lo'][k]) for k in range(3))
+                    hi = tuple(max(ca['hi'][k], cb['hi'][k]) for k in range(3))
+                    ratio = vol(lo, hi) / (vol(ca['lo'], ca['hi']) + vol(cb['lo'], cb['hi']) + 1e-9)
+                    if ratio <= 1.15 and (best is None or ratio < best[0]):
+                        best = (ratio, a, b)
+            if best is None:
+                break
+            _, a, b = best
+            comps[a] = join(a, b)
+            del comps[b]
+
+        for comp in comps:
+            members = comp['members']
+            if len(members) < 2:
+                continue
+            gid = '+'.join(instances[m]['geom_id'] for m in members)
+            if gid not in geoms:
+                positions, faces, mats = [], [], set()
+                for m in members:
+                    g = geoms[instances[m]['geom_id']]
+                    off = len(positions)
+                    positions.extend(g['positions'])
+                    faces.extend((a + off, b + off, c + off) for a, b, c in g['faces'])
+                    mats |= g['materials']
+                bbox, local_center, local_axes = fit_box(positions)
+                geoms[gid] = dict(positions=positions, faces=faces, bbox=bbox, local_center=local_center,
+                                  local_axes=local_axes, materials=mats)
+            # the merged part takes the material covering most of it
+            dominant = max(members, key=lambda m: len(geoms[instances[m]['geom_id']]['faces']))
+            first = instances[members[0]]
+            first['material_bindings'] = instances[dominant]['material_bindings']
+            first['geom_id'] = gid
+            drop.update(members[1:])
+    return [inst for i, inst in enumerate(instances) if i not in drop]
+
+
+# Names SketchUp and other tools give things nobody named: group_12,
+# Component#3, instance_9, ID245, SketchUp's solid-tool results...
+GENERIC_NAME = re.compile(
+    r'^(?:group|component|instance|mesh|object|geometry|node|id|sketchup|difference|outershell|union|'
+    r'intersection|trim|split|solid|untitled|default)?[\s_#.-]*\d*$', re.IGNORECASE)
+
+
+def is_generic_name(name):
+    return bool(GENERIC_NAME.match(name or ''))
+
+
+def is_round(geo):
+    """A turned/round part (dowel, rod): its sides face many directions
+    around the length axis rather than 4 (square) or 6 (hex)."""
+    ext = geo['bbox']
+    a = geo['local_axes'][max(range(3), key=lambda k: ext[k])]
+    dirs = set()
+    pos = geo['positions']
+    for f in geo['faces']:
+        n = vcross(vsub(pos[f[1]], pos[f[0]]), vsub(pos[f[2]], pos[f[0]]))
+        length = math.sqrt(vdot(n, n))
+        if length < 1e-12:
+            continue
+        n = (n[0] / length, n[1] / length, n[2] / length)
+        if abs(vdot(n, a)) > 0.2:
+            continue
+        k = tuple(math.floor(c * 20 + 0.5) for c in n)
+        if k < tuple(-c for c in k):
+            k = tuple(-c for c in k)  # a face and its back side are one direction
+        dirs.add(k)
+    return len(dirs) >= 6
+
+
+def instance_extents(inst, geo):
+    """The part's size along its own axes as placed: the mesh's box times the
+    instance's scale along each axis (SketchUp components are often scaled -
+    a copy stretched longer, or a whole tool scaled down)."""
+    wm = inst['world_matrix']
+    out = []
+    for i in range(3):
+        v = apply_rotation(wm, geo['local_axes'][i])
+        out.append(geo['bbox'][i] * math.sqrt(vdot(v, v)))
+    return tuple(out)
+
+
+def shape_name(geo, ext):
+    """A plain-English name for an unnamed part, from its shape (ext: its size as placed)."""
+    L, W, T = sorted(ext, reverse=True)
+    if T < 1 / 64:
+        return 'Flat face'
+    if W - T <= 0.1 * W and is_round(geo):
+        return 'Dowel' if L >= 2 * W else 'Round'
+    if T < 0.3:
+        return 'Sheet' if W >= 4 else 'Strip'
+    if W < 1.5 * T:
+        return 'Square stock' if L >= 3 * W else 'Block'
+    if W >= 8 and T <= 1.25:
+        return 'Panel'
+    if L >= 3 * W:
+        return 'Board'
+    return 'Block'
 
 
 # ---------- outputs ----------
@@ -554,9 +749,10 @@ def compute_object_dims(instances, geoms, up='Z_UP'):
             continue
         wm = inst['world_matrix']
         world_center = to_yup(apply_matrix(wm, geo['local_center']), up)
+        ext = instance_extents(inst, geo)
         axes = []
         for i in range(3):
-            length = geo['bbox'][i]
+            length = ext[i]
             if length < 1e-6:
                 continue
             direction = to_yup(normalize(apply_rotation(wm, geo['local_axes'][i])), up)
@@ -581,12 +777,22 @@ def build_report(instances, geoms, material_info):
         geo = geoms.get(inst['geom_id'])
         if not geo or not geo['faces']:
             continue  # edges/guides only (SketchUp <lines>): nothing to cut
-        dims = tuple(round(d, 3) for d in sorted(geo['bbox'], reverse=True))  # L,W,T sorted desc
+        ext = instance_extents(inst, geo)
+        dims = tuple(round(d, 3) for d in sorted(ext, reverse=True))  # L,W,T sorted desc
         mat_names = [material_info.get(t, {}).get('name') for t in inst['material_bindings'].values()]
-        rep = report.setdefault((inst['label'], dims), dict(
-            label=inst['label'], top_group=inst['top_group'], dims=list(dims),
+        # unnamed parts are named by shape, so identical ones share a row
+        auto = is_generic_name(inst['label'])
+        label = shape_name(geo, ext) if auto else inst['label']
+        # unnamed parts within 1/16" of each other are the same part to a woodworker
+        key = (label, tuple(to_frac(d) for d in dims)) if auto else (label, dims)
+        rep = report.setdefault(key, dict(
+            label=label, top_group=inst['top_group'], dims=list(dims),
             count=0, materials=set(), paths=[], obj_names=[],
         ))
+        if auto:
+            rep['auto_name'] = True
+        if dims[2] < 1 / 64:
+            rep['flat'] = True  # a loose face with no thickness: not a piece of wood
         rep['count'] += 1
         rep['materials'].update(nm for nm in mat_names if nm and not nm.startswith('edge_color'))
         rep['paths'].append(inst['path'])
@@ -646,17 +852,30 @@ def apply_manual_corrections(rows):
             r['note'] = 'source geometry for this part is corrupted (huge bogus bbox); not shown in 3D view, qty inferred from matching rod count'
 
 
+# (category, words found anywhere in the name, words that must stand alone -
+# short ones, so 'Washer' isn't ash and 'First' isn't fir). Includes common
+# French/German/Spanish wood names; accents are ignored (Mélèze = meleze).
 CATEGORY_WORDS = [
-    ('Wood', ('wood', 'oak', 'maple', 'walnut', 'cherry', 'ash', 'pine', 'birch', 'poplar', 'plywood', 'mahogany', 'beech', 'cedar', 'fir')),
-    ('Hardware', ('metal', 'steel', 'iron', 'brass', 'bronze', 'alumin', 'chrome', 'zinc', 'bolt', 'screw')),
-    ('Leather', ('leather',)),
+    ('Wood', ('wood', 'maple', 'walnut', 'cherry', 'birch', 'poplar', 'plywood', 'mahogany', 'beech', 'cedar',
+              'spruce', 'hemlock', 'cypress', 'hickory', 'larch', 'timber', 'lumber', 'plank', 'veneer', 'bamboo',
+              'ebony', 'sapele', 'padauk', 'wenge', 'bubinga', 'sycamore', 'chestnut', 'masonite', 'hardboard',
+              'particleboard', 'meleze', 'melese', 'noyer', 'sapin', 'eiche', 'buche', 'ahorn', 'kiefer', 'fichte',
+              'larche', 'nussbaum', 'madera', 'nogal', 'holz'),
+     ('oak', 'ash', 'fir', 'pine', 'elm', 'yew', 'teak', 'alder', 'mdf', 'osb', 'bois', 'chene', 'hetre', 'erable',
+      'frene', 'pin', 'roble', 'pino', 'haya', 'arce')),
+    ('Hardware', ('metal', 'steel', 'brass', 'bronze', 'alumin', 'chrome', 'screw', 'bolt', 'washer', 'hinge',
+                  'rivet', 'nickel', 'copper', 'titanium', 'galvani'),
+     ('iron', 'zinc', 'nut', 'nail')),
+    ('Leather', ('leather',), ()),
 ]
 
 
 def guess_category(material_name):
-    n = (material_name or '').lower()
-    for category, words in CATEGORY_WORDS:
-        if any(w in n for w in words):
+    n = unicodedata.normalize('NFKD', material_name or '').encode('ascii', 'ignore').decode()
+    n = re.sub(r'([a-z])([A-Z])', r'\1 \2', n).lower()
+    tokens = set(re.split(r'[^a-z]+', n))
+    for category, anywhere, alone in CATEGORY_WORDS:
+        if any(w in n for w in anywhere) or any(w in tokens for w in alone):
             return category
     return 'Other'
 
@@ -664,7 +883,8 @@ def guess_category(material_name):
 def starter_config(dae_path, mat_key_to_name, material_info):
     """A first model.json for a newly converted model: title from the file
     name, and each material's category guessed from its name. Edit it after."""
-    title = re.sub(r'[_\-]+', ' ', os.path.splitext(os.path.basename(dae_path))[0]).strip().title() or 'Model'
+    base = re.sub(r'([a-z])(?=[A-Z])', r'\1 ', os.path.splitext(os.path.basename(dae_path))[0])  # CamelCase -> words
+    title = re.sub(r'[_\-]+', ' ', base).strip().title() or 'Model'
     materials = {}
     info_by_name = {info.get('name'): info for info in material_info.values()}
     for name in sorted(set(mat_key_to_name.values())):
@@ -692,6 +912,19 @@ def starter_config(dae_path, mat_key_to_name, material_info):
 
 
 def convert(dae_path, out_dir, verbose=True):
+    if zipfile.is_zipfile(dae_path):
+        # a 3D Warehouse "Collada File" / KMZ download: the .dae and its textures in a zip
+        with tempfile.TemporaryDirectory() as tmp, zipfile.ZipFile(dae_path) as z:
+            daes = [i for i in z.infolist() if i.filename.lower().endswith('.dae') and not i.filename.startswith('__MACOSX/')]
+            if not daes:
+                raise SystemExit(f'No .dae model inside {dae_path}')
+            z.extractall(tmp)
+            inner = os.path.join(tmp, max(daes, key=lambda i: i.file_size).filename)
+            return convert_dae(inner, out_dir, verbose, name=dae_path)
+    return convert_dae(dae_path, out_dir, verbose)
+
+
+def convert_dae(dae_path, out_dir, verbose=True, name=None):
     log = print if verbose else (lambda *a, **k: None)
     os.makedirs(out_dir, exist_ok=True)
     root = ET.parse(dae_path).getroot()
@@ -701,8 +934,8 @@ def convert(dae_path, out_dir, verbose=True):
         log(f"Model units: {scale * INCH_IN_METERS:g} m each; converting to inches (x{scale:g})")
     geoms = load_geometries(root, scale)
     material_info = load_materials(root)
-    instances = resolve_instances(root, scale)
-    log(f"Resolved {len(instances)} geometry instances")
+    instances = merge_open_shells(resolve_instances(root, scale), geoms)
+    log(f"Resolved {len(instances)} parts")
 
     up = read_up_axis(root)
     mat_key_to_name = write_obj(instances, geoms, material_info, dae_path, out_dir, up)
@@ -712,7 +945,7 @@ def convert(dae_path, out_dir, verbose=True):
     config_path = os.path.join(out_dir, 'model.json')
     if not os.path.exists(config_path):
         with open(config_path, 'w') as jf:
-            json.dump(starter_config(dae_path, mat_key_to_name, material_info), jf, indent=2)
+            json.dump(starter_config(name or dae_path, mat_key_to_name, material_info), jf, indent=2)
         log(f"Wrote a starter {config_path} - edit the title, part names, materials and axisNames")
 
     object_dims = compute_object_dims(instances, geoms, up)
@@ -737,7 +970,7 @@ def main(argv=None):
     here = os.path.dirname(os.path.abspath(__file__))
     ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     ap.add_argument('dae', nargs='?', default=os.environ.get('WOODMODELS_DAE'),
-                    help='SketchUp COLLADA export (or set WOODMODELS_DAE); textures are read relative to it')
+                    help='SketchUp COLLADA export .dae, or a 3D Warehouse Collada .zip / .kmz (or set WOODMODELS_DAE)')
     ap.add_argument('-o', '--out', default=os.path.join(here, 'viewer'),
                     help='output directory (default: the viewer/ folder next to this script)')
     ap.add_argument('-q', '--quiet', action='store_true')

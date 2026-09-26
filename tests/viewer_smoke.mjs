@@ -62,7 +62,7 @@ page.on('request', (req) => { if (!req.url().startsWith(base) && !req.url().star
 // part names without the plan letter badge
 const nameOnly = (el) => [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join('').trim();
 const activeRowName = () => page.locator('#clList .row.active .name').evaluate(nameOnly);
-const cardName = () => page.locator('#dimCard .part-name').evaluate(nameOnly);
+const cardName = () => page.locator('#dimCard .part-name .pn-text').innerText();
 
 async function selectPart(name) {
   await page.locator('#clList .row', { hasText: name }).first().click();
@@ -602,14 +602,14 @@ try {
 import sys, zipfile
 sys.path.insert(0, ${JSON.stringify(path.join(ROOT, 'tests'))})
 import make_fixture
-dae = make_fixture.build()
+dae = make_fixture.build(sketchup2023=True)
 with zipfile.ZipFile(${JSON.stringify(warehouseZip)}, 'w', zipfile.ZIP_DEFLATED) as z:
     z.writestr('model/texture.jpg', b'x' * 10)
     z.writestr('model/Shaker Side Table.dae', dae)
     z.writestr('__MACOSX/model/._Shaker Side Table.dae', b'junk' * 100000)
 with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     z.writestr('doc.kml', '<kml/>')
-    z.writestr('models/untitled.dae', make_fixture.build(unit_meter=0.001, scale=25.4))
+    z.writestr('models/untitled.dae', make_fixture.build(unit_meter=0.001, scale=25.4, sketchup2023=True))
 `]);
   fs.writeFileSync(path.join(tmp, 'chair.skp'), 'SketchUp binary');
   const b2 = await chromium.launch(launchOpts);
@@ -641,7 +641,10 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     const mats = await p2.locator('#setup select[data-mat]').evaluateAll((els) => els.map((e) => [e.dataset.mat, e.value]));
     check(mats.some(([m, c]) => m === 'Wood' && c === 'Wood') && !mats.some(([m]) => /edge_color/.test(m)), `materials are listed with a guessed category (${JSON.stringify(mats)})`);
     const rows1 = await p2.locator('#clList .row').count();
-    check(rows1 === 2, `uploaded model's cut list is built (${rows1} rows)`);
+    check(rows1 === 5, `uploaded model's cut list is built (${rows1} rows)`);
+    const autoNames = await p2.locator('#clList .row .name').evaluateAll((els) => els.map((e) => e.lastChild.textContent.trim()));
+    check(['Square stock', 'Dowel'].every((n) => autoNames.includes(n)) && !autoNames.some((n) => /group|geom/i.test(n)), `unnamed parts are named by shape (${autoNames.join(', ')})`);
+    check(await p2.locator('#clList > .group-title', { hasText: 'Group 1' }).count() === 1, 'an unnamed group is shown as "Group 1"');
     await p2.screenshot({ path: path.join(OUT, '40-upload-setup.png') });
     await p2.locator('#setup [name=title]').fill('Side Table');
     await p2.locator('#setup [name=front]').selectOption('+Z');
@@ -676,6 +679,72 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     const dimsB = await p2.locator('#clList .row .dims').allInnerTexts();
     check(dimsA.length > 0 && dimsA.join() === dimsB.join(), `millimetre KMZ measures the same as the inch zip (${dimsA[0]})`);
 
+    // ----- fixing up a model: rename, set aside, delete, groups, undo -----
+    const rowNames = () => p2.locator('#clList > .row .name').evaluateAll((els) => els.map((e) => e.lastChild.textContent.trim()));
+    const woodPieces = async () => Number((await p2.locator('#clSummary .sum-line b').first().innerText()));
+    const piecesBefore = await woodPieces();
+    await p2.locator('#clList .row', { hasText: 'Dowel' }).first().click();
+    await p2.locator('#dimCard [data-act=aside]').click();
+    check(/Set aside "Dowel"/.test(await p2.locator('#toast').innerText()), 'setting a part aside says so, with Undo');
+    check(!(await rowNames()).includes('Dowel') && await p2.locator('.aside-section .row', { hasText: 'Dowel' }).count() === 1, 'a set-aside part moves to "Set aside · not in the build"');
+    check(await woodPieces() === piecesBefore - 1, `set-aside parts leave the wood totals (${piecesBefore} -> ${await woodPieces()})`);
+    check(await p2.locator('#dimCard .card-aside').isVisible(), 'its card says it is set aside while still selected');
+    await p2.keyboard.press('Escape');
+    const dowelShown = () => p2.evaluate(() => window.__viewer.rows().length >= 0 && window.__viewer.meshesOf('Dowel').some((m) => m.visible));
+    check(!(await dowelShown()), 'set-aside parts are hidden in 3D');
+    await p2.locator('.aside-section summary').first().click();
+    await p2.locator('.aside-section .show-aside').check();
+    check(await dowelShown(), '"Show" draws set-aside parts again');
+    await p2.locator('.aside-section .show-aside').uncheck();
+    await p2.locator('#toast [data-act=undo]').click();
+    check((await rowNames()).includes('Dowel'), 'Undo puts it back');
+
+    await p2.locator('#clList .row', { hasText: 'Square stock' }).first().click();
+    await p2.keyboard.press('Delete');
+    check(!(await rowNames()).includes('Square stock') && await p2.locator('.aside-section', { hasText: 'Deleted' }).count() === 1, 'Del deletes the selected part into a "Deleted" list');
+    check(!(await p2.locator('#dimCard').isVisible()), 'deleting clears the selection');
+    await p2.keyboard.press('Control+z');
+    check((await rowNames()).includes('Square stock'), 'Ctrl+Z undoes a delete');
+    await p2.keyboard.press('Delete'); // nothing selected: nothing happens
+    check((await rowNames()).includes('Square stock'), 'Del with nothing selected does nothing');
+    await p2.locator('#clList .row', { hasText: 'Square stock' }).first().click();
+    await p2.keyboard.press('Delete');
+
+    await p2.locator('#clList .row', { hasText: 'Board' }).nth(1).click();
+    await p2.locator('#dimCard .pn-edit').click();
+    await p2.locator('#dimCard .inline-edit').fill('Top rail');
+    await p2.keyboard.press('Enter');
+    check((await rowNames()).includes('Top rail') && (await p2.locator('#dimCard .part-name').innerText()).includes('Top rail'), 'parts can be renamed from their card');
+    await p2.keyboard.press('Escape');
+    const g1 = p2.locator('#clList > .group-title', { hasText: 'Group 1' });
+    await g1.hover();
+    await g1.locator('[data-act=rename]').click();
+    await p2.locator('#clList .inline-edit').fill('Stretcher assembly');
+    await p2.keyboard.press('Enter');
+    check(await p2.locator('#clList > .group-title', { hasText: 'Stretcher assembly' }).count() === 1, 'groups can be renamed');
+    await p2.locator('#clList > .group-title .gt-name', { hasText: 'Stretcher assembly' }).click();
+    check(/Group · 2 pieces in the build/.test(await p2.locator('#dimCard').innerText()), 'clicking a group heading shows the whole group, with its own card');
+    const hl = await p2.evaluate(() => window.__viewer.meshesOf('Top rail').every((m) => m.material.emissiveIntensity > 0));
+    check(hl, 'the group is highlighted in 3D');
+    await p2.screenshot({ path: path.join(OUT, '42-group.png') });
+    await p2.locator('#dimCard [data-act=aside]').click();
+    check(!(await rowNames()).includes('Top rail') && !(await rowNames()).includes('Dowel'), '"Set aside group" sets aside all of its parts');
+    await p2.locator('#dimCard [data-act=build]').click();
+    check((await rowNames()).includes('Top rail'), '...and "Put back in build" returns them');
+    await p2.keyboard.press('Escape');
+
+    // edits survive a reload (stored in the uploaded model itself)
+    await p2.reload();
+    await loaded();
+    check((await rowNames()).includes('Top rail') && !(await rowNames()).includes('Square stock')
+      && await p2.locator('#clList > .group-title', { hasText: 'Stretcher assembly' }).count() === 1, 'renames and deletes are saved with the model');
+    await p2.locator('.aside-section summary', { hasText: 'Deleted' }).click();
+    await p2.locator('.aside-section .row', { hasText: 'Square stock' }).locator('[data-act=build]').click();
+    check((await rowNames()).includes('Square stock'), 'deleted parts can be restored from the Deleted list');
+    await p2.locator('#clList .row', { hasText: 'Square stock' }).first().click();
+    await p2.keyboard.press('Delete');
+    await p2.screenshot({ path: path.join(OUT, '43-edited.png') });
+
     // download, delete, re-import the download
     await p2.locator('#clLibrary').click();
     const [dl] = await Promise.all([p2.waitForEvent('download'), p2.locator('#library .lib-item', { hasText: 'Side Table' }).locator('[data-act=export]').click()]);
@@ -695,10 +764,43 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     await p2.locator('#setup .setup-cancel').click();
     const again = await p2.evaluate(() => window.__viewer.config.views.front.dir);
     check((await p2.locator('#sidebar h1').innerText()) === 'Side Table' && JSON.stringify(again) === '[0,0,1]', 're-importing a downloaded zip keeps its setup');
+    check((await rowNames()).includes('Top rail') && !(await rowNames()).includes('Square stock'), '...and your renames and deletions');
     check(errs.length === 0, `no page errors during uploads${errs.length ? ':\n    ' + errs.join('\n    ') : ''}`);
   } finally {
     await b2.close();
     fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+// ---------- edits on the built-in model live in this browser ----------
+{
+  console.log('edits on a built-in model');
+  const b2 = await chromium.launch(launchOpts);
+  const p2 = await b2.newPage({ viewport: { width: 1400, height: 900 } });
+  p2.on('dialog', (d) => d.accept());
+  const loaded = () => p2.waitForFunction(() => document.getElementById('loading').style.display === 'none', null, { timeout: 30000 });
+  const names = () => p2.locator('#clList > .row .name').evaluateAll((els) => els.map((e) => e.lastChild.textContent.trim()));
+  try {
+    await p2.goto(base);
+    await loaded();
+    await p2.locator('#introClose').click();
+    await p2.locator('#clList .row', { hasText: 'Seat Handle' }).first().click();
+    await p2.keyboard.press('Delete');
+    check(!(await names()).includes('Seat Handle'), 'a built-in model part can be deleted');
+    const letters = await p2.locator('#clList > .row .letter').allInnerTexts();
+    check(letters.length === 23 && letters[22] === 'W', `part letters close up without gaps (${letters.length}, last ${letters[22]})`);
+    await p2.reload();
+    await loaded();
+    check(!(await names()).includes('Seat Handle'), 'the delete is remembered after a reload');
+    await p2.locator('#helpBtn').click();
+    await p2.locator('#resetPrefs').click();
+    await loaded();
+    check(!(await names()).includes('Seat Handle'), '"reset preferences" leaves your model edits alone');
+    await p2.locator('.aside-section summary', { hasText: 'Deleted' }).click();
+    await p2.locator('.aside-section .row', { hasText: 'Seat Handle' }).locator('[data-act=build]').click();
+    check((await names()).includes('Seat Handle') && (await names()).length === 24, 'restoring brings it back');
+  } finally {
+    await b2.close();
   }
 }
 

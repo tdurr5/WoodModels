@@ -8,6 +8,8 @@
 //   out.files -> { 'scene.obj', 'scene.mtl', 'materials.json', 'object_dims.json',
 //                  'parts_report.json', 'model.json' }   (strings)
 
+import { isGenericName } from './format.js';
+
 const PLAN_SHEET_PREFIX = 'Plan_Lie_Nielson_Boggs';
 const INCH_IN_METERS = 0.0254;
 const IDENTITY4 = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
@@ -24,7 +26,20 @@ function roundHalfEven(x) {
   if (Math.abs(d - 0.5) < 1e-9) return f % 2 === 0 ? f : f + 1;
   return Math.round(x);
 }
-const roundTo = (x, n) => { const r = Number(x.toFixed(n)); return Object.is(r, -0) ? 0 : r; };
+// Python's round(x, n): exact halves (4.3125 -> 4.312) go to the even digit,
+// where toFixed goes up. toFixed(n + 60) gives the exact decimal expansion.
+function roundTo(x, n) {
+  const a = Math.abs(x);
+  let r = Number(a.toFixed(n));
+  const e = a.toFixed(Math.min(100, n + 60));
+  const cut = e.indexOf('.') + 1 + n;
+  if (/^50*$/.test(e.slice(cut))) {
+    const down = e.slice(0, n ? cut : cut - 1);
+    if (Number(down[down.length - 1]) % 2 === 0) r = Number(down);
+  }
+  r = x < 0 ? -r : r;
+  return Object.is(r, -0) ? 0 : r;
+}
 
 // ---------- formatting ----------
 function gcd(a, b) { return b ? gcd(b, a % b) : a; }
@@ -320,7 +335,7 @@ function resolveInstances(root, scale) {
   const instances = [];
   const depthGuard = new Set();
 
-  function addInstance(el, gid, world, namePath, topGroup) {
+  function addInstance(el, gid, world, namePath, topGroup, visitId = null) {
     let label = namePath.length ? namePath[namePath.length - 1] : gid;
     if (label === 'Head__2__6' && namePath.length >= 2 && namePath[namePath.length - 2] === 'Nut_3_4') label = 'Nut_3_4';
     instances.push({
@@ -330,8 +345,10 @@ function resolveInstances(root, scale) {
       geom_id: gid,
       world_matrix: world,
       material_bindings: materialBindings(el),
+      visit: visitId,
     });
   }
+  let visits = 0;
 
   function visit(node, parentMatrix, namePath, topGroup) {
     const world = matMul(parentMatrix, parseMatrix(node, scale));
@@ -341,7 +358,9 @@ function resolveInstances(root, scale) {
       namePath = [...namePath, name];
       if (topGroup === null) topGroup = name;
     }
-    for (const ig of kids(node, 'instance_geometry')) addInstance(ig, ig.getAttribute('url').replace(/^#/, ''), world, namePath, topGroup);
+    visits += 1;
+    const visitId = visits;
+    for (const ig of kids(node, 'instance_geometry')) addInstance(ig, ig.getAttribute('url').replace(/^#/, ''), world, namePath, topGroup, visitId);
     for (const ic of kids(node, 'instance_controller')) {
       const ctrl = controllers.get(ic.getAttribute('url').replace(/^#/, ''));
       if (ctrl) addInstance(ic, ctrl[0], matMul(world, ctrl[1]), namePath, topGroup);
@@ -365,6 +384,171 @@ function resolveInstances(root, scale) {
     for (const node of roots) visit(node, IDENTITY4, [], null);
   }
   return instances;
+}
+
+// ---------- one part per physical piece ----------
+export { isGenericName };
+// vertex position quantised to 1/10000" (same arithmetic as parse_dae.py)
+const vkey = (p) => `${Math.floor(p[0] * 10000 + 0.5)},${Math.floor(p[1] * 10000 + 0.5)},${Math.floor(p[2] * 10000 + 0.5)}`;
+
+// { vkeys: vertex keys used by faces, closed: every edge shared by >= 2 distinct triangles }
+function meshTopology(geo) {
+  if (!geo.vkeys) {
+    const keys = geo.positions.map(vkey);
+    const tris = new Set();
+    const edges = new Map();
+    const used = new Set();
+    for (const f of geo.faces) {
+      const t = [keys[f[0]], keys[f[1]], keys[f[2]]];
+      if (t[0] === t[1] || t[1] === t[2] || t[0] === t[2]) continue;
+      t.sort();
+      const tk = t.join('|');
+      if (tris.has(tk)) continue; // back-to-back duplicate (double-sided face)
+      tris.add(tk);
+      t.forEach((v) => used.add(v));
+      for (const e of [`${t[0]}|${t[1]}`, `${t[0]}|${t[2]}`, `${t[1]}|${t[2]}`]) edges.set(e, (edges.get(e) || 0) + 1);
+    }
+    geo.vkeys = used;
+    geo.closed = edges.size > 0 && [...edges.values()].every((n) => n >= 2);
+  }
+  return geo;
+}
+const disjoint = (a, b) => { const [s, l] = a.size < b.size ? [a, b] : [b, a]; for (const v of s) if (l.has(v)) return false; return true; };
+
+// Open meshes in one group that touch and together still form a tight box are
+// one physical part (a board exported as one mesh per face material, or as
+// loose faces). Closed meshes stay separate. See parse_dae.py merge_open_shells.
+function mergeOpenShells(instances, geoms) {
+  const byVisit = new Map();
+  instances.forEach((inst, i) => {
+    const geo = geoms.get(inst.geom_id);
+    if (inst.visit != null && geo && geo.faces.length) {
+      if (!byVisit.has(inst.visit)) byVisit.set(inst.visit, []);
+      byVisit.get(inst.visit).push(i);
+    }
+  });
+  const drop = new Set();
+  for (const idxs of byVisit.values()) {
+    const openIdx = idxs.filter((i) => !meshTopology(geoms.get(instances[i].geom_id)).closed);
+    if (openIdx.length < 2) continue;
+    // boxes are axis-aligned in the group's own frame (all siblings share it)
+    let comps = openIdx.map((i) => {
+      const g = geoms.get(instances[i].geom_id);
+      const r = [0, 1, 2].map((k) => range(g.positions.map((p) => p[k])));
+      return { members: [i], vkeys: new Set(meshTopology(g).vkeys), lo: r.map((x) => x[0]), hi: r.map((x) => x[1]), flat: Math.min(...g.bbox) < 1 / 64 };
+    });
+    const vol = (lo, hi) => (hi[0] - lo[0]) * (hi[1] - lo[1]) * (hi[2] - lo[2]);
+    const join = (a, b) => {
+      const ca = comps[a], cb = comps[b];
+      return {
+        members: [...ca.members, ...cb.members].sort((x, y) => x - y),
+        vkeys: new Set([...ca.vkeys, ...cb.vkeys]),
+        lo: [0, 1, 2].map((k) => Math.min(ca.lo[k], cb.lo[k])),
+        hi: [0, 1, 2].map((k) => Math.max(ca.hi[k], cb.hi[k])),
+        flat: ca.flat && cb.flat,
+      };
+    };
+    // loose flat faces that touch are one surface (e.g. a board drawn as faces)
+    for (let a = 0; a < comps.length; a++) {
+      let b = a + 1;
+      while (b < comps.length) {
+        if (comps[a].flat && comps[b].flat && !disjoint(comps[a].vkeys, comps[b].vkeys)) {
+          comps[a] = join(a, b);
+          comps.splice(b, 1);
+          b = a + 1;
+        } else b++;
+      }
+    }
+    // then merge touching pieces whose combined box is barely bigger than the two
+    for (;;) {
+      let best = null;
+      for (let a = 0; a < comps.length; a++) {
+        for (let b = a + 1; b < comps.length; b++) {
+          const ca = comps[a], cb = comps[b];
+          if (disjoint(ca.vkeys, cb.vkeys)) continue;
+          const lo = [0, 1, 2].map((k) => Math.min(ca.lo[k], cb.lo[k]));
+          const hi = [0, 1, 2].map((k) => Math.max(ca.hi[k], cb.hi[k]));
+          const ratio = vol(lo, hi) / (vol(ca.lo, ca.hi) + vol(cb.lo, cb.hi) + 1e-9);
+          if (ratio <= 1.15 && (!best || ratio < best[0])) best = [ratio, a, b];
+        }
+      }
+      if (!best) break;
+      const [, a, b] = best;
+      comps[a] = join(a, b);
+      comps.splice(b, 1);
+    }
+    for (const { members } of comps) {
+      if (members.length < 2) continue;
+      const gid = members.map((m) => instances[m].geom_id).join('+');
+      if (!geoms.has(gid)) {
+        const positions = [], faces = [], mats = new Set();
+        for (const m of members) {
+          const g = geoms.get(instances[m].geom_id);
+          const off = positions.length;
+          for (const p of g.positions) positions.push(p);
+          for (const f of g.faces) faces.push([f[0] + off, f[1] + off, f[2] + off]);
+          g.materials.forEach((x) => mats.add(x));
+        }
+        const [bbox, localCenter, localAxes] = fitBox(positions);
+        geoms.set(gid, { positions, faces, bbox, localCenter, localAxes, materials: mats });
+      }
+      // the merged part takes the material covering most of it
+      let dominant = members[0];
+      for (const m of members) if (geoms.get(instances[m].geom_id).faces.length > geoms.get(instances[dominant].geom_id).faces.length) dominant = m;
+      const first = instances[members[0]];
+      first.material_bindings = instances[dominant].material_bindings;
+      first.geom_id = gid;
+      members.slice(1).forEach((m) => drop.add(m));
+    }
+  }
+  return instances.filter((_, i) => !drop.has(i));
+}
+
+
+// a turned/round part: its sides face many directions around the length axis
+function isRound(geo) {
+  const ext = geo.bbox;
+  let li = 0;
+  for (let k = 1; k < 3; k++) if (ext[k] > ext[li]) li = k;
+  const a = geo.localAxes[li];
+  const dirs = new Set();
+  const pos = geo.positions;
+  for (const f of geo.faces) {
+    const n0 = vcross(vsub(pos[f[1]], pos[f[0]]), vsub(pos[f[2]], pos[f[0]]));
+    const len = Math.sqrt(vdot(n0, n0));
+    if (len < 1e-12) continue;
+    const n = [n0[0] / len, n0[1] / len, n0[2] / len];
+    if (Math.abs(vdot(n, a)) > 0.2) continue;
+    let k = n.map((c) => Math.floor(c * 20 + 0.5));
+    const neg = k.map((c) => -c);
+    // a face and its back side are one direction (compare like Python tuples)
+    const less = k[0] !== neg[0] ? k[0] < neg[0] : k[1] !== neg[1] ? k[1] < neg[1] : k[2] < neg[2];
+    if (less) k = neg;
+    dirs.add(k.map((c) => c + 0).join(','));
+  }
+  return dirs.size >= 6;
+}
+
+// a plain-English name for an unnamed part, from its shape
+// the part's size along its own axes as placed: mesh box times the instance's
+// scale along each axis (SketchUp components are often scaled)
+function instanceExtents(inst, geo) {
+  return [0, 1, 2].map((i) => {
+    const v = applyRotation(inst.world_matrix, geo.localAxes[i]);
+    return geo.bbox[i] * Math.sqrt(vdot(v, v));
+  });
+}
+
+// ext: the part's size as placed
+function shapeName(geo, ext) {
+  const [L, W, T] = [...ext].sort((x, y) => y - x);
+  if (T < 1 / 64) return 'Flat face';
+  if (W - T <= 0.1 * W && isRound(geo)) return L >= 2 * W ? 'Dowel' : 'Round';
+  if (T < 0.3) return W >= 4 ? 'Sheet' : 'Strip';
+  if (W < 1.5 * T) return L >= 3 * W ? 'Square stock' : 'Block';
+  if (W >= 8 && T <= 1.25) return 'Panel';
+  if (L >= 3 * W) return 'Board';
+  return 'Block';
 }
 
 // ---------- outputs ----------
@@ -426,9 +610,10 @@ function computeObjectDims(instances, geoms, up) {
     if (!geo) continue;
     const wm = inst.world_matrix;
     const center = toYup(applyMatrix(wm, geo.localCenter), up);
+    const ext = instanceExtents(inst, geo);
     const axes = [];
     for (let i = 0; i < 3; i++) {
-      const length = geo.bbox[i];
+      const length = ext[i];
       if (length < 1e-6) continue;
       const dir = toYup(normalize(applyRotation(wm, geo.localAxes[i])), up);
       axes.push({ direction: dir.map((v) => roundTo(v, 6)), length: roundTo(length, 4) });
@@ -481,12 +666,19 @@ function buildReport(instances, geoms, info) {
     if (isPlanSheet(inst)) continue;
     const geo = geoms.get(inst.geom_id);
     if (!geo || !geo.faces.length) continue;
-    const dims = [...geo.bbox].sort((a, b) => b - a).map((d) => roundTo(d, 3));
-    const key = `${inst.label}\u0000${dims.join(',')}`;
+    const ext = instanceExtents(inst, geo);
+    const dims = [...ext].sort((a, b) => b - a).map((d) => roundTo(d, 3));
+    // unnamed parts are named by shape, so identical ones share a row; within
+    // 1/16" of each other they're the same part to a woodworker
+    const auto = isGenericName(inst.label);
+    const label = auto ? shapeName(geo, ext) : inst.label;
+    const key = `${label}\u0000${(auto ? dims.map(toFrac) : dims).join(',')}`;
     if (!report.has(key)) {
-      report.set(key, { label: inst.label, top_group: inst.top_group, dims, count: 0, materials: new Set(), paths: [], obj_names: [] });
+      report.set(key, { label, top_group: inst.top_group, dims, count: 0, materials: new Set(), paths: [], obj_names: [] });
     }
     const rep = report.get(key);
+    if (auto) rep.auto_name = true;
+    if (dims[2] < 1 / 64) rep.flat = true; // a loose face with no thickness: not a piece of wood
     rep.count += 1;
     for (const t of inst.material_bindings.values()) {
       const nm = (info.get(t) || {}).name;
@@ -506,14 +698,27 @@ function buildReport(instances, geoms, info) {
   return out;
 }
 
+// [category, words found anywhere in the name, words that must stand alone -
+// short ones, so 'Washer' isn't ash and 'First' isn't fir]. Includes common
+// French/German/Spanish wood names; accents are ignored (Mélèze = meleze).
 const CATEGORY_WORDS = [
-  ['Wood', ['wood', 'oak', 'maple', 'walnut', 'cherry', 'ash', 'pine', 'birch', 'poplar', 'plywood', 'mahogany', 'beech', 'cedar', 'fir']],
-  ['Hardware', ['metal', 'steel', 'iron', 'brass', 'bronze', 'alumin', 'chrome', 'zinc', 'bolt', 'screw']],
-  ['Leather', ['leather']],
+  ['Wood', ['wood', 'maple', 'walnut', 'cherry', 'birch', 'poplar', 'plywood', 'mahogany', 'beech', 'cedar',
+    'spruce', 'hemlock', 'cypress', 'hickory', 'larch', 'timber', 'lumber', 'plank', 'veneer', 'bamboo',
+    'ebony', 'sapele', 'padauk', 'wenge', 'bubinga', 'sycamore', 'chestnut', 'masonite', 'hardboard',
+    'particleboard', 'meleze', 'melese', 'noyer', 'sapin', 'eiche', 'buche', 'ahorn', 'kiefer', 'fichte',
+    'larche', 'nussbaum', 'madera', 'nogal', 'holz'],
+  ['oak', 'ash', 'fir', 'pine', 'elm', 'yew', 'teak', 'alder', 'mdf', 'osb', 'bois', 'chene', 'hetre', 'erable',
+    'frene', 'pin', 'roble', 'pino', 'haya', 'arce']],
+  ['Hardware', ['metal', 'steel', 'brass', 'bronze', 'alumin', 'chrome', 'screw', 'bolt', 'washer', 'hinge',
+    'rivet', 'nickel', 'copper', 'titanium', 'galvani'], ['iron', 'zinc', 'nut', 'nail']],
+  ['Leather', ['leather'], []],
 ];
 export function guessCategory(name) {
-  const n = (name || '').toLowerCase();
-  for (const [cat, words] of CATEGORY_WORDS) if (words.some((w) => n.includes(w))) return cat;
+  const n = (name || '').normalize('NFKD').replace(/[^\x00-\x7F]/g, '').replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
+  const tokens = new Set(n.split(/[^a-z]+/));
+  for (const [cat, anywhere, alone] of CATEGORY_WORDS) {
+    if (anywhere.some((w) => n.includes(w)) || alone.some((w) => tokens.has(w))) return cat;
+  }
   return 'Other';
 }
 
@@ -522,7 +727,7 @@ function titleCase(s) {
 }
 
 export function starterConfig(fileName, matKeyToName, info) {
-  const base = (fileName || 'model').replace(/^.*[\\/]/, '').replace(/\.[^.]*$/, '');
+  const base = (fileName || 'model').replace(/^.*[\\/]/, '').replace(/\.[^.]*$/, '').replace(/([a-z])(?=[A-Z])/g, '$1 '); // CamelCase -> words
   const title = titleCase(base.replace(/[_-]+/g, ' ').trim()) || 'Model';
   const byName = new Map([...info.values()].map((i) => [i.name, i]));
   const materials = {};
@@ -561,7 +766,7 @@ export function parseCollada(xmlText, { fileName = 'model.dae', parser = null } 
   const up = readUpAxis(root);
   const geoms = loadGeometries(root, scale);
   const info = loadMaterials(root);
-  const instances = resolveInstances(root, scale);
+  const instances = mergeOpenShells(resolveInstances(root, scale), geoms);
   const { obj, mtl, matKeyToName } = writeObj(instances, geoms, info, up);
   const dims = computeObjectDims(instances, geoms, up);
   const rows = buildReport(instances, geoms, info);

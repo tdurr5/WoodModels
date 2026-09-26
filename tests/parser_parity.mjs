@@ -25,6 +25,8 @@ const VARIANTS = {
   translate_rotate: { transforms: 'trs' },
   collada_1_5: { namespace: 'http://www.collada.org/2008/03/COLLADASchema' },
   no_namespace: { namespace: '' },
+  sketchup2023: { sketchup2023: 1 },
+  scaled_instance: { scaled: 1 },
 };
 // Optional: PARITY_SAMPLES=/path/to/folder also compares every .dae in it
 // (e.g. real 3D Warehouse / other exporters' files, which aren't in the repo).
@@ -126,9 +128,11 @@ try {
   // unit behaviour the viewer relies on, checked directly
   const units = await page.evaluate(async (url) => {
     const m = await import(url);
-    return { a: m.toFrac(0.15625), b: m.toFrac(12.4697), g: m.guessCategory('White_Oak') };
+    return { a: m.toFrac(0.15625), b: m.toFrac(12.4697), g: m.guessCategory('White_Oak'), cats: ['Mélèse_Verticale1', 'RedOak', 'Chêne clair', 'Steel_Washer', 'Washer', 'First_coat', 'Glass'].map(m.guessCategory) };
   }, `${base}collada.js`);
   check(units.a === '1/8"' && units.b === '12-1/2"' && units.g === 'Wood', `toFrac rounds halves to even like Python (${units.a})`);
+  const pyCats = execFileSync('python3', ['-c', `import sys; sys.path.insert(0, ${JSON.stringify(ROOT)}); import parse_dae, json; print(json.dumps([parse_dae.guess_category(n) for n in ['Mélèse_Verticale1', 'RedOak', 'Chêne clair', 'Steel_Washer', 'Washer', 'First_coat', 'Glass']]))`]).toString().trim();
+  check(JSON.stringify(units.cats) === JSON.stringify(JSON.parse(pyCats)), `material category guesses match (${units.cats})`);
 } finally {
   await browser.close();
   server.close();

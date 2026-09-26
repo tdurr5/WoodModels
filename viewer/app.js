@@ -7,13 +7,14 @@ import { compoundAngle, describeAngle, round1, DEFAULT_AXIS_NAMES } from './angl
 import { initSettings, settings, updateSettings, onSettingsChange, resetSettings } from './settings.js';
 import {
   prepareRows, renderCutList, renderRows, markActive, visibleRows, focusSearch, finishedDims, buildPrintSheet, isRod, userNote,
-  millingPlanHTML,
+  millingPlanHTML, setCutListRows, inlineEdit, markActiveGroup,
 } from './cutlist.js';
+import { normalizeEdits, withStatus, withName, withGroupName } from './edits.js';
 import { initMeasure } from './measure.js';
 import { initDiagramModal, computeLayouts, layoutsHTML } from './diagram.js';
 import { buildTemplate } from './template.js';
 import { initLibrary } from './library.js';
-import { getModelFiles, lastOpened, rememberOpened } from './modelstore.js';
+import { getModelFiles, lastOpened, rememberOpened, putModelFile } from './modelstore.js';
 import { obbFromDims, partsTouch } from './geometry.js';
 
 const $ = (id) => document.getElementById(id);
@@ -117,7 +118,11 @@ scene.add(grid);
 let config = {};
 let axisNames = DEFAULT_AXIS_NAMES;
 let objectDims = {};  // safe_name -> { center, axes: [{direction,length,role,label}] }
-let rows = [];
+let rows = [];          // parts in the build (what the cut list, totals, diagrams and prints use)
+let allPartRows = [];   // plus parts set aside or deleted (edits.js)
+let rawRows = [];       // parts_report.json as loaded
+let edits = normalizeEdits(null);
+let modelKey = 'model'; // per-model storage key
 let model = null;
 const meshes = [];                 // every part mesh
 const meshByName = new Map();      // obj name -> mesh
@@ -130,6 +135,7 @@ let explode = 0;
 let section = { axis: 'off', t: 0.5, flip: false }; // t matches the slider's initial value
 const clipPlane = new THREE.Plane(new THREE.Vector3(-1, 0, 0), 0);
 let current = null; // { row, meshes, box, gizmo: Group, labels: [{pos, el}] }
+let groupSel = null; // a whole assembly group shown from its cut-list heading
 let diagram = null; // cutting-diagram modal
 
 const dimCard = $('dimCard');
@@ -270,14 +276,19 @@ async function init() {
   objectDims = JSON.parse(files['object_dims.json']);
   document.title = `${cfg.title || 'Model'} — Cut List Viewer`;
   // preferences, ticks and notes are kept per model
-  initSettings(LOCAL_ID ? `local-${LOCAL_ID}` : (cfg.title || 'model').toLowerCase().replace(/[^a-z0-9]+/g, '-'));
+  modelKey = LOCAL_ID ? `local-${LOCAL_ID}` : (cfg.title || 'model').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  initSettings(modelKey);
   applyTheme();
-  rows = prepareRows(JSON.parse(files['parts_report.json']), cfg);
-  rows.forEach((r) => (r.obj_names || []).forEach((n) => rowByMeshName.set(n, r)));
+  rawRows = JSON.parse(files['parts_report.json']);
+  edits = loadEdits(cfg);
+  allPartRows = prepareRows(rawRows, cfg, edits);
+  rows = allPartRows.filter((r) => !r.status);
+  allPartRows.forEach((r) => (r.obj_names || []).forEach((n) => rowByMeshName.set(n, r)));
 
-  renderCutList($('sidebar'), rows, cfg, {
+  renderCutList($('sidebar'), allPartRows, cfg, {
     onSelect: (r) => selectRow(r), onPrint: printSheet, onDiagram: () => diagram.open(),
     onLibrary: () => library.open(), onSetup: LOCAL_ID ? () => library.openSetup(LOCAL_ID) : null,
+    onSetStatus: setPartStatus, onRenameGroup: renameGroup, onSelectGroup: selectGroup,
   });
   diagram = initDiagramModal({ rows, onSelectRow: (r) => selectRow(r), finishArea: () => (model ? woodSurfaceArea() : 0) });
   buildViewButtons();
@@ -321,6 +332,107 @@ function dismissIntro() {
 }
 $('introClose').addEventListener('click', dismissIntro);
 
+// ---------- your edits: rename, delete, set aside ----------
+// Uploaded models keep them inside their own model.json (so Download carries
+// them); built-in and folder models keep them in this browser, apart from
+// preferences so "reset preferences" doesn't undo them. A model.json may ship
+// edits too (e.g. a downloaded model added to the repo).
+const editsStorageKey = () => `woodmodels:${modelKey}:edits`;
+function loadEdits(cfg) {
+  if (!LOCAL_ID) {
+    try {
+      const saved = JSON.parse(localStorage.getItem(editsStorageKey()) || 'null');
+      if (saved) return normalizeEdits(saved);
+    } catch { /* storage unavailable */ }
+  }
+  return normalizeEdits(cfg.edits);
+}
+function saveEdits() {
+  if (LOCAL_ID) {
+    config.edits = edits;
+    putModelFile(LOCAL_ID, 'model.json', JSON.stringify(config, null, 2))
+      .catch((e) => showToast(`Couldn't save your change: ${e.message || e}`));
+  } else {
+    try { localStorage.setItem(editsStorageKey(), JSON.stringify(edits)); } catch { /* storage unavailable */ }
+  }
+}
+const editHistory = [];
+function commitEdits(next, message) {
+  editHistory.push(edits);
+  if (editHistory.length > 100) editHistory.shift();
+  edits = next;
+  saveEdits();
+  refreshRows();
+  if (message) showToast(message, { undo: true });
+}
+function undoEdit() {
+  const prev = editHistory.pop();
+  if (!prev) return false;
+  edits = prev;
+  saveEdits();
+  refreshRows();
+  showToast('Undone');
+  return true;
+}
+function setPartStatus(list, status) {
+  list = list.filter((r) => r.status !== status);
+  if (!list.length) return;
+  const what = list.length === 1 ? `"${list[0].name}"` : `${list.length} parts`;
+  const msg = status === 'deleted' ? `Deleted ${what}` : status === 'aside' ? `Set aside ${what} - not in the build` : `Put ${what} back in the build`;
+  commitEdits(withStatus(edits, list, status), msg);
+}
+function renamePart(row, name) { commitEdits(withName(edits, row.key, name), name ? `Renamed to "${name}"` : 'Name reset'); }
+function renameGroup(group, name) { commitEdits(withGroupName(edits, group, name), name ? `Group renamed to "${name}"` : 'Group name reset'); }
+
+// Rebuild the rows after an edit, keeping the 3D scene, camera and selection.
+function refreshRows() {
+  allPartRows = prepareRows(rawRows, config, edits);
+  rows = allPartRows.filter((r) => !r.status);
+  rowByMeshName.clear();
+  allPartRows.forEach((r) => (r.obj_names || []).forEach((n) => rowByMeshName.set(n, r)));
+  meshes.forEach((m) => { meshInfo.get(m).row = rowByMeshName.get(m.name); });
+  setCutListRows(allPartRows);
+  diagram.setRows(rows);
+  if (diagram.isOpen()) diagram.render();
+  if (tagsOn) setTags(true);
+  if (current) {
+    const row = allPartRows.find((r) => r.key === current.row.key);
+    if (!row || row.status === 'deleted') clearSelection();
+    else { current.row = row; renderDimCard(); markActive(row, false); }
+  }
+  updateModelBox();
+  applyMaterials();
+  if (groupSel !== null) {
+    if (allPartRows.some((r) => r.top_group === groupSel && r.status !== 'deleted')) {
+      markActiveGroup(groupSel);
+      renderGroupCard(groupBox(groupSel));
+    } else clearSelection();
+  }
+}
+
+// Parts drawn in 3D: not deleted, and set-aside ones only when shown.
+function isShownPart(m) {
+  const st = meshInfo.get(m)?.row?.status;
+  return st !== 'deleted' && (st !== 'aside' || settings().showAside);
+}
+function updateModelBox() {
+  const b = new THREE.Box3();
+  meshes.forEach((m) => { if (isShownPart(m)) b.expandByPoint(m.geometry.boundingBox.min).expandByPoint(m.geometry.boundingBox.max); });
+  modelBox = b.isEmpty() ? new THREE.Box3().setFromObject(model) : b;
+  modelCenter = modelBox.getCenter(new THREE.Vector3());
+  if (explode) setExplodePositions(explode);
+}
+
+let toastTimer = null;
+function showToast(msg, { undo = false } = {}) {
+  const el = $('toast');
+  el.innerHTML = `<span>${escapeHtml(msg)}</span>${undo ? '<button class="card-btn" data-act="undo" title="Undo (Ctrl+Z)">Undo</button>' : ''}`;
+  el.classList.add('show');
+  el.querySelector('[data-act="undo"]')?.addEventListener('click', () => undoEdit());
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), undo ? 6000 : 2500);
+}
+
 function prepareMeshes(materialNames) {
   model.traverse((child) => {
     if (!child.isMesh) return;
@@ -349,8 +461,7 @@ function prepareMeshes(materialNames) {
     child.geometry.computeBoundingBox();
     meshInfo.set(child, { orig, dim, hl, row, baseCenter: child.geometry.boundingBox.getCenter(new THREE.Vector3()) });
   });
-  modelBox = new THREE.Box3().setFromObject(model);
-  modelCenter = modelBox.getCenter(new THREE.Vector3());
+  updateModelBox();
 
   // Exploded view moves each assembly group away from the model center, and
   // each part a little further away from its group's center, so assemblies
@@ -381,9 +492,10 @@ function applyMaterials() {
   meshes.forEach((m) => {
     const info = meshInfo.get(m);
     const catHidden = info.row && hidden.has(info.row.category);
-    const isSel = selected.has(m);
-    m.visible = isSel || (!catHidden && !(s.isolate && current && !isSel));
-    m.material = !current ? info.orig : isSel ? info.hl : info.dim;
+    const inGroup = !current && groupSel !== null && info.row?.top_group === groupSel;
+    const isSel = selected.has(m) || inGroup;
+    m.visible = isSel || (isShownPart(m) && !catHidden && !(s.isolate && (current || groupSel !== null) && !isSel));
+    m.material = !current && groupSel === null ? info.orig : isSel ? info.hl : info.dim;
   });
 }
 
@@ -424,7 +536,7 @@ function woodSurfaceArea() {
   const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), tri = new THREE.Triangle();
   meshes.forEach((m) => {
     const row = rowByMeshName.get(m.name);
-    if (!row || row.category !== 'Wood') return;
+    if (!row || row.category !== 'Wood' || row.status) return;
     const pos = singleSidedGeometry(m.geometry).attributes.position;
     for (let i = 0; i + 2 < pos.count; i += 3) {
       a.fromBufferAttribute(pos, i); b.fromBufferAttribute(pos, i + 1); c.fromBufferAttribute(pos, i + 2);
@@ -564,7 +676,8 @@ function applySettingsToScene() {
 }
 
 onSettingsChange((s, patch) => {
-  if ('units' in patch || 'showRough' in patch || 'allowance' in patch || 'cut' in patch || 'hiddenCategories' in patch || 'userNotes' in patch) renderRows();
+  if ('units' in patch || 'showRough' in patch || 'allowance' in patch || 'cut' in patch || 'hiddenCategories' in patch || 'userNotes' in patch || 'showAside' in patch) renderRows();
+  if ('showAside' in patch && model) updateModelBox();
   // typing a note mustn't rebuild the card it's being typed into
   if (Object.keys(patch).every((k) => k === 'userNotes')) return;
   if ('hiddenCategories' in patch && current && settings().hiddenCategories.includes(current.row.category)) clearSelection();
@@ -672,7 +785,7 @@ function buildViewButtons() {
 
 // ---------- selection ----------
 function selectRow(row, { frame = true } = {}) {
-  if (!row || !row.clickable || !model) return;
+  if (!row || !row.clickable || !model || row.status === 'deleted') return;
   if (settings().hiddenCategories.includes(row.category)) {
     updateSettings({ hiddenCategories: settings().hiddenCategories.filter((c) => c !== row.category) });
   }
@@ -690,6 +803,8 @@ function selectRow(row, { frame = true } = {}) {
 function clearSelection({ keepHash = false } = {}) {
   disposeOverlays();
   current = null;
+  groupSel = null;
+  markActiveGroup(null);
   dimCard.style.display = 'none';
   markActive(null);
   if (model) applyMaterials();
@@ -919,7 +1034,7 @@ function pieceContacts(mesh, row) {
   const byRow = new Map();
   contactsOf(mesh).forEach((o) => {
     const r = rowByMeshName.get(o.name);
-    if (!r || r.key === row.key) return;
+    if (!r || r.key === row.key || r.status) return; // not deleted / set-aside parts
     byRow.set(r.key, { row: r, n: (byRow.get(r.key)?.n || 0) + 1 });
   });
   return [...byRow.values()].sort((a, b) => a.row.name.localeCompare(b.row.name));
@@ -973,6 +1088,61 @@ function drillingHtml() {
 // otherwise cover much of the model). Starts collapsed on narrow screens.
 let cardCollapsed = window.matchMedia('(max-width: 800px)').matches;
 
+// Show a whole assembly group (e.g. to find which "Group 12" is the hand plane):
+// highlighted and framed, with a card to rename, set aside or delete it.
+function selectGroup(group) {
+  if (!model) return;
+  clearSelection();
+  groupSel = group;
+  markActiveGroup(group);
+  applyMaterials();
+  const box = groupBox(group);
+  if (!box.isEmpty()) frameBox(box, null);
+  renderGroupCard(box);
+  dismissIntro();
+}
+function groupBox(group) {
+  const box = new THREE.Box3();
+  meshes.forEach((m) => { if (meshInfo.get(m).row?.top_group === group && m.visible) box.expandByObject(m); });
+  return box;
+}
+
+function renderGroupCard(box) {
+  const group = groupSel;
+  const inGroup = allPartRows.filter((r) => r.top_group === group);
+  const active = inGroup.filter((r) => !r.status);
+  const aside = inGroup.filter((r) => r.status === 'aside');
+  const name = inGroup[0]?.groupName || String(group);
+  const size = box.isEmpty() ? null : box.getSize(new THREE.Vector3());
+  const units = settings().units;
+  const count = (list) => list.reduce((n, r) => n + r.count, 0);
+  dimCard.classList.remove('collapsed');
+  dimCard.innerHTML = `
+    <button class="card-close" title="Clear (Esc)">×</button>
+    <div class="part-name"><span class="pn-text">${escapeHtml(name)}</span><button class="pn-edit" title="Rename this group">✎</button></div>
+    <div class="meta">Group · ${count(active)} pieces in the build${aside.length ? ` · ${count(aside)} set aside` : ''}</div>
+    ${size ? `<div class="meta">Overall ${escapeHtml(formatLength(size.x, units))} × ${escapeHtml(formatLength(size.y, units))} × ${escapeHtml(formatLength(size.z, units))} (outline box)</div>` : ''}
+    <div class="card-actions">
+      ${active.length ? '<button class="card-btn" data-act="aside" title="Keep the parts and their sizes, but leave them out of the build (e.g. tools drawn on the bench)">Set aside group</button>' : ''}
+      ${aside.length ? '<button class="card-btn" data-act="build" title="Put the set-aside parts back in the build">Put back in build</button>' : ''}
+      <button class="card-btn danger" data-act="delete" title="Delete the whole group from this model (Del). You can restore it.">Delete group</button>
+    </div>`;
+  dimCard.style.display = 'block';
+  dimCard.querySelector('.card-close').addEventListener('click', () => clearSelection());
+  dimCard.querySelector('.pn-edit').addEventListener('click', () => inlineEdit(dimCard.querySelector('.pn-text'), name, (n) => renameGroup(group, n)));
+  const act = (a, fn) => dimCard.querySelector(`[data-act="${a}"]`)?.addEventListener('click', fn);
+  act('aside', () => setPartStatus(active, 'aside'));
+  act('build', () => setPartStatus(aside, null));
+  act('delete', () => setPartStatus(inGroup, 'deleted'));
+}
+
+function renameSelected() {
+  if (!current) return;
+  if (cardCollapsed) { cardCollapsed = false; renderDimCard(); }
+  const row = current.row;
+  inlineEdit(dimCard.querySelector('.pn-text'), row.name, (name) => renamePart(row, name));
+}
+
 function renderDimCard() {
   const row = current.row;
   const data = objectDims[current.meshes[0]?.name];
@@ -981,7 +1151,8 @@ function renderDimCard() {
   dimCard.innerHTML = `
     <button class="card-close" title="Clear selection (Esc)">×</button>
     <button class="card-min" title="Show less / more">${cardCollapsed ? '+' : '–'}</button>
-    <div class="part-name"><span class="letter">${row.letter}</span>${escapeHtml(row.name)}</div>
+    <div class="part-name">${row.letter ? `<span class="letter">${row.letter}</span>` : ''}<span class="pn-text">${escapeHtml(row.name)}</span><button class="pn-edit" title="Rename this part (F2)">✎</button></div>
+    ${row.status === 'aside' ? '<div class="card-aside">Set aside - not in the build (not counted in totals, shopping list or prints)</div>' : ''}
     <div class="dim-big">${escapeHtml(finishedDims(row))}</div>
     <div class="dim-axes">${row.customDims ? '' : 'Thickness × Width × Length'}</div>
     ${angleHtml(data)}
@@ -992,7 +1163,13 @@ function renderDimCard() {
       <summary>${userNote(row) ? 'Your note' : 'Add a note'}</summary>
       <textarea rows="2" placeholder="e.g. use the quartersawn offcut; check grain runout">${escapeHtml(userNote(row))}</textarea>
     </details>
-    ${data && row.category === 'Wood' ? '<div class="card-actions"><button class="card-btn" data-act="template" title="Print this part at full size to trace onto your stock">Print full-size template</button></div>' : ''}
+    <div class="card-actions">
+      ${data && row.category === 'Wood' && !row.status ? '<button class="card-btn" data-act="template" title="Print this part at full size to trace onto your stock">Print full-size template</button>' : ''}
+      ${row.status === 'aside'
+    ? '<button class="card-btn" data-act="build" title="Put this part back in the build">Put back in build</button>'
+    : '<button class="card-btn" data-act="aside" title="Keep it with its sizes, but leave it out of the build: totals, shopping list, prints (e.g. a tool drawn on the bench)">Set aside</button>'}
+      <button class="card-btn danger" data-act="delete" title="Delete from this model: a mistake or junk in the model (Del). You can restore it.">Delete</button>
+    </div>
   `;
   dimCard.style.display = 'block';
   dimCard.querySelector('.card-close').addEventListener('click', () => clearSelection());
@@ -1014,6 +1191,10 @@ function renderDimCard() {
   });
   const tplBtn = dimCard.querySelector('[data-act="template"]');
   if (tplBtn) tplBtn.addEventListener('click', () => printTemplate());
+  dimCard.querySelector('.pn-edit').addEventListener('click', () => renameSelected());
+  dimCard.querySelector('[data-act="aside"]')?.addEventListener('click', () => setPartStatus([row], 'aside'));
+  dimCard.querySelector('[data-act="build"]')?.addEventListener('click', () => setPartStatus([row], null));
+  dimCard.querySelector('[data-act="delete"]').addEventListener('click', () => setPartStatus([row], 'deleted'));
 }
 
 // ---------- hover + click picking ----------
@@ -1223,7 +1404,7 @@ function captureOverview({ exploded = 0 } = {}) {
   if (current?.gizmo) current.gizmo.visible = false;
   current = null;
   applyMaterials();
-  meshes.forEach((m) => { m.visible = true; });
+  meshes.forEach((m) => { m.visible = !meshInfo.get(m).row?.status; }); // the build: not deleted / set-aside parts
   setExplodePositions(exploded);
   if (savedWire) allMaterials().forEach((m) => { m.wireframe = false; });
   measure.setVisible(false);
@@ -1232,7 +1413,7 @@ function captureOverview({ exploded = 0 } = {}) {
   if (capsOn) showSectionCaps(false);
   grid.visible = false;
   scene.background = new THREE.Color(0xffffff);
-  const box = exploded ? new THREE.Box3().setFromObject(model) : modelBox;
+  const box = exploded ? meshes.reduce((b, m) => (m.visible ? b.expandByObject(m) : b), new THREE.Box3()) : modelBox;
   frameBox(box, config.views?.iso?.dir || [0.7, 0.5, 0.7], false);
   let url = null;
   try {
@@ -1277,7 +1458,7 @@ function drawCallouts(g, w, h) {
   meshes.forEach((m) => {
     const row = rowByMeshName.get(m.name);
     const d = objectDims[m.name];
-    if (!row || !d || row.customDims || seen.has(row.key)) return;
+    if (!row || !d || row.customDims || row.status || seen.has(row.key)) return;
     seen.add(row.key);
     const a = toPx(new THREE.Vector3(...d.center).add(m.position));
     marks.push({ letter: row.letter, ax: a.x, ay: a.y, x: a.x, y: a.y });
@@ -1376,7 +1557,7 @@ function buildTags() {
   meshes.forEach((m) => {
     const row = rowByMeshName.get(m.name);
     const d = objectDims[m.name];
-    if (!row || !d || row.customDims) return;
+    if (!row || !d || row.customDims || row.status) return;
     const el = document.createElement('div');
     el.className = 'partTag';
     el.textContent = row.letter;
@@ -1412,7 +1593,7 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   if (e.ctrlKey || e.metaKey || e.altKey) {
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { if (measure.undo()) e.preventDefault(); }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { if (measure.undo() || undoEdit()) e.preventDefault(); }
     return;
   }
   const viewKeys = Object.keys(config.views || {});
@@ -1436,7 +1617,12 @@ window.addEventListener('keydown', (e) => {
   else if (k === 'd') setTool('distance');
   else if (k === 'a') setTool('angle');
   else if (k === 'b') setTool('bevel');
-  else if (k === 'Backspace' || k === 'Delete') { if (measure.undo()) e.preventDefault(); }
+  else if (k === 'Backspace' || k === 'Delete') {
+    // removes the last measuring point first; otherwise deletes the selected part
+    if (measure.undo()) e.preventDefault();
+    else if (current && k === 'Delete') { setPartStatus([current.row], 'deleted'); e.preventDefault(); }
+    else if (groupSel !== null && k === 'Delete') { setPartStatus(allPartRows.filter((r) => r.top_group === groupSel), 'deleted'); e.preventDefault(); }
+  } else if (k === 'F2' && current) { renameSelected(); e.preventDefault(); }
   else if (k === '/') { focusSearch(); e.preventDefault(); }
   else if (k === '?') toggleHelp();
   else if (k === 'c' && diagram) (diagram.isOpen() ? diagram.close() : diagram.open());
@@ -1503,6 +1689,7 @@ window.__viewer = {
   get current() { return current; },
   get config() { return config; },
   currentSelectionMeshes: () => (current ? current.meshes : []),
+  meshesOf: (name) => meshes.filter((m) => meshInfo.get(m).row?.name === name),
   measureClickCount: () => measure.points.length + measure.measurements.length * 2,
   setExplode, setView, selectRow, rows: () => rows,
   prepareTemplate,

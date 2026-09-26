@@ -17,6 +17,7 @@ A 3D cut-list viewer for woodworking plans, starting with the Lie-Nielsen/Brian 
   - `measure.js` - distance / angle / bevel tools with snapping
   - `angles.js`, `format.js` - compound-angle math, fractions, rough stock, board feet (pure, unit-tested)
   - `library.js`, `collada.js`, `zip.js`, `modelstore.js` - uploading models in the browser: COLLADA parser (a port of `parse_dae.py`), zip/KMZ reading, saved models (IndexedDB)
+  - `edits.js` - your renames, deleted parts and parts set aside, per model
   - `settings.js` - per-browser preferences (units, allowances, parts ticked off)
   - `model.json` - per-model settings: title, friendly part names, notes, materials, axis names, view presets
   - `vendor/three/` - pinned three.js 0.160 build and the three addons used (MIT)
@@ -88,9 +89,27 @@ Click **Models** at the top of the sidebar (or press `M`), then choose a file - 
 
 1. On 3D Warehouse, open the model and use **Download → Collada File** (a `.zip`) or **KMZ**. The SketchUp `.skp` download can't be read in a browser; in SketchUp itself, **File → Export → 3D Model → COLLADA (.dae)** works too.
 2. Upload the `.zip`, `.kmz` or `.dae`. It's measured in the browser the same way `parse_dae.py` does it (any units, Z-up or Y-up, other exporters' COLLADA 1.4/1.5), so every tool - cut list, rough stock, joins, templates, cutting diagram, angle tools - works on it.
-3. A **Set up** dialog opens: name it, pick which materials count as **Wood** (only wood goes into rough stock, board feet and the cutting diagram), and which way the front of the piece faces. You can reopen it any time from the **Set up** button in the sidebar.
+3. A **Set up** dialog opens: name it, pick which materials count as **Wood** (only wood goes into rough stock, board feet and the cutting diagram), what each material is **called** (give the several textures a model uses for one species the same name, e.g. "Larch", and they total up as one), and which way the front of the piece faces. You can reopen it any time from the **Set up** button in the sidebar.
 
 Uploads are saved in this browser (nothing is sent anywhere), and the page reopens the model you had open last. Ticked-off parts, notes and preferences are kept per model. In the Models list you can switch between models, **Download** one as a zip of the six data files (to back it up, move it to another device - just upload the zip there - or add it to the repo as a `?model=` folder), or **Delete** it.
+
+### Cleaning up a rough model
+
+Plenty of Warehouse models weren't drawn with a cut list in mind: nothing is named, boards are drawn as loose faces, parts are scaled copies, and there are tools, people or props in the scene. The importer handles what it can on its own:
+
+- **Unnamed parts** (`group_12`, `Component#3`...) are named by shape - *Board*, *Panel*, *Square stock*, *Dowel*, *Block*, *Strip*, *Sheet* - and identical ones become one row with a quantity. Unnamed groups are shown as *Group 1*, *Group 2*...
+- **A board exported in pieces** (newer SketchUp writes one mesh per face material, e.g. end grain painted differently) is put back together, but boards that merely touch are kept apart, and a dowel sitting in a hole stays its own part.
+- **Scaled copies** are measured at their placed size.
+- **Loose faces** with no thickness (decals, engraved markings) start out *set aside*.
+
+Then fix up the rest yourself - every change is undoable (`Ctrl+Z`, or **Undo** on the notice) and saved with the model:
+
+- **Click a group heading** to highlight the whole group in 3D - the quickest way to find out which "Group 12" is the hand plane. Its card has **Rename**, **Set aside group** and **Delete group**; the same buttons appear on the heading when you hover it.
+- **A part's card** has **✎ rename** (`F2`), **Set aside** and **Delete** (`Del`).
+- **Set aside** is for things that are in the model but aren't part of the build - tools, a person for scale. They keep their sizes (handy if you want to make that mallet later) and are listed under *Set aside · not in the build* at the bottom of the cut list, but they're left out of totals, board feet, the shopping list, prints and part letters, and hidden in 3D unless you tick **Show**.
+- **Delete** is for mistakes and junk in the model. Deleted parts disappear everywhere, and can be restored from the *Deleted* list at the bottom of the cut list.
+
+For uploaded models the changes are stored in the model itself, so **Download** carries them. For the built-in model (or a `?model=` folder) they're kept in this browser, separately from preferences; a `model.json` can also ship an `edits` block (`names`, `groups`, `status`) - which is what a downloaded model contains.
 
 ## Regenerating the data
 
@@ -98,7 +117,7 @@ Uploads are saved in this browser (nothing is sent anywhere), and the page reope
 python3 parse_dae.py path/to/model.dae -o viewer/
 ```
 
-(or set `WOODMODELS_DAE`). Textures are read relative to the `.dae`. Models drawn in other units (mm, cm, feet) are converted to inches using the unit declared in the file. If the output folder has no `model.json`, a starter one is written: the title comes from the file name, and each material is guessed as wood, hardware or leather from its name. Then edit `model.json` for the new model: title, friendly names, which material is wood/hardware, and which world axis is front-to-back (`axisNames`).
+(or set `WOODMODELS_DAE`). A 3D Warehouse Collada `.zip` / `.kmz` works directly too. Textures are read relative to the `.dae`. Models drawn in other units (mm, cm, feet) are converted to inches using the unit declared in the file. If the output folder has no `model.json`, a starter one is written: the title comes from the file name, and each material is guessed as wood, hardware or leather from its name. Then edit `model.json` for the new model: title, friendly names, which material is wood/hardware, and which world axis is front-to-back (`axisNames`).
 
 ### Adding another model
 

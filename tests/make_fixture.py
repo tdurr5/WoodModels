@@ -9,6 +9,11 @@ Covers the paths parse_dae.py has to handle in the real export:
   - two instances of one component with different transforms (qty 2)
   - a real material plus an "edge_color" material that must be ignored
   - a flat printed plan sheet that must be excluded
+  - optionally (scaled=True) a copy of the board component stretched 2x
+    along its length, the way SketchUp's Scale tool leaves it
+  - optionally (sketchup2023=True) an unnamed group the way newer SketchUp
+    exports it: one rail as two open meshes (sides + end faces painted
+    another material), a post drawn touching it, and a closed dowel
 
 Run directly to write tests/fixtures/mini.dae.
 """
@@ -78,6 +83,54 @@ def polylist_geometry(gid, verts, material_symbol):
     </mesh></geometry>'''
 
 
+def mesh_geometry(gid, verts, polys, material_symbol):
+    """Arbitrary polygons (index lists) as a <polylist>."""
+    return f'''
+    <geometry id="{gid}"><mesh>
+      <source id="{gid}-pos"><float_array id="{gid}-pos-arr" count="{len(verts) * 3}">{floats(v for p in verts for v in p)}</float_array>
+        <technique_common><accessor source="#{gid}-pos-arr" count="{len(verts)}" stride="3"/></technique_common></source>
+      <vertices id="{gid}-vtx"><input semantic="POSITION" source="#{gid}-pos"/></vertices>
+      <polylist count="{len(polys)}" material="{material_symbol}">
+        <input semantic="VERTEX" source="#{gid}-vtx" offset="0"/>
+        <vcount>{' '.join(str(len(q)) for q in polys)}</vcount>
+        <p>{' '.join(str(i) for q in polys for i in q)}</p>
+      </polylist>
+    </mesh></geometry>'''
+
+
+def box_at(lo, hi):
+    return [(x, y, z) for x in (lo[0], hi[0]) for y in (lo[1], hi[1]) for z in (lo[2], hi[2])]
+
+
+# box faces by direction (box_corners indexing): the four around X, then the two X ends
+SIDES_X = [(0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)]
+ENDS_X = [(0, 1, 3, 2), (4, 6, 7, 5)]
+SIDES_Z = [(0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6)]
+
+
+def sketchup2023_group(scale):
+    """Geometries + node for an unnamed group of loose geometry."""
+    sc = lambda pts: [tuple(v * scale for v in p) for p in pts]  # noqa: E731
+    rail = sc(box_at((0, 0, 0), (30, 3, 1.5)))
+    post = sc(box_at((0, 0, 1.5), (3, 3, 11.5)))  # stands on the rail's end, sharing its corners
+    n = 12
+    ring = [(0, 1.5 + 0.375 * math.cos(2 * math.pi * k / n), 0.75 + 0.375 * math.sin(2 * math.pi * k / n)) for k in range(n)]
+    dowel = sc([(x0 + 12, y, z) for x0 in (0, 3) for (_, y, z) in ring])
+    dowel_polys = [(k, (k + 1) % n, n + (k + 1) % n, n + k) for k in range(n)] + [tuple(range(n - 1, -1, -1)), tuple(range(n, 2 * n))]
+    geoms = (mesh_geometry('geom_rail_sides', rail, SIDES_X, 'mat')
+             + mesh_geometry('geom_rail_ends', rail, ENDS_X, 'mat')
+             + mesh_geometry('geom_post', post, SIDES_Z, 'mat')
+             + mesh_geometry('geom_dowel', dowel, dowel_polys, 'mat'))
+    node = f'''
+        <node name="group_7">{matrix(translate(0, 20 * scale, 0))}
+          <instance_geometry url="#geom_rail_sides">{bind()}</instance_geometry>
+          <instance_geometry url="#geom_rail_ends">{bind(target='ID_endgrain')}</instance_geometry>
+          <instance_geometry url="#geom_post">{bind()}</instance_geometry>
+          <instance_geometry url="#geom_dowel">{bind()}</instance_geometry>
+        </node>'''
+    return geoms, node
+
+
 def matrix(m):
     return f'<matrix>{floats(m)}</matrix>'
 
@@ -115,19 +168,20 @@ def polygons_geometry(gid, verts, material_symbol):
     </mesh></geometry>'''
 
 
-def build(unit_meter=0.0254, scale=1.0, up_axis='Z_UP', leg_as='polylist', transforms='matrix', namespace=NS):
+def build(unit_meter=0.0254, scale=1.0, up_axis='Z_UP', leg_as='polylist', transforms='matrix', namespace=NS,
+          sketchup2023=False, scaled=False):
     """`scale` multiplies every length, for writing the same model in another
     unit (e.g. unit_meter=0.001, scale=25.4 for millimetres). `leg_as` picks
     the primitive the leg is written with ('polylist' or 'polygons');
     `transforms='trs'` places parts with <translate>/<rotate> instead of
     <matrix>; `namespace` may be the COLLADA 1.5 one or '' (none)."""
-    xml = _build(unit_meter, scale, up_axis, leg_as, transforms)
+    xml = _build(unit_meter, scale, up_axis, leg_as, transforms, sketchup2023, scaled)
     if namespace != NS:
         xml = xml.replace(f' xmlns="{NS}"', f' xmlns="{namespace}"' if namespace else '')
     return xml
 
 
-def _build(unit_meter, scale, up_axis, leg_as, transforms):
+def _build(unit_meter, scale, up_axis, leg_as, transforms, sketchup2023=False, scaled=False):
     if transforms == 'trs':
         place_board = lambda y: f'<translate>0 {6 * scale if y else 0} {20 * scale}</translate>'  # noqa: E731
         place_leg = f'<translate>{2 * scale} 0 0</translate><rotate>1 0 0 90</rotate>'
@@ -145,6 +199,12 @@ def _build(unit_meter, scale, up_axis, leg_as, transforms):
         + (polygons_geometry if leg_as == 'polygons' else polylist_geometry)('geom_leg', leg, 'mat')
         + triangles_geometry('geom_sheet', sheet, 'mat')
     )
+    extra_geoms, extra_node = sketchup2023_group(scale) if sketchup2023 else ('', '')
+    scaled_node = f'''
+          <node name="Board">{matrix((2, 0, 0, 0, 0, 1, 0, 12 * scale, 0, 0, 1, 20 * scale, 0, 0, 0, 1))}
+            <instance_geometry url="#geom_board">{bind()}</instance_geometry>
+          </node>''' if scaled else ''
+    geoms += extra_geoms
     return f'''<?xml version="1.0" encoding="utf-8"?>
 <COLLADA xmlns="{NS}" version="1.4.1">
   <asset><unit name="unit" meter="{unit_meter}"/><up_axis>{up_axis}</up_axis></asset>
@@ -157,6 +217,7 @@ def _build(unit_meter, scale, up_axis, leg_as, transforms):
   <library_materials>
     <material id="ID_wood" name="Wood"><instance_effect url="#eff_wood"/></material>
     <material id="ID_edge" name="edge_color000255"><instance_effect url="#eff_edge"/></material>
+    <material id="ID_endgrain" name="Wood_End_Grain"><instance_effect url="#eff_wood"/></material>
   </library_materials>
   <library_geometries>{geoms}
   </library_geometries>
@@ -174,13 +235,14 @@ def _build(unit_meter, scale, up_axis, leg_as, transforms):
           </node>
           <node name="Board">{place_board(True)}
             <instance_geometry url="#geom_board">{bind()}</instance_geometry>
-          </node>
+          </node>{scaled_node}
         </node>
         <node name="Legs">{matrix(IDENTITY)}
           <node name="SketchUp_Instance_3">{place_leg}
             <instance_node url="#comp_leg"/>
           </node>
         </node>
+{extra_node}
         <node name="Plan_Lie_Nielson_Boggs">
           <instance_geometry url="#geom_sheet">{bind()}</instance_geometry>
         </node>

@@ -1,18 +1,24 @@
 // Sidebar cut list, totals, CSV export and the printable cut sheet.
 
 import {
-  formatLength, roughStock, displayName, toFraction, toCSV, escapeHtml, UNIT_OPTIONS, millingPlan,
+  formatLength, roughStock, displayName, toFraction, toCSV, escapeHtml, UNIT_OPTIONS, millingPlan, isGenericName,
 } from './format.js';
 import { settings, updateSettings } from './settings.js';
+import { normalizeEdits, rowStatus } from './edits.js';
 
 // ---------- row preparation ----------
 
 // Decorate parts_report.json rows with what the UI needs. Rows are ordered by
 // category, then assembly group, then name - the order everything (sidebar,
-// arrow-key navigation, CSV, print) uses.
-export function prepareRows(rawRows, config) {
+// arrow-key navigation, CSV, print) uses. `edits` (edits.js) renames parts and
+// groups and gives each row a status: null (in the build), 'aside' or 'deleted'.
+export function prepareRows(rawRows, config, edits = config.edits) {
   const mats = config.materials || {};
   const order = config.categoryOrder || ['Wood', 'Hardware', 'Leather', 'Other'];
+  const ed = normalizeEdits(edits);
+  // groups nobody named (group_12, instance_9) are numbered Group 1, 2, ...
+  const generic = [...new Set(rawRows.map((r) => String(r.top_group)))].filter(isGenericName).sort();
+  const groupName = (g) => ed.groups[g] || (generic.includes(g) ? `Group ${generic.indexOf(g) + 1}` : displayName(g, config.displayNames));
   const rows = rawRows.map((r) => {
     // parts with no material use the model's "(none)" setting, if it has one
     const matName = (r.materials || []).find((m) => mats[m]) || (r.materials || [])[0] || (mats['(none)'] ? '(none)' : '');
@@ -26,11 +32,12 @@ export function prepareRows(rawRows, config) {
     const configNote = (config.notes || {})[r.label];
     const warning = r.warning || configNote;
     const notes = [r.note, r.warning, configNote].filter(Boolean);
+    const key = `${r.label}|${r.dims.join('x')}`;
     return {
       ...r,
-      key: `${r.label}|${r.dims.join('x')}`,
-      name: displayName(r.label, config.displayNames),
-      groupName: displayName(String(r.top_group), config.displayNames),
+      key,
+      name: ed.names[key] || displayName(r.label, config.displayNames),
+      groupName: groupName(String(r.top_group)),
       category,
       material: matName,
       materialLabel: (mats[matName] && mats[matName].label) || (matName === '(none)' ? 'No material' : matName.replace(/^_+/, '')),
@@ -41,13 +48,16 @@ export function prepareRows(rawRows, config) {
       clickable: !!(r.obj_names && r.obj_names.length),
     };
   });
+  rows.forEach((r) => { r.status = rowStatus(r, ed); });
   const catRank = (c) => { const i = order.indexOf(c); return i < 0 ? order.length : i; };
   rows.sort((a, b) => catRank(a.category) - catRank(b.category)
     || String(a.top_group).localeCompare(String(b.top_group))
     || a.name.localeCompare(b.name));
   // Plan-style part letters: A, B, ... Z, AA, AB ...
   const letter = (i) => (i < 26 ? String.fromCharCode(65 + i) : letter(Math.floor(i / 26) - 1) + String.fromCharCode(65 + (i % 26)));
-  rows.forEach((r, i) => { r.__id = i; r.letter = letter(i); });
+  // only parts in the build get letters, so the plan reads A, B, C... without gaps
+  let n = 0;
+  rows.forEach((r, i) => { r.__id = i; r.letter = r.status ? '' : letter(n++); });
   return rows;
 }
 
@@ -101,12 +111,27 @@ export function totals(rows) {
 // ---------- sidebar ----------
 
 let els = {};
-let allRows = [];
+let allRows = [];     // parts in the build
+let asideRows = [];   // set aside: in the model, not in the build
+let deletedRows = [];
 let handlers = {};
 let filterText = '';
 
+// rows: every prepared row; the sidebar splits them by status
+function splitRows(rows) {
+  allRows = rows.filter((r) => !r.status);
+  asideRows = rows.filter((r) => r.status === 'aside');
+  deletedRows = rows.filter((r) => r.status === 'deleted');
+}
+
+// after parts are renamed, deleted or set aside
+export function setCutListRows(rows) {
+  splitRows(rows);
+  renderRows();
+}
+
 export function renderCutList(container, rows, config, h) {
-  allRows = rows;
+  splitRows(rows);
   handlers = h;
   container.innerHTML = `
     <div class="cl-head">
@@ -217,10 +242,7 @@ export function renderRows() {
     shown.forEach((r) => {
       if (r.top_group !== lastGroup) {
         lastGroup = r.top_group;
-        const g = document.createElement('div');
-        g.className = 'group-title';
-        g.textContent = r.groupName;
-        list.appendChild(g);
+        list.appendChild(groupTitle(r));
       }
       list.appendChild(rowElement(r, cut.has(r.key), s));
     });
@@ -231,9 +253,111 @@ export function renderRows() {
       list.appendChild(empty);
     }
   });
+  renderSetAside(list, s);
   renderSummary();
-  if (activeKey) markActive(allRows.find((r) => r.key === activeKey), false);
+  if (activeKey) markActive([...allRows, ...asideRows].find((r) => r.key === activeKey), false);
 }
+
+// Section heading for an assembly group, with rename / set aside / delete for
+// the whole group (e.g. a group of tools drawn on the bench).
+function groupTitle(r) {
+  const g = document.createElement('div');
+  g.className = 'group-title' + (r.top_group === activeGroup ? ' active' : '');
+  g.dataset.group = r.top_group;
+  g.innerHTML = `<span class="gt-name" role="button" tabindex="0" title="Show this whole group in 3D">${escapeHtml(r.groupName)}</span>
+    <span class="gt-actions">
+      <button data-act="rename" title="Rename this group">Rename</button>
+      <button data-act="aside" title="Set the whole group aside: keeps its sizes, leaves it out of the build (e.g. tools drawn on the bench)">Set aside</button>
+      <button data-act="delete" title="Delete the whole group from this model (you can restore it)">Delete</button>
+    </span>`;
+  const group = r.top_group;
+  const nameEl = g.querySelector('.gt-name');
+  nameEl.addEventListener('click', () => handlers.onSelectGroup?.(group));
+  nameEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handlers.onSelectGroup?.(group); } });
+  g.querySelector('[data-act="rename"]').addEventListener('click', () => {
+    inlineEdit(g.querySelector('.gt-name'), r.groupName, (name) => handlers.onRenameGroup?.(group, name));
+  });
+  g.querySelector('[data-act="aside"]').addEventListener('click', () => handlers.onSetStatus?.(allRows.filter((x) => x.top_group === group), 'aside'));
+  g.querySelector('[data-act="delete"]').addEventListener('click', () => handlers.onSetStatus?.(allRows.filter((x) => x.top_group === group), 'deleted'));
+  return g;
+}
+
+// Replace an element's text with an input; Enter saves, Escape cancels.
+export function inlineEdit(el, value, onSave) {
+  const input = document.createElement('input');
+  input.className = 'inline-edit';
+  input.value = value;
+  el.replaceWith(input);
+  input.focus();
+  input.select();
+  let done = false;
+  const finish = (save) => {
+    if (done) return;
+    done = true;
+    input.replaceWith(el);
+    if (save && input.value.trim() !== value) onSave(input.value.trim());
+  };
+  input.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') finish(true);
+    else if (e.key === 'Escape') finish(false);
+  });
+  input.addEventListener('click', (e) => e.stopPropagation());
+  input.addEventListener('blur', () => finish(true));
+}
+
+// Parts set aside (kept, with sizes, but not in the build) and deleted parts.
+function renderSetAside(list, s) {
+  const section = (title, rowsIn, open, extra, actions) => {
+    if (!rowsIn.length) return;
+    const shown = rowsIn.filter(matchesFilter);
+    const d = document.createElement('details');
+    d.className = 'aside-section';
+    d.open = open;
+    const pieces = rowsIn.reduce((n, r) => n + r.count, 0);
+    d.innerHTML = `<summary><span>${title} <small>${pieces} pc</small></span>${extra}</summary>`;
+    let lastGroup = null;
+    shown.forEach((r) => {
+      if (r.top_group !== lastGroup) {
+        lastGroup = r.top_group;
+        const g = document.createElement('div');
+        g.className = 'group-title';
+        g.textContent = r.groupName;
+        d.appendChild(g);
+      }
+      const el = document.createElement('div');
+      el.className = 'row aside' + (r.clickable ? '' : ' disabled');
+      el.dataset.key = r.key;
+      el.innerHTML = `<span class="cut-spacer"></span>
+        <div class="row-main">
+          <div class="name"><span class="mat-swatch" style="background:${r.color}"></span>${escapeHtml(r.name)}</div>
+          <div class="dims">${escapeHtml(finishedDims(r, s.units))}${r.flat && r.status === 'aside' ? ' · <span class="muted">no thickness (a loose face)</span>' : ''}</div>
+        </div>
+        <div class="qty">×${r.count}</div>
+        <div class="aside-actions">${actions.map(([act, label, tip]) => `<button data-act="${act}" title="${tip}">${label}</button>`).join('')}</div>`;
+      el.querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        handlers.onSetStatus?.([r], b.dataset.act === 'build' ? null : b.dataset.act);
+      }));
+      if (r.clickable && r.status === 'aside') el.addEventListener('click', () => handlers.onSelect(r));
+      d.appendChild(el);
+    });
+    d.addEventListener('toggle', () => { sectionOpen[title] = d.open; });
+    list.appendChild(d);
+    return d;
+  };
+  const aside = section('Set aside · not in the build', asideRows, sectionOpen['Set aside · not in the build'] ?? false,
+    `<label class="chk" title="Show set-aside parts in the 3D view"><input type="checkbox" class="show-aside" ${s.showAside ? 'checked' : ''} /> Show</label>`,
+    [['build', 'Put back', 'Put this part back in the build'], ['deleted', 'Delete', 'Delete this part from the model (you can restore it)']]);
+  const box = aside?.querySelector('.show-aside');
+  if (box) {
+    box.addEventListener('click', (e) => e.stopPropagation());
+    box.addEventListener('change', () => updateSettings({ showAside: box.checked }));
+  }
+  section('Deleted', deletedRows, sectionOpen.Deleted ?? false, '',
+    [['build', 'Restore', 'Put this part back in the build'], ['aside', 'Set aside', 'Keep it, but not in the build']]);
+}
+const sectionOpen = {};
 
 function rowElement(r, isCut, s) {
   const el = document.createElement('div');
@@ -292,6 +416,14 @@ function renderSummary() {
     <div class="muted small">Rough adds ${formatLength(s.allowance.length, s.units)} length, ${formatLength(s.allowance.width, s.units)} width, next 4/4-5/4-8/4… thickness. Buy ~20% extra for defects.</div>
     <div class="progress" title="Wood pieces ticked off as cut"><div style="width:${pct}%"></div><span>${t.done} of ${t.trackable} pieces cut</span></div>
   `;
+}
+
+// the group shown with onSelectGroup (its heading is highlighted)
+let activeGroup = null;
+export function markActiveGroup(group) {
+  activeGroup = group;
+  if (!els.list) return;
+  els.list.querySelectorAll('.group-title').forEach((e) => e.classList.toggle('active', group !== null && e.dataset.group === String(group)));
 }
 
 export function markActive(row, scroll = true) {

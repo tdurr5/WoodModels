@@ -346,3 +346,33 @@ test('zip writes files that Python and unzip can read back', async () => {
 test('unzip rejects non-zip data clearly', async () => {
   await assert.rejects(() => unzip(new TextEncoder().encode('<COLLADA/>'.padEnd(100))), /Not a zip file/);
 });
+
+// ---------- your edits (rename / delete / set aside) ----------
+import { normalizeEdits, rowStatus, withStatus, withName, withGroupName } from '../viewer/edits.js';
+
+test('edits: parts are in the build unless deleted or set aside; loose faces start set aside', () => {
+  const e = normalizeEdits(null);
+  assert.equal(rowStatus({ key: 'a' }, e), null);
+  assert.equal(rowStatus({ key: 'f', flat: true }, e), 'aside');
+  const d = withStatus(e, [{ key: 'a' }], 'deleted');
+  assert.equal(rowStatus({ key: 'a' }, d), 'deleted');
+  assert.deepEqual(e.status, {}, 'edits are immutable');
+});
+
+test('edits: putting a part back stores nothing unless it overrides a default', () => {
+  let e = withStatus(normalizeEdits(null), [{ key: 'a' }, { key: 'f', flat: true }], 'aside');
+  assert.deepEqual(e.status, { a: 'aside' });
+  e = withStatus(e, [{ key: 'a' }, { key: 'f', flat: true }], null);
+  assert.deepEqual(e.status, { f: 'build' });
+  assert.equal(rowStatus({ key: 'f', flat: true }, e), null);
+});
+
+test('edits: names are trimmed and cleared by an empty name', () => {
+  let e = withName(normalizeEdits(null), 'k', '  Top rail ');
+  assert.equal(e.names.k, 'Top rail');
+  e = withName(e, 'k', '');
+  assert.deepEqual(e.names, {});
+  e = withGroupName(e, 'group_7', 'Base');
+  assert.deepEqual(e.groups, { group_7: 'Base' });
+  assert.deepEqual(normalizeEdits({ names: [], status: 'x' }), { names: {}, groups: {}, status: {} }, 'bad data is ignored');
+});

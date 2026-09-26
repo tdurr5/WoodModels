@@ -88,6 +88,11 @@ export function roughStock(dims, allowance = {}) {
 // SketchUp component names -> something readable. "Seat__2" -> "Seat",
 // "Treadle_Jaw_Upper__8" -> "Treadle Jaw Upper". A per-model override map
 // (model.json "displayNames") wins over the automatic cleanup.
+// Names nobody chose: group_12, Component#3, instance_9, ID245, SketchUp's
+// solid-tool results... (parse_dae.py GENERIC_NAME)
+const GENERIC_NAME = /^(?:group|component|instance|mesh|object|geometry|node|id|sketchup|difference|outershell|union|intersection|trim|split|solid|untitled|default)?[\s_#.-]*\d*$/i;
+export const isGenericName = (name) => GENERIC_NAME.test(name || '');
+
 export function displayName(label, overrides = {}) {
   if (overrides[label]) return overrides[label];
   return label

@@ -201,6 +201,70 @@ class OtherExporters(unittest.TestCase):
         self.assertEqual(rows_y[0]['dims'], rows_z[0]['dims'])
 
 
+class LooseGeometry(unittest.TestCase):
+    """Newer SketchUp exports: unnamed groups, one board split into one mesh
+    per face material, separate boards drawn touching, a dowel in a hole."""
+    @classmethod
+    def setUpClass(cls):
+        with tempfile.TemporaryDirectory() as tmp:
+            dae = os.path.join(tmp, 'm.dae')
+            with open(dae, 'w') as f:
+                f.write(make_fixture.build(sketchup2023=True))
+            parse_dae.main([dae, '-o', tmp, '-q'])
+            rows = load_json(tmp, 'parts_report.json')
+        cls.rows = {(r['label'], tuple(r['dims'])): r for r in rows if r['top_group'] == 'group_7'}
+
+    def test_board_split_by_material_is_one_part(self):
+        board = self.rows[('Board', (30, 3, 1.5))]
+        self.assertEqual(board['count'], 1)
+        self.assertEqual(len(board['obj_names']), 1)
+        self.assertEqual(board['materials'], ['Wood'])  # the material covering most of it
+
+    def test_touching_boards_stay_separate(self):
+        self.assertIn(('Square stock', (10, 3, 3)), self.rows)
+
+    def test_closed_dowel_is_its_own_round_part(self):
+        self.assertIn(('Dowel', (3, 0.75, 0.75)), self.rows)
+
+    def test_unnamed_parts_are_flagged(self):
+        self.assertEqual(len(self.rows), 3)
+        self.assertTrue(all(r.get('auto_name') for r in self.rows.values()))
+
+    def test_generic_names(self):
+        for n in ('group_12', 'Component#3', 'instance_9', 'ID245', 'Group 4', '', 'OuterShell', '17'):
+            self.assertTrue(parse_dae.is_generic_name(n), n)
+        for n in ('Leg', 'Top_mounting_guide_1', 'Blade_D_1', 'Holdfast'):
+            self.assertFalse(parse_dae.is_generic_name(n), n)
+
+    def test_zip_download_is_read_directly(self):
+        import zipfile
+        with tempfile.TemporaryDirectory() as tmp:
+            z = os.path.join(tmp, 'ShakerTable.zip')
+            with zipfile.ZipFile(z, 'w', zipfile.ZIP_DEFLATED) as zf:
+                zf.writestr('model/texture.jpg', b'x')
+                zf.writestr('model/model.dae', make_fixture.build())
+            out = os.path.join(tmp, 'out')
+            parse_dae.main([z, '-o', out, '-q'])
+            self.assertEqual(load_json(out, 'model.json')['title'], 'Shaker Table')
+            self.assertEqual(len(load_json(out, 'parts_report.json')), 2)
+
+
+class ScaledInstances(unittest.TestCase):
+    def test_scaled_component_is_measured_as_placed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dae = os.path.join(tmp, 'm.dae')
+            with open(dae, 'w') as f:
+                f.write(make_fixture.build(scaled=True))
+            parse_dae.main([dae, '-o', tmp, '-q'])
+            rows = load_json(tmp, 'parts_report.json')
+            dims = load_json(tmp, 'object_dims.json')
+        boards = sorted((r['dims'], r['count']) for r in rows if r['label'] == 'Board')
+        # the stretched copy is its own row, 20" long, not a third 10" board
+        self.assertEqual(boards, [([10, 4, 1], 2), ([20, 4, 1], 1)])
+        long_board = next(r for r in rows if r['dims'][0] == 20)['obj_names'][0]
+        self.assertEqual(dims[long_board]['axes'][0]['length'], 20)
+
+
 class StarterConfig(unittest.TestCase):
     def test_written_once_with_guessed_categories(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -225,6 +289,13 @@ class StarterConfig(unittest.TestCase):
         self.assertEqual(parse_dae.guess_category('_____Metal'), 'Hardware')
         self.assertEqual(parse_dae.guess_category('Leather'), 'Leather')
         self.assertEqual(parse_dae.guess_category('Glass'), 'Other')
+        # other languages, accents, CamelCase; short words only as whole words
+        self.assertEqual(parse_dae.guess_category('Mélèse_Verticale1'), 'Wood')
+        self.assertEqual(parse_dae.guess_category('RedOak'), 'Wood')
+        self.assertEqual(parse_dae.guess_category('Chêne clair'), 'Wood')
+        self.assertEqual(parse_dae.guess_category('Steel_Washer'), 'Hardware')
+        self.assertEqual(parse_dae.guess_category('Washer'), 'Hardware')
+        self.assertEqual(parse_dae.guess_category('First_coat'), 'Other')
 
 
 class CommittedViewerData(unittest.TestCase):
