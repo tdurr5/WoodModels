@@ -101,12 +101,19 @@ def bind(symbol='mat', target='ID_wood'):
         </technique_common></bind_material>'''
 
 
-def build():
-    board = box_corners(10, 4, 1)
+def build(unit_meter=0.0254, scale=1.0):
+    """`scale` multiplies every length, for writing the same model in another
+    unit (e.g. unit_meter=0.001, scale=25.4 for millimetres)."""
+    return _build(unit_meter, scale)
+
+
+def _build(unit_meter, scale):
+    sc = lambda pts: [tuple(v * scale for v in p) for p in pts]  # noqa: E731
+    board = sc(box_corners(10, 4, 1))
     # Leg: a 12 x 3 x 1.5 board authored already rotated 30 deg about its
     # local Z, so its axis-aligned local bbox is much fatter than the board.
-    leg = [rot_z(p, 30) for p in box_corners(12, 3, 1.5)]
-    sheet = box_corners(11, 8.5, 0.01)
+    leg = sc([rot_z(p, 30) for p in box_corners(12, 3, 1.5)])
+    sheet = sc(box_corners(11, 8.5, 0.01))
     geoms = (
         triangles_geometry('geom_board', board, 'mat')
         + polylist_geometry('geom_leg', leg, 'mat')
@@ -114,6 +121,7 @@ def build():
     )
     return f'''<?xml version="1.0" encoding="utf-8"?>
 <COLLADA xmlns="{NS}" version="1.4.1">
+  <asset><unit name="unit" meter="{unit_meter}"/><up_axis>Z_UP</up_axis></asset>
   <library_effects>
     <effect id="eff_wood"><profile_COMMON><technique sid="common"><lambert>
       <diffuse><color>0.9 0.7 0.5 1</color></diffuse></lambert></technique></profile_COMMON></effect>
@@ -135,15 +143,15 @@ def build():
     <visual_scene id="scene">
       <node name="SketchUp">
         <node name="Body">{matrix(IDENTITY)}
-          <node name="Board">{matrix(translate(0, 0, 20))}
+          <node name="Board">{matrix(translate(0, 0, 20 * scale))}
             <instance_geometry url="#geom_board">{bind()}</instance_geometry>
           </node>
-          <node name="Board">{matrix(translate(0, 6, 20))}
+          <node name="Board">{matrix(translate(0, 6 * scale, 20 * scale))}
             <instance_geometry url="#geom_board">{bind()}</instance_geometry>
           </node>
         </node>
         <node name="Legs">{matrix(IDENTITY)}
-          <node name="SketchUp_Instance_3">{matrix(rot_x_90(2, 0, 0))}
+          <node name="SketchUp_Instance_3">{matrix(rot_x_90(2 * scale, 0, 0))}
             <instance_node url="#comp_leg"/>
           </node>
         </node>

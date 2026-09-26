@@ -85,7 +85,7 @@ Press `?` in the viewer for all shortcuts; the same panel has a button to reset 
 python3 parse_dae.py path/to/model.dae -o viewer/
 ```
 
-(or set `WOODMODELS_DAE`). Textures are read relative to the `.dae`. Then edit `viewer/model.json` for the new model: title, friendly names, which material is wood/hardware, and which world axis is front-to-back (`axisNames`).
+(or set `WOODMODELS_DAE`). Textures are read relative to the `.dae`. Models drawn in other units (mm, cm, feet) are converted to inches using the unit declared in the file. If the output folder has no `model.json`, a starter one is written: the title comes from the file name, and each material is guessed as wood, hardware or leather from its name. Then edit `model.json` for the new model: title, friendly names, which material is wood/hardware, and which world axis is front-to-back (`axisNames`).
 
 ### Adding another model
 

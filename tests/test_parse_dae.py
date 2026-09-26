@@ -138,6 +138,54 @@ class ConvertFixture(unittest.TestCase):
                 os.environ['WOODMODELS_DAE'] = env
 
 
+class Units(unittest.TestCase):
+    def test_metric_model_is_converted_to_inches(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dae = os.path.join(tmp, 'mm.dae')
+            with open(dae, 'w') as f:
+                f.write(make_fixture.build(unit_meter=0.001, scale=25.4))  # same model, drawn in mm
+            out = os.path.join(tmp, 'out')
+            parse_dae.main([dae, '-o', out, '-q'])
+            rows = load_json(out, 'parts_report.json')
+            board = next(r for r in rows if r['label'] == 'Board')
+            self.assertEqual(board['dims'], [10, 4, 1])
+            self.assertEqual(next(r for r in rows if r['label'] == 'Leg')['dims'], [12, 3, 1.5])
+            dims = load_json(out, 'object_dims.json')
+            a, b = (dims[n] for n in board['obj_names'])
+            self.assertAlmostEqual(a['center'][2] - b['center'][2], 6, places=3)
+
+    def test_missing_unit_means_inches(self):
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring('<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema"/>')
+        self.assertEqual(parse_dae.read_unit_scale(root), 1.0)
+
+
+class StarterConfig(unittest.TestCase):
+    def test_written_once_with_guessed_categories(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dae = os.path.join(tmp, 'my_work-bench.dae')
+            with open(dae, 'w') as f:
+                f.write(make_fixture.build())
+            out = os.path.join(tmp, 'out')
+            parse_dae.main([dae, '-o', out, '-q'])
+            cfg = load_json(out, 'model.json')
+            self.assertEqual(cfg['title'], 'My Work Bench')
+            self.assertEqual(cfg['materials']['Wood']['category'], 'Wood')
+            self.assertEqual(cfg['materials']['Wood']['color'], '#e6b280')  # diffuse 0.9 0.7 0.5
+            # an edited config is never overwritten
+            cfg['title'] = 'Edited'
+            with open(os.path.join(out, 'model.json'), 'w') as f:
+                json.dump(cfg, f)
+            parse_dae.main([dae, '-o', out, '-q'])
+            self.assertEqual(load_json(out, 'model.json')['title'], 'Edited')
+
+    def test_guess_category(self):
+        self.assertEqual(parse_dae.guess_category('White_Oak'), 'Wood')
+        self.assertEqual(parse_dae.guess_category('_____Metal'), 'Hardware')
+        self.assertEqual(parse_dae.guess_category('Leather'), 'Leather')
+        self.assertEqual(parse_dae.guess_category('Glass'), 'Other')
+
+
 class CommittedViewerData(unittest.TestCase):
     """The checked-in viewer data must be internally consistent."""
 

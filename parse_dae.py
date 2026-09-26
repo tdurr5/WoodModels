@@ -208,8 +208,9 @@ def compute_axis_angle(d):
 
 # ---------- COLLADA reading ----------
 
-def load_geometries(root):
-    """id -> dict(positions, faces, bbox, local_center, local_axes, materials)"""
+def load_geometries(root, scale=1.0):
+    """id -> dict(positions, faces, bbox, local_center, local_axes, materials).
+    Positions are multiplied by `scale` (file units -> inches)."""
     geoms = {}
     for g in root.findall(f'.//{q("library_geometries")}/{q("geometry")}', NS):
         gid = g.get('id')
@@ -232,7 +233,7 @@ def load_geometries(root):
             for inp in vtx.findall(q('input'), NS):
                 if inp.get('semantic') == 'POSITION':
                     pos_src_id = inp.get('source').lstrip('#')
-        positions = sources.get(pos_src_id, [])
+        positions = [tuple(v * scale for v in p[:3]) for p in sources.get(pos_src_id, [])]
 
         # gather faces from triangles / polylist, indexing the VERTEX input
         faces = []
@@ -302,11 +303,27 @@ def load_materials(root):
     return material_info
 
 
-def parse_matrix(node):
+INCH_IN_METERS = 0.0254
+
+
+def read_unit_scale(root):
+    """Factor converting the file's length unit to inches, from
+    <asset><unit meter="...">. SketchUp writes inches (meter="0.0254"); if a
+    file doesn't say, assume inches too, as this script always has."""
+    unit = root.find(f'{q("asset")}/{q("unit")}', NS)
+    try:
+        meter = float(unit.get('meter')) if unit is not None else INCH_IN_METERS
+    except (TypeError, ValueError):
+        meter = INCH_IN_METERS
+    return meter / INCH_IN_METERS if meter > 0 else 1.0
+
+
+def parse_matrix(node, scale=1.0):
     mel = node.find(q('matrix'), NS)
     if mel is not None and mel.text:
         vals = [float(x) for x in mel.text.split()]
         if len(vals) == 16:
+            vals[3] *= scale; vals[7] *= scale; vals[11] *= scale  # translation -> inches
             return tuple(vals)
     return IDENTITY4
 
@@ -320,7 +337,7 @@ def get_material_bindings(instance_geometry_el):
     return bindings
 
 
-def resolve_instances(root):
+def resolve_instances(root, scale=1.0):
     """Walks the scene graph; one dict per placed geometry:
     label, path, top_group, geom_id, world_matrix, material_bindings."""
     lib_nodes_by_id = {}
@@ -333,7 +350,7 @@ def resolve_instances(root):
     instances = []
 
     def visit(node, parent_matrix, name_path, top_group):
-        world = mat_mul(parent_matrix, parse_matrix(node))
+        world = mat_mul(parent_matrix, parse_matrix(node, scale))
         name = node.get('name') or node.get('id')
         # SketchUp wraps component instances in anonymous "SketchUp_Instance_N"
         # nodes; skip those so the part keeps its component's real name.
@@ -528,19 +545,72 @@ def apply_manual_corrections(rows):
             r['note'] = 'source geometry for this part is corrupted (huge bogus bbox); not shown in 3D view, qty inferred from matching rod count'
 
 
+CATEGORY_WORDS = [
+    ('Wood', ('wood', 'oak', 'maple', 'walnut', 'cherry', 'ash', 'pine', 'birch', 'poplar', 'plywood', 'mahogany', 'beech', 'cedar', 'fir')),
+    ('Hardware', ('metal', 'steel', 'iron', 'brass', 'bronze', 'alumin', 'chrome', 'zinc', 'bolt', 'screw')),
+    ('Leather', ('leather',)),
+]
+
+
+def guess_category(material_name):
+    n = (material_name or '').lower()
+    for category, words in CATEGORY_WORDS:
+        if any(w in n for w in words):
+            return category
+    return 'Other'
+
+
+def starter_config(dae_path, mat_key_to_name, material_info):
+    """A first model.json for a newly converted model: title from the file
+    name, and each material's category guessed from its name. Edit it after."""
+    title = re.sub(r'[_\-]+', ' ', os.path.splitext(os.path.basename(dae_path))[0]).strip().title() or 'Model'
+    materials = {}
+    info_by_name = {info.get('name'): info for info in material_info.values()}
+    for name in sorted(set(mat_key_to_name.values())):
+        color = (info_by_name.get(name) or {}).get('color') or (0.7, 0.55, 0.35, 1)
+        hexcolor = '#' + ''.join(f'{max(0, min(255, round(c * 255))):02x}' for c in color[:3])
+        entry = {'category': guess_category(name), 'color': hexcolor}
+        if entry['category'] == 'Wood':
+            entry['texture'] = {'base': '#c9975c', 'streak': '#a06f3b', 'ring': '#8a5a2c', 'tile': 5}
+        materials[name] = entry
+    return {
+        'title': title,
+        'subtitle': '',
+        'axisNames': {'x': 'front-to-back', 'y': 'vertical', 'z': 'side-to-side'},
+        'views': {
+            'iso': {'label': '3D', 'dir': [0.7, 0.5, 0.7]},
+            'front': {'label': 'Front', 'dir': [1, 0, 0]},
+            'side': {'label': 'Side', 'dir': [0, 0, 1]},
+            'top': {'label': 'Top', 'dir': [0, 1, 0.0001]},
+        },
+        'materials': materials,
+        'categoryOrder': ['Wood', 'Hardware', 'Leather', 'Other'],
+        'displayNames': {},
+        'notes': {},
+    }
+
+
 def convert(dae_path, out_dir, verbose=True):
     log = print if verbose else (lambda *a, **k: None)
     os.makedirs(out_dir, exist_ok=True)
     root = ET.parse(dae_path).getroot()
-    geoms = load_geometries(root)
+    scale = read_unit_scale(root)
+    if abs(scale - 1) > 1e-9:
+        log(f"Model units: {scale * INCH_IN_METERS:g} m each; converting to inches (x{scale:g})")
+    geoms = load_geometries(root, scale)
     material_info = load_materials(root)
-    instances = resolve_instances(root)
+    instances = resolve_instances(root, scale)
     log(f"Resolved {len(instances)} geometry instances")
 
     mat_key_to_name = write_obj(instances, geoms, material_info, dae_path, out_dir)
     log(f"Wrote {os.path.join(out_dir, 'scene.obj')} and scene.mtl")
     with open(os.path.join(out_dir, 'materials.json'), 'w') as jf:
         json.dump(mat_key_to_name, jf, indent=2)
+    config_path = os.path.join(out_dir, 'model.json')
+    if not os.path.exists(config_path):
+        with open(config_path, 'w') as jf:
+            json.dump(starter_config(dae_path, mat_key_to_name, material_info), jf, indent=2)
+        log(f"Wrote a starter {config_path} - edit the title, part names, materials and axisNames")
 
     object_dims = compute_object_dims(instances, geoms)
     with open(os.path.join(out_dir, 'object_dims.json'), 'w') as jf:
