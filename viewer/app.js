@@ -1084,7 +1084,7 @@ function captureOverview({ exploded = 0 } = {}) {
 // of the WebGL canvas): one per part type, like a plan's exploded drawing,
 // nudged apart so they don't overlap, with a leader line back to the part.
 function drawCallouts(g, w, h) {
-  const r = Math.round(w / 150);
+  const r = Math.round(w / 110);
   const toPx = (v) => {
     const p = v.clone().project(camera);
     return { x: (p.x * 0.5 + 0.5) * w, y: (0.5 - p.y * 0.5) * h };
