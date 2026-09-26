@@ -11,6 +11,7 @@ import {
 import { initMeasure } from './measure.js';
 import { initDiagramModal, computeLayouts, layoutsHTML } from './diagram.js';
 import { buildTemplate } from './template.js';
+import { obbFromDims, partsTouch } from './geometry.js';
 
 const $ = (id) => document.getElementById(id);
 const viewport = $('viewport');
@@ -657,6 +658,86 @@ function angleHtml(data) {
   return lines.join('');
 }
 
+// ---------- what touches what (joints, bolt holes) ----------
+const contactCache = new Map();
+function meshTris(m) {
+  const g = m.geometry;
+  return g.index ? g.toNonIndexed().attributes.position.array : g.attributes.position.array;
+}
+function contactsOf(mesh) {
+  if (contactCache.has(mesh)) return contactCache.get(mesh);
+  const out = new Set();
+  const dA = objectDims[mesh.name];
+  if (dA) {
+    const A = obbFromDims(dA), trisA = meshTris(mesh);
+    meshes.forEach((o) => {
+      const dB = o !== mesh && objectDims[o.name];
+      if (dB && partsTouch(A, trisA, obbFromDims(dB), meshTris(o))) out.add(o);
+    });
+  }
+  contactCache.set(mesh, out);
+  return out;
+}
+
+// A long round hardware part: a rod/bolt that needs a hole.
+const isRod = (row) => row.category === 'Hardware' && !row.customDims
+  && Math.abs(row.dims[1] - row.dims[2]) < 0.02 && row.dims[0] > 3 * row.dims[1];
+
+// Contacts of one piece of the selected row, grouped by the row they belong to.
+function pieceContacts(mesh, row) {
+  const byRow = new Map();
+  contactsOf(mesh).forEach((o) => {
+    const r = rowByMeshName.get(o.name);
+    if (!r || r.key === row.key) return;
+    byRow.set(r.key, { row: r, n: (byRow.get(r.key)?.n || 0) + 1 });
+  });
+  return [...byRow.values()].sort((a, b) => a.row.name.localeCompare(b.row.name));
+}
+
+function contactHtml(row) {
+  const mesh = current.meshes[0];
+  if (!mesh) return '';
+  const list = pieceContacts(mesh, row);
+  const link = ({ row: r, n }) => `<a href="#part=${encodeURIComponent(r.label)}" data-key="${escapeHtml(r.key)}">${escapeHtml(r.name)}</a>${n > 1 ? ` ×${n}` : ''}`;
+  const units = settings().units;
+  if (isRod(row)) {
+    const wood = list.filter((c) => c.row.category === 'Wood');
+    return wood.length ? `<div class="card-rel"><b>Bore ⌀${escapeHtml(formatLength(row.dims[1], units))}</b> (plus clearance) through: ${wood.map(link).join(', ')}</div>` : '';
+  }
+  // Hardware facets (bolt heads, nuts) are one mesh per face; they're listed
+  // under the rod they belong to instead.
+  const joins = list.filter((c) => c.row.category !== 'Hardware');
+  const rods = list.filter((c) => isRod(c.row));
+  const parts = [];
+  if (joins.length) parts.push(`<div class="card-rel"><b>Joins:</b> ${joins.map(link).join(', ')}</div>`);
+  if (rods.length) {
+    // one entry per hole size + hardware name, e.g. "4 × ⌀1/2" Threaded Rod 1/2"-13"
+    const holes = new Map();
+    rods.forEach((c) => {
+      const k = `${formatLength(c.row.dims[1], units)}|${c.row.name}`;
+      const h = holes.get(k) || { dia: formatLength(c.row.dims[1], units), row: c.row, n: 0 };
+      h.n += c.n;
+      holes.set(k, h);
+    });
+    parts.push(`<div class="card-rel"><b>Holes:</b> ${[...holes.values()].map((h) => `${h.n} × ⌀${escapeHtml(h.dia)} for ${link({ row: h.row, n: 1 })}`).join(', ')}</div>`);
+  }
+  return parts.join('');
+}
+
+// Printed drilling list: every rod and the wood parts it passes through.
+function drillingHtml() {
+  const units = settings().units;
+  const items = rows.filter((r) => isRod(r) && r.clickable).map((r) => {
+    const mesh = meshByName.get(r.obj_names[0]);
+    const wood = mesh ? pieceContacts(mesh, r).filter((c) => c.row.category === 'Wood') : [];
+    if (!wood.length) return '';
+    const through = wood.map((c) => `${escapeHtml(c.row.name)}${c.n > 1 ? ` ×${c.n}` : ''}`).join(', ');
+    return `<tr><td class="ps-chk"><span class="box"></span></td><td><b>${escapeHtml(r.name)}</b> <span class="ps-grp">${escapeHtml(formatLength(r.dims[0], units))} long</span></td>
+      <td class="num">${r.count}</td><td>⌀${escapeHtml(formatLength(r.dims[1], units))} + clearance</td><td>${through}</td></tr>`;
+  }).join('');
+  return items ? `<h2>Holes to drill</h2><table><thead><tr><th class="ps-chk">✓</th><th>For</th><th>Qty</th><th>Hole</th><th>Through (per rod)</th></tr></thead><tbody>${items}</tbody></table>` : '';
+}
+
 function renderDimCard() {
   const row = current.row;
   const data = objectDims[current.meshes[0]?.name];
@@ -668,11 +749,17 @@ function renderDimCard() {
     <div class="dim-axes">${row.customDims ? '' : 'Thickness × Width × Length'}</div>
     ${angleHtml(data)}
     <div class="meta">qty ${row.count} · ${escapeHtml(row.materialLabel)} · ${escapeHtml(row.groupName)}</div>
+    ${contactHtml(row)}
     ${notes}
     ${data && row.category === 'Wood' ? '<div class="card-actions"><button class="card-btn" data-act="template" title="Print this part at full size to trace onto your stock">Print full-size template</button></div>' : ''}
   `;
   dimCard.style.display = 'block';
   dimCard.querySelector('.card-close').addEventListener('click', () => clearSelection());
+  dimCard.querySelectorAll('.card-rel a').forEach((a) => a.addEventListener('click', (e) => {
+    e.preventDefault();
+    const r = rows.find((x) => x.key === a.dataset.key);
+    if (r) selectRow(r);
+  }));
   const tplBtn = dimCard.querySelector('[data-act="template"]');
   if (tplBtn) tplBtn.addEventListener('click', () => printTemplate());
 }
@@ -867,8 +954,10 @@ window.addEventListener('beforeprint', () => {
   // print-sized diagrams: 7.5" printable width at 96 css px per inch
   const layouts = computeLayouts(rows);
   const longest = Math.max(...layouts.flatMap((g) => g.boards.map((b) => b.length)), 1);
-  const diagrams = layouts.length ? layoutsHTML(layouts, { pxPerInch: 700 / longest, units: settings().units, colorFor: diagram.colorFor }) : '';
-  buildPrintSheet($('printSheet'), rows, config, img, diagrams);
+  const diagrams = layouts.length
+    ? `<div class="ps-diagrams"><h2>Cutting diagrams</h2>${layoutsHTML(layouts, { pxPerInch: 700 / longest, units: settings().units, colorFor: diagram.colorFor })}</div>`
+    : '';
+  buildPrintSheet($('printSheet'), rows, config, img, drillingHtml() + diagrams);
 });
 
 // ---------- keyboard shortcuts ----------
@@ -960,5 +1049,6 @@ window.__viewer = {
   measureClickCount: () => measure.points.length + measure.measurements.length * 2,
   setExplode, setView, selectRow, rows: () => rows,
   prepareTemplate,
+  contactsOf: (name) => [...contactsOf(meshByName.get(name))].map((m) => m.name),
   endTemplate: () => { printingTemplate = false; },
 };

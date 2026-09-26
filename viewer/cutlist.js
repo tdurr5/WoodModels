@@ -307,6 +307,7 @@ function downloadCSV(rows, config) {
 
 // ---------- printable cut sheet ----------
 
+// extraHtml: drilling list and cutting diagrams, appended after the totals
 export function buildPrintSheet(target, rows, config, imageDataUrl, extraHtml = '') {
   const s = settings();
   const t = totals(rows);
@@ -339,6 +340,6 @@ export function buildPrintSheet(target, rows, config, imageDataUrl, extraHtml = 
       </table>`).join('')}
     <div class="ps-tot">${t.pieces} wood pieces · ${t.finishedBF.toFixed(1)} bf finished · ${t.roughBF.toFixed(1)} bf rough
       (allowance +${formatLength(s.allowance.length, s.units)} L, +${formatLength(s.allowance.width, s.units)} W) — buy ~20% extra for defects.</div>
-    ${extraHtml ? `<div class="ps-diagrams"><h2>Cutting diagrams</h2>${extraHtml}</div>` : ''}
+    ${extraHtml ? `<div class="ps-extra">${extraHtml}</div>` : ''}
   `;
 }

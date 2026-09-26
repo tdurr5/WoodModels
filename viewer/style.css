@@ -73,6 +73,9 @@ body.sidebar-collapsed #sidebar { display: none; }
 #dimCard .angle-sub { font-size: 11px; color: #d9c48f; margin-top: 2px; }
 #dimCard .card-note { font-size: 11px; color: #ccc; margin-top: 4px; font-style: italic; }
 #dimCard .card-note.warn { color: var(--warn); font-style: normal; }
+#dimCard .card-rel { font-size: 11.5px; color: #ccc; margin-top: 4px; line-height: 1.45; }
+#dimCard .card-rel a { color: var(--blue); text-decoration: none; }
+#dimCard .card-rel a:hover { text-decoration: underline; }
 #dimCard .card-actions { margin-top: 8px; display: flex; gap: 6px; }
 .card-btn { background: var(--panel-2); color: var(--text); border: 1px solid #555; border-radius: 5px; padding: 4px 8px; font-size: 11.5px; cursor: pointer; }
 .card-btn:hover { background: #3a3d44; }

@@ -288,13 +288,26 @@ try {
   fs.writeFileSync(path.join(OUT, 'cut-list.csv'), csv);
 
   await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
-  const printRows = await page.locator('#printSheet tbody tr').count();
+  const printRows = await page.locator('#printSheet > table tbody tr').count();
   check(await page.locator('#printSheet .ps-diagrams .cd-board').count() >= 5, 'print sheet includes the cutting diagrams');
+  const drill = await page.locator('#printSheet h2', { hasText: 'Holes to drill' }).count();
+  check(drill === 1, 'print sheet includes a drilling list');
   check(printRows === 24, `print sheet lists every part (${printRows})`);
   await page.emulateMedia({ media: 'print' });
   await page.pdf({ path: path.join(OUT, 'cut-sheet.pdf'), format: 'Letter', margin: { top: '0.5in', bottom: '0.5in', left: '0.5in', right: '0.5in' } });
   await page.screenshot({ path: path.join(OUT, '15-print.png'), clip: { x: 0, y: 0, width: 1400, height: 900 } });
   await page.emulateMedia({ media: 'screen' });
+
+  console.log('joins and holes');
+  await selectPart('Bench');
+  const rel = (await page.locator('#dimCard .card-rel').allInnerTexts()).join(' | ');
+  check(/Joins:.*Leg Rear/.test(rel) && /4 × ⌀1\/2"/.test(rel), `bench card lists joined parts and its 4 rod holes (${rel})`);
+  await page.locator('#dimCard .card-rel a', { hasText: 'Leg Rear' }).click();
+  await page.waitForTimeout(200);
+  check((await page.locator('#dimCard .part-name').innerText()) === 'Leg Rear', 'clicking a joined part selects it');
+  await page.evaluate(() => { const v = window.__viewer; v.selectRow(v.rows().find((r) => r.label === 'Shaft_1_2_-13_6_7_8')); });
+  const bore = await page.locator('#dimCard .card-rel').innerText();
+  check(/Bore ⌀1\/2".*Bench ×2.*Filler Rear.*Leg Rear ×2/.test(bore), `rod card is a drilling list (${bore})`);
 
   console.log('full-size template');
   await selectPart('Leg Front');

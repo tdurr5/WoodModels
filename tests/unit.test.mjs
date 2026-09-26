@@ -213,3 +213,71 @@ test('boardYield and piecesByStock', () => {
   assert.deepEqual(groups.map((g) => [g.thicknessLabel, g.pieces.length]), [['5/4', 1], ['8/4', 2]]);
   assert.equal(groups[1].pieces[0].length, 21);
 });
+
+// ---------- OBB contact tests ----------
+import { obbFromDims, obbOverlap, pointInObb, partsTouch, segmentHitsObb } from '../viewer/geometry.js';
+
+const box = (center, half, axes = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]) => ({ center, axes, half });
+// the box's 12 surface triangles as a flat vertex array
+const trisOf = (b) => {
+  const corner = (i) => [0, 1, 2].map((k) => b.center[k]
+    + (i & 1 ? 1 : -1) * b.half[0] * b.axes[0][k] + (i & 2 ? 1 : -1) * b.half[1] * b.axes[1][k] + (i & 4 ? 1 : -1) * b.half[2] * b.axes[2][k]);
+  const quads = [[0, 1, 3, 2], [4, 6, 7, 5], [0, 4, 5, 1], [2, 3, 7, 6], [0, 2, 6, 4], [1, 5, 7, 3]];
+  return quads.flatMap(([a, b2, c, d]) => [a, b2, c, a, c, d].flatMap(corner));
+};
+
+test('obbOverlap: separated, touching and overlapping boxes', () => {
+  const a = box([0, 0, 0], [1, 1, 1]);
+  assert.equal(obbOverlap(a, box([3, 0, 0], [1, 1, 1])), false);
+  assert.equal(obbOverlap(a, box([2, 0, 0], [1, 1, 1])), true); // face contact
+  assert.equal(obbOverlap(a, box([2.01, 0, 0], [1, 1, 1])), false);
+  assert.equal(obbOverlap(a, box([2.01, 0, 0], [1, 1, 1]), 0.01), true); // within tolerance
+  assert.equal(obbOverlap(a, box([0.5, 0.5, 0], [1, 1, 1])), true);
+});
+
+test('obbOverlap: rotated box near a corner (only an edge-cross axis separates)', () => {
+  const s = Math.SQRT1_2;
+  const a = box([0, 0, 0], [1, 1, 1]);
+  // 45 deg about Z, placed diagonally just beyond the corner
+  const rotated = (c) => box(c, [1, 1, 1], [[s, s, 0], [-s, s, 0], [0, 0, 1]]);
+  // B's corner reaches sqrt2 + 1 = 2.414 along the diagonal from A's center;
+  // at 1.8 no face axis of A separates them, only B's own (diagonal) axes do
+  assert.equal(obbOverlap(a, rotated([1.8, 1.8, 0])), false);
+  assert.equal(obbOverlap(a, rotated([1.6, 1.6, 0])), true);
+  // edge-edge case: B tilted about X and Z so face axes alone don't separate
+  const t = 0.5;
+  const c = Math.cos(t), sn = Math.sin(t);
+  const tilted = box([2.2, 2.2, 0], [1, 1, 1], [[c, sn, 0], [-sn * c, c * c, sn], [sn * sn, -c * sn, c]]);
+  const sat = obbOverlap(a, tilted);
+  // brute-force: sample points of B and check if any lie inside A
+  let inside = false;
+  for (let i = 0; i <= 10 && !inside; i++) for (let j = 0; j <= 10 && !inside; j++) for (let k = 0; k <= 10 && !inside; k++) {
+    const u = [i / 5 - 1, j / 5 - 1, k / 5 - 1];
+    const p = [0, 1, 2].map((d) => tilted.center[d] + u[0] * tilted.axes[0][d] + u[1] * tilted.axes[1][d] + u[2] * tilted.axes[2][d]);
+    if (pointInObb(p, a)) inside = true;
+  }
+  if (inside) assert.equal(sat, true, 'SAT must not miss a real overlap');
+});
+
+test('obbFromDims and partsTouch', () => {
+  const d = { center: [0, 0, 0], axes: [
+    { direction: [1, 0, 0], length: 10 }, { direction: [0, 1, 0], length: 4 }, { direction: [0, 0, 1], length: 1 }] };
+  const A = obbFromDims(d);
+  assert.deepEqual(A.half, [5, 2, 0.5]);
+  const B = obbFromDims(d, [0, 4, 0]); // edge-glued neighbour
+  assert.equal(partsTouch(A, trisOf(A), B, trisOf(B)), true);
+  const C = obbFromDims(d, [0, 4.5, 0]); // half an inch gap
+  assert.equal(partsTouch(A, trisOf(A), C, trisOf(C)), false);
+  // a 1/2" rod through the middle of the board
+  const rod = box([0, 0, 0], [0.25, 0.25, 3]);
+  assert.equal(partsTouch(A, trisOf(A), rod, trisOf(rod)), true);
+  // rod passing near but outside the board
+  const miss = box([0, 2.6, 0], [0.25, 0.25, 3]);
+  assert.equal(partsTouch(A, trisOf(A), miss, trisOf(miss)), false);
+  assert.equal(segmentHitsObb([-10, 0, 0], [10, 0, 0], A), true);
+  assert.equal(segmentHitsObb([-10, 3, 0], [10, 3, 0], A), false);
+  assert.equal(segmentHitsObb([6, 0, 0], [9, 0, 0], A), false);
+  const flat = obbFromDims({ center: [0, 0, 0], axes: [{ direction: [1, 0, 0], length: 2 }, { direction: [0, 1, 0], length: 2 }] });
+  assert.equal(flat.axes.length, 3);
+  assert.deepEqual(flat.axes[2].map(Math.abs), [0, 0, 1]);
+});
