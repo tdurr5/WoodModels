@@ -1,10 +1,8 @@
 // Headless smoke test for viewer/index.html.
 //
 // Serves viewer/ from a throwaway local HTTP server, loads it in Chromium, and
-// checks the cut list builds, parts can be selected from the sidebar and from
-// the 3D view, and nothing logs an error. three.js is normally pulled from
-// unpkg via the page's import map; here those requests are answered from the
-// local node_modules/three copy so the test runs offline and pinned.
+// drives every feature, checking results and that nothing logs an error or
+// fetches anything from outside the viewer folder (it must work offline).
 //
 //   npm install && npm test
 //
@@ -18,7 +16,6 @@ import { chromium } from 'playwright';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const VIEWER = path.join(ROOT, 'viewer');
-const THREE_DIR = path.join(ROOT, 'node_modules', 'three');
 const OUT = path.join(ROOT, 'test-output');
 fs.mkdirSync(OUT, { recursive: true });
 
@@ -56,12 +53,8 @@ const errors = [];
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
 
-await page.route(/^https:\/\/unpkg\.com\/three@[^/]+\/(.*)$/, (route) => {
-  const rel = route.request().url().replace(/^https:\/\/unpkg\.com\/three@[^/]+\//, '');
-  const file = path.join(THREE_DIR, rel);
-  if (!fs.existsSync(file)) return route.fulfill({ status: 404 });
-  route.fulfill({ status: 200, contentType: 'text/javascript', body: fs.readFileSync(file) });
-});
+const offsite = [];
+page.on('request', (req) => { if (!req.url().startsWith(base) && !req.url().startsWith('data:') && !req.url().startsWith('blob:')) offsite.push(req.url()); });
 
 
 // part names without the plan letter badge
@@ -469,6 +462,7 @@ try {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   check(!overflow, 'no horizontal overflow at phone width');
 
+  check(offsite.length === 0, `works offline: no requests outside the viewer folder${offsite.length ? ':\n    ' + offsite.slice(0, 5).join('\n    ') : ''}`);
   check(errors.length === 0, `no page errors${errors.length ? ':\n    ' + errors.join('\n    ') : ''}`);
 } finally {
   await browser.close();
@@ -493,10 +487,6 @@ try {
   fs.writeFileSync(path.join(sub, 'parts_report.json'), JSON.stringify(report));
   const b2 = await chromium.launch(launchOpts);
   const p2 = await b2.newPage();
-  await p2.route(/^https:\/\/unpkg\.com\/three@[^/]+\/(.*)$/, (route) => {
-    const rel = route.request().url().replace(/^https:\/\/unpkg\.com\/three@[^/]+\//, '');
-    route.fulfill({ status: 200, contentType: 'text/javascript', body: fs.readFileSync(path.join(THREE_DIR, rel)) });
-  });
   try {
     await p2.goto(`${base}?model=_test_model`);
     await p2.waitForFunction(() => document.getElementById('loading').style.display === 'none', null, { timeout: 30000 });
@@ -522,17 +512,13 @@ try {
   console.log('load failures explain themselves');
   const b2 = await chromium.launch(launchOpts);
   const p2 = await b2.newPage();
-  await p2.route(/unpkg\.com/, (route) => route.abort());
+  await p2.route(/\/vendor\/three\//, (route) => route.fulfill({ status: 404 }));
   await p2.clock.install();
   await p2.goto(base);
   await p2.clock.fastForward(13000);
   const msg = await p2.locator('#loading').innerText();
-  check(/Couldn't load the 3D library/.test(msg), 'blocked CDN shows a helpful message');
+  check(/Couldn't start the 3D viewer/.test(msg), 'missing 3D library shows a helpful message');
   const p3 = await b2.newPage();
-  await p3.route(/^https:\/\/unpkg\.com\/three@[^/]+\/(.*)$/, (route) => {
-    const rel = route.request().url().replace(/^https:\/\/unpkg\.com\/three@[^/]+\//, '');
-    route.fulfill({ status: 200, contentType: 'text/javascript', body: fs.readFileSync(path.join(THREE_DIR, rel)) });
-  });
   await p3.route(/scene\.obj$/, (route) => route.fulfill({ status: 404 }));
   await p3.goto(base);
   await p3.waitForFunction(() => document.getElementById('loading').classList.contains('load-error'), null, { timeout: 30000 });

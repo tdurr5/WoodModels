@@ -1,5 +1,5 @@
 // Catches undefined names and similar slips in the no-build-step viewer code.
-export default [{
+export default [{ ignores: ['viewer/vendor/**'] }, {
   files: ['**/*.js', '**/*.mjs'],
   languageOptions: { ecmaVersion: 2023, sourceType: 'module', globals: {
     window: 'readonly', document: 'readonly', location: 'readonly', history: 'readonly', localStorage: 'readonly',

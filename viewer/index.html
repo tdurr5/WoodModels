@@ -110,8 +110,8 @@
 
 <script type="importmap">
 { "imports": {
-  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  "three": "./vendor/three/three.module.min.js",
+  "three/addons/": "./vendor/three/addons/"
 } }
 </script>
 <script type="module" src="app.js"></script>
@@ -123,7 +123,7 @@
     var el = document.getElementById('loading');
     el.innerHTML = location.protocol === 'file:'
       ? 'This page has to be served over HTTP, not opened as a file.<br>In the <code>viewer</code> folder run <code>python3 -m http.server 8743</code> and open <a href="http://localhost:8743">http://localhost:8743</a>.'
-      : 'Couldn\'t load the 3D library (three.js from unpkg.com). Check your internet connection and reload.';
+      : 'Couldn\'t start the 3D viewer. Make sure the whole <code>viewer</code> folder (including <code>vendor/</code>) is being served, then reload.';
     el.classList.add('load-error');
   }, 12000);
 </script>
