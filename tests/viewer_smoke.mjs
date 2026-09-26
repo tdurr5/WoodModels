@@ -128,6 +128,11 @@ try {
   await bench.click();
   await page.waitForTimeout(300);
   check(await bench.evaluate((el) => el.classList.contains('active')), 'clicked row is marked active');
+  const cardBg = await page.locator('#dimCard').evaluate((el) => getComputedStyle(el).backgroundColor);
+  check(!/rgba\(0, 0, 0, 0\)|transparent/.test(cardBg), `part card has an opaque background (${cardBg})`);
+  await page.locator('#dimCard .card-min').click();
+  check(!(await page.locator('#dimCard .meta').isVisible()) && await page.locator('#dimCard .dim-big').isVisible(), 'part card collapses to name + size');
+  await page.locator('#dimCard .card-min').click();
   const card = await page.locator('#dimCard').innerText();
   check(card.includes('46-3/8"'), 'dimension card shows the Bench length');
   const axisLabels = await page.locator('#axisLabels .axisLabel').count();
@@ -451,6 +456,8 @@ try {
   console.log('light theme');
   await page.keyboard.press('l');
   check(await page.evaluate(() => document.documentElement.dataset.theme) === 'light', 'L switches to the light theme');
+  const lightBg = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--card-bg').trim());
+  check(/rgba\(255/.test(lightBg), `light theme card background (${lightBg})`);
   await selectPart('Leg Rear');
   await page.screenshot({ path: path.join(OUT, '18-light-theme.png') });
   await page.keyboard.press('l');

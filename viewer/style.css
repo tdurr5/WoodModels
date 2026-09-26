@@ -3,7 +3,7 @@
   --line: #333; --border: #444; --border-2: #555;
   --text: #eee; --text-2: #ccc; --text-3: #bbb; --muted: #999; --strong: #fff;
   --accent: #ffb454; --accent-text: #ffd479; --blue: #7fb0ff; --active: #3a5a8c; --warn: #ffcf5c; --rough: #9fc79a;
-  --card-bg: var(--card-bg); --bar-bg: rgba(35, 36, 40, 0.9); --hint-bg: rgba(40, 33, 22, 0.92); --hint-muted: #b8a27a;
+  --card-bg: rgba(20, 21, 24, 0.95); --bar-bg: rgba(35, 36, 40, 0.9); --hint-bg: rgba(40, 33, 22, 0.92); --hint-muted: #b8a27a;
   --kbd-bg: #3a3d44; --good: #4f7d4a;
   --board: #3a3128; --board-stroke: #7a6a55; --hatch: #55483a; --part-name: #ff9d7a;
 }
@@ -72,12 +72,16 @@ body.sidebar-collapsed #sidebar { display: none; }
 #loading code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 #loading a { color: var(--blue); }
 
+/* 3D-anchored labels live in one layer under the part card and toolbars */
+#axisLabels, #measureLabels, #partTags { position: absolute; inset: 0; z-index: 2; pointer-events: none; overflow: hidden; }
 #dimCard {
   position: absolute; right: 10px; bottom: 10px; z-index: 4;
   background: var(--card-bg); border: 1px solid #ff5b3d; border-radius: 8px;
   padding: 8px 12px; font-size: 12px; white-space: normal; width: 300px; max-width: calc(100% - 40px); display: none;
   box-shadow: 0 4px 14px rgba(0,0,0,0.4); box-sizing: border-box;
 }
+#dimCard .card-min { position: absolute; top: 4px; right: 26px; background: none; border: none; color: var(--muted); font-size: 16px; cursor: pointer; width: 18px; }
+#dimCard.collapsed > :not(.part-name):not(.dim-big):not(.card-close):not(.card-min) { display: none; }
 #dimCard .card-close { position: absolute; top: 4px; right: 6px; background: none; border: none; color: var(--muted); font-size: 16px; cursor: pointer; }
 #dimCard .part-name { font-size: 13px; font-weight: 700; color: var(--part-name); margin-bottom: 3px; }
 #dimCard .dim-big { font-size: 20px; font-weight: 700; color: var(--strong); letter-spacing: 0.02em; }

@@ -924,12 +924,18 @@ function drillingHtml() {
   return items ? `<h2>Holes to drill</h2><table><thead><tr><th class="ps-chk">✓</th><th>For</th><th>Qty</th><th>Hole</th><th>Through (per rod)</th></tr></thead><tbody>${items}</tbody></table>` : '';
 }
 
+// Collapsed = just the name and size (handy on phones, where the card would
+// otherwise cover much of the model). Starts collapsed on narrow screens.
+let cardCollapsed = window.matchMedia('(max-width: 800px)').matches;
+
 function renderDimCard() {
   const row = current.row;
   const data = objectDims[current.meshes[0]?.name];
   const notes = row.notes.map((n) => `<div class="card-note${row.warn ? ' warn' : ''}">${row.warn ? '⚠ ' : ''}${escapeHtml(n)}</div>`).join('');
+  dimCard.classList.toggle('collapsed', cardCollapsed);
   dimCard.innerHTML = `
     <button class="card-close" title="Clear selection (Esc)">×</button>
+    <button class="card-min" title="Show less / more">${cardCollapsed ? '+' : '–'}</button>
     <div class="part-name"><span class="letter">${row.letter}</span>${escapeHtml(row.name)}</div>
     <div class="dim-big">${escapeHtml(finishedDims(row))}</div>
     <div class="dim-axes">${row.customDims ? '' : 'Thickness × Width × Length'}</div>
@@ -945,6 +951,7 @@ function renderDimCard() {
   `;
   dimCard.style.display = 'block';
   dimCard.querySelector('.card-close').addEventListener('click', () => clearSelection());
+  dimCard.querySelector('.card-min').addEventListener('click', () => { cardCollapsed = !cardCollapsed; renderDimCard(); });
   dimCard.querySelectorAll('.card-rel a').forEach((a) => a.addEventListener('click', (e) => {
     e.preventDefault();
     const r = rows.find((x) => x.key === a.dataset.key);
