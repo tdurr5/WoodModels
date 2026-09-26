@@ -818,18 +818,27 @@ function buildAngleGizmo(group, data, labelSpecs, offset) {
   });
 }
 
+// Hover explanations for the chairmaking terms on the part card.
+const TERMS = {
+  resultant: 'The single, true angle the part leans away from plumb, combining both directions of lean. Tilt your drill or bevel by this much.',
+  sightline: 'The direction the part leans, seen from above. Draw this line on the seat/bench, sight along it, and tilt toward it by the resultant angle.',
+  bevel: 'Set a sliding bevel to this angle against the surface to guide the drill or check the joint.',
+  components: 'The same lean split into two views: how far it tips seen from the front (one number) and from the side (the other). Some plans give these (rake and splay) instead of resultant + sightline.',
+};
+const term = (key, text) => `<span class="term" title="${escapeHtml(TERMS[key])}">${text}</span>`;
+
 function angleHtml(data) {
   if (!data) return '';
   const lines = [];
   const L = data.axes.find((a) => a.role === 'Length');
   const lenAng = L && compoundAngle(L.direction, axisNames);
   if (lenAng) {
-    lines.push(`<div class="angle-line">∠ ${escapeHtml(describeAngle(lenAng))}</div>`);
+    lines.push(`<div class="angle-line">∠ ${term('components', escapeHtml(describeAngle(lenAng)))}</div>`);
     const both = lenAng.components.filter((c) => Math.abs(c.deg) >= 0.05);
     if (lenAng.reference === 'plumb' && both.length === 2) {
       // Chairmaker terms for boring a splayed leg mortise.
       const sl = Math.abs(round1(lenAng.sightline));
-      lines.push(`<div class="angle-sub">Resultant ${round1(lenAng.total)}° along a sightline ${sl}° off the ${escapeHtml(axisNames.x)} line (plan view). Bevel gauge: ${round1(90 - lenAng.total)}° to the surface.</div>`);
+      lines.push(`<div class="angle-sub">${term('resultant', 'Resultant')} ${round1(lenAng.total)}° along a ${term('sightline', 'sightline')} ${sl}° off the ${escapeHtml(axisNames.x)} line (plan view). ${term('bevel', 'Bevel gauge')}: ${round1(90 - lenAng.total)}° to the surface.</div>`);
     }
   } else {
     // long axis is square, but the part may be rolled about it (e.g. a canted jaw)
