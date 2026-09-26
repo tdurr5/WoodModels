@@ -49,7 +49,6 @@ function check(cond, msg) {
 const server = await serve(VIEWER);
 const base = `http://127.0.0.1:${server.address().port}/`;
 const launchOpts = { args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] };
-if (fs.existsSync('/opt/pw-browsers/chromium')) launchOpts.executablePath = '/opt/pw-browsers/chromium';
 const browser = await chromium.launch(launchOpts);
 const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
 
