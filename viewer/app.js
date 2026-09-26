@@ -9,7 +9,9 @@ import {
   prepareRows, renderCutList, renderRows, markActive, visibleRows, focusSearch, finishedDims, buildPrintSheet, isRod, userNote,
   millingPlanHTML, setCutListRows, inlineEdit, markActiveGroup,
 } from './cutlist.js';
-import { normalizeEdits, withStatus, withName, withGroupName, withPieceStatus, withJoin, withoutJoins } from './edits.js';
+import {
+  normalizeEdits, withStatus, withName, withGroupName, withPieceStatus, withJoin, withSplit, withAutoFixes, joinKey,
+} from './edits.js';
 import { initMeasure } from './measure.js';
 import { initDiagramModal, computeLayouts, layoutsHTML } from './diagram.js';
 import { buildTemplate } from './template.js';
@@ -125,6 +127,8 @@ let rawRows = [];       // parts_report.json as loaded
 let edits = normalizeEdits(null);
 let modelKey = 'model'; // per-model storage key
 let overlaps = [];      // same-size pieces sharing space (geometry.js findOverlaps)
+let overlapKind = new Map(); // "a|b" -> 'join' | 'dupe' | 'lap' | 'unsure' (classifyOverlaps)
+let autoFixes = { joins: [], dupes: [] }; // applied as defaults under your edits
 let model = null;
 const meshes = [];                 // every part mesh
 const meshByName = new Map();      // obj name -> mesh
@@ -303,10 +307,12 @@ async function init() {
   model = new OBJLoader().setMaterials(mtl).parse(files['scene.obj']);
   scene.add(model);
   prepareMeshes(materialNames);
+  if (classifyOverlaps()) refreshRows();
   frameBox(modelBox, config.views?.iso?.dir || [0.7, 0.5, 0.7], false);
   $('loading').style.display = 'none';
   rememberOpened(LOCAL_ID ? `local:${LOCAL_ID}` : MODEL_REF);
   applySettingsToScene();
+  announceAutoFixes();
   selectFromHash();
   if (new URLSearchParams(location.search).has('setup') && LOCAL_ID) {
     history.replaceState(null, '', `${location.pathname}?model=${encodeURIComponent(MODEL_REF)}${location.hash}`); // a reload shouldn't reopen it
@@ -406,6 +412,7 @@ function addOverlapNotes(all) {
     const ra = rowOf.get(o.a), rb = rowOf.get(o.b);
     if (!ra || !rb || ra.status || rb.status) return;
     if (ra.joined && ra.pieces.some((p) => p.includes(o.a) && p.includes(o.b))) return; // already joined
+    if (overlapKind.get(`${o.a}|${o.b}`) === 'lap') return; // a lap joint: real joinery
     const text = (other) => `Overlaps ${other === ra && ra === rb ? 'another piece of this part' : `"${other.name}"`} by ${formatLength(o.overlap, units)} - two pieces in the same space (together ${formatLength(o.span, units)} long). Either a copy left in the model, or one ${formatLength(o.span, units)} piece modeled as two.`;
     [[ra, rb, o.b], [rb, ra, o.a]].forEach(([r, other]) => {
       const t = text(other);
@@ -419,12 +426,112 @@ function renamePart(row, name) { commitEdits(withName(edits, row.key, name), nam
 function renameGroup(group, name) { commitEdits(withGroupName(edits, group, name), name ? `Group renamed to "${name}"` : 'Group name reset'); }
 
 // Rebuild the rows after an edit, keeping the 3D scene, camera and selection.
-// rows (and joined pieces' dimensions) from the model data plus your edits
+// rows (and joined pieces' dimensions) from the model data, the automatic
+// fixes and your edits
 function computeRows() {
-  const j = applyJoins(rawRows, edits.joins, baseObjectDims, toFraction);
+  const eff = withAutoFixes(edits, autoFixes);
+  const j = applyJoins(rawRows, eff.joins, baseObjectDims, toFraction);
   objectDims = j.dims;
-  allPartRows = prepareRows(j.rows, config, edits);
+  allPartRows = prepareRows(j.rows, config, eff);
+  allPartRows.forEach((r) => {
+    if (r.joined) r.autoJoined = r.pieces.every((p) => eff.autoJoins.has(joinKey(p)));
+    if (r.pieceStatus === 'deleted' && r.obj_names.every((n) => eff.autoDeleted.has(n))) {
+      r.autoDeleted = true;
+      r.notes.push('An exact copy of another piece, in the same place - removed automatically. Restore it if it is really there twice.');
+    }
+  });
   addOverlapNotes(allPartRows);
+}
+
+// ---------- automatic fixes for rough models ----------
+// Same-size pieces lying in the same space (findOverlaps) are looked at
+// closely: sample points in the shared stretch and test whether each is
+// inside both meshes. Both, over most of it: the pieces really fill the same
+// space - one longer piece modeled as two (join them) or a copy left in place
+// (drop it). Each board in only one: a lap joint, real joinery - leave it.
+const insideRay = new THREE.Raycaster();
+const solidCache = new Map();
+function isInside(mesh, p, dirs) {
+  let solid = solidCache.get(mesh);
+  if (!solid) {
+    solid = new THREE.Mesh(singleSidedGeometry(mesh.geometry), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+    solid.updateMatrixWorld();
+    solidCache.set(mesh, solid);
+  }
+  return dirs.every((d) => {
+    insideRay.set(p, d);
+    let n = 0, last = -1;
+    insideRay.intersectObject(solid, false).forEach((h) => { if (h.distance - last > 1e-4) { n++; last = h.distance; } });
+    return n % 2 === 1;
+  });
+}
+
+function classifyOverlap(o) {
+  const A = baseObjectDims[o.a], B = baseObjectDims[o.b];
+  const ma = meshByName.get(o.a), mb = meshByName.get(o.b);
+  if (!A || !B || !ma || !mb) return 'unsure';
+  const [L, W, T] = A.axes.map((a) => new THREE.Vector3(...a.direction).normalize());
+  const [lenA, wA, tA] = A.axes.map((a) => a.length);
+  const lenB = B.axes[0].length;
+  const cA = new THREE.Vector3(...A.center);
+  const t = new THREE.Vector3(...B.center).sub(cA).dot(L);
+  const lo = Math.max(-lenA / 2, t - lenB / 2), hi = Math.min(lenA / 2, t + lenB / 2);
+  let both = 0, one = 0, total = 0;
+  for (let i = 0; i < 5; i++) {
+    const s = lo + (hi - lo) * (0.1 + 0.2 * i);
+    for (const [fw, ft] of [[0.25, 0.25], [0.25, -0.25], [-0.25, 0.25], [-0.25, -0.25]]) {
+      const p = cA.clone().addScaledVector(L, s).addScaledVector(W, fw * wA).addScaledVector(T, ft * tA);
+      const ia = isInside(ma, p, [W, T]), ib = isInside(mb, p, [W, T]);
+      total++;
+      if (ia && ib) both++; else if (ia || ib) one++;
+    }
+  }
+  if (both / total >= 0.75) return o.span <= Math.max(lenA, lenB) + 1 / 16 ? 'dupe' : 'join';
+  if (both / total <= 0.1 && one / total >= 0.5) return 'lap';
+  return 'unsure';
+}
+
+// Fills overlapKind and autoFixes; true if there's anything to fix.
+function classifyOverlaps() {
+  overlapKind = new Map();
+  const dupes = new Set();
+  const joinPairs = [];
+  overlaps.forEach((o) => {
+    const kind = classifyOverlap(o);
+    overlapKind.set(`${o.a}|${o.b}`, kind);
+    if (kind === 'dupe') {
+      // drop the shorter one (the one inside the other); the second if equal
+      const la = baseObjectDims[o.a].axes[0].length, lb = baseObjectDims[o.b].axes[0].length;
+      dupes.add(la < lb - 1 / 64 ? o.a : o.b);
+    } else if (kind === 'join') joinPairs.push(o);
+  });
+  // chains of overlapping boards become one piece each
+  const parent = new Map();
+  const find = (x) => { while (parent.get(x) !== x) x = parent.get(x); return x; };
+  joinPairs.forEach(({ a, b }) => {
+    if (dupes.has(a) || dupes.has(b)) return;
+    [a, b].forEach((n) => { if (!parent.has(n)) parent.set(n, n); });
+    parent.set(find(a), find(b));
+  });
+  const chains = new Map();
+  [...parent.keys()].forEach((n) => { const r = find(n); if (!chains.has(r)) chains.set(r, []); chains.get(r).push(n); });
+  const joins = [...chains.values()].map((names) => names.sort());
+  autoFixes = { joins, dupes: [...dupes] };
+  return joins.length + dupes.size > 0;
+}
+
+// Say what was fixed automatically, once per model (and after it changes).
+function announceAutoFixes() {
+  const eff = withAutoFixes(edits, autoFixes);
+  const joined = eff.autoJoins.size, dropped = eff.autoDeleted.size;
+  if (!joined && !dropped) return;
+  const sig = `${joined}|${dropped}|${[...eff.autoJoins].join(',')}`;
+  if (settings().autoFixSeen === sig) return;
+  updateSettings({ autoFixSeen: sig });
+  const parts = [];
+  if (joined) parts.push(`joined ${joined} part${joined > 1 ? 's' : ''} the model drew as overlapping boards`);
+  if (dropped) parts.push(`removed ${dropped} exact cop${dropped > 1 ? 'ies' : 'y'}`);
+  showToast(`Fixed automatically: ${parts.join(', ')}. See the part's card to undo.`, { ms: 9000 });
 }
 
 function refreshRows() {
@@ -473,13 +580,13 @@ function updateModelBox() {
 }
 
 let toastTimer = null;
-function showToast(msg, { undo = false } = {}) {
+function showToast(msg, { undo = false, ms = 0 } = {}) {
   const el = $('toast');
   el.innerHTML = `<span>${escapeHtml(msg)}</span>${undo ? '<button class="card-btn" data-act="undo" title="Undo (Ctrl+Z)">Undo</button>' : ''}`;
   el.classList.add('show');
   el.querySelector('[data-act="undo"]')?.addEventListener('click', () => undoEdit());
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), undo ? 6000 : 2500);
+  toastTimer = setTimeout(() => el.classList.remove('show'), ms || (undo ? 6000 : 2500));
 }
 
 function prepareMeshes(materialNames) {
@@ -1302,7 +1409,7 @@ function renderDimCard() {
     ${row.overlapPairs?.length && !row.status ? `<div class="card-actions">
       <button class="card-btn" data-act="join-overlap" title="They're one longer piece: measure them end to end as one part">Join into one ${escapeHtml(formatLength(row.overlapPairs[0].span, settings().units))} piece</button>
       <button class="card-btn danger" data-act="del-overlap" title="It's a copy left in the model: delete it (you can restore it from Deleted)">Delete the overlapping copy</button></div>` : ''}
-    ${row.joined ? `<div class="card-note">Joined from ${row.pieces[0].length} overlapping pieces in the model, measured end to end. <button class="card-btn" data-act="split" title="Undo the join">Split ${row.count > 1 ? `all ×${row.count} ` : ''}apart</button></div>` : ''}
+    ${row.joined ? `<div class="card-note">${row.autoJoined ? 'Joined automatically: the model draws this' : 'Joined from'} as ${row.pieces[0].length} overlapping boards; measured end to end as one piece. <button class="card-btn" data-act="split" title="Undo the join">Split ${row.count > 1 ? `all ×${row.count} ` : ''}apart</button></div>` : ''}
     ${current.piece && row.count > 1 && !row.pieceStatus && !row.status && !row.joined ? `<div class="card-piece">The piece you clicked:
       <button class="card-btn" data-act="piece-aside" title="Set aside just this piece">Set aside</button>
       <button class="card-btn danger" data-act="piece-delete" title="Delete just this piece, not all ${row.count}">Delete</button></div>` : ''}
@@ -1352,7 +1459,7 @@ function renderDimCard() {
     selectRow(allPartRows.find((r) => r.obj_names.includes(o.a)), { frame: false });
   });
   dimCard.querySelector('[data-act="split"]')?.addEventListener('click', () => {
-    commitEdits(withoutJoins(edits, row.obj_names), 'Split back into the pieces in the model');
+    commitEdits(withSplit(edits, row.pieces), 'Split back into the pieces in the model');
   });
 }
 

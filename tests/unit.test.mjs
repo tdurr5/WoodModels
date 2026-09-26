@@ -374,7 +374,7 @@ test('edits: names are trimmed and cleared by an empty name', () => {
   assert.deepEqual(e.names, {});
   e = withGroupName(e, 'group_7', 'Base');
   assert.deepEqual(e.groups, { group_7: 'Base' });
-  assert.deepEqual(normalizeEdits({ names: [], status: 'x' }), { names: {}, groups: {}, status: {}, pieces: {}, joins: [] }, 'bad data is ignored');
+  assert.deepEqual(normalizeEdits({ names: [], status: 'x' }), { names: {}, groups: {}, status: {}, pieces: {}, joins: [], splits: [] }, 'bad data is ignored');
 });
 
 // ---------- overlapping copies and single-piece edits ----------
@@ -437,4 +437,19 @@ test('joins: joining again replaces, splitting removes; stale joins are ignored'
   assert.deepEqual(withoutJoins(e, ['c']).joins, []);
   const raw = [{ label: 'Rail', dims: [68, 3.5, 1.5], count: 1, obj_names: ['a'] }];
   assert.equal(applyJoins(raw, [['a', 'gone']], { a: board(0, 0) }).rows, raw);
+});
+
+import { withAutoFixes, withSplit } from '../viewer/edits.js';
+
+test('automatic fixes apply unless you undid them or changed the same pieces', () => {
+  const auto = { joins: [['a', 'b'], ['c', 'd']], dupes: ['x', 'y'] };
+  let e = withAutoFixes(null, auto);
+  assert.deepEqual(e.joins, [['a', 'b'], ['c', 'd']]);
+  assert.equal(e.pieces.x, 'deleted');
+  assert.deepEqual([...e.autoJoins].sort(), ['a+b', 'c+d']);
+  const mine = withPieceStatus(withSplit(null, [['b', 'a']]), ['x', 'c'], null); // split a+b; keep x; keep c
+  e = withAutoFixes(mine, auto);
+  assert.deepEqual(e.joins, []);
+  assert.equal(e.pieces.x, 'build');
+  assert.deepEqual([...e.autoDeleted], ['y']);
 });

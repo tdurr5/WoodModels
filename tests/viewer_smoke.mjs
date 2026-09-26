@@ -772,18 +772,19 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
   }
 }
 
-// ---------- overlapping copies: join into one piece, or delete the copy ----------
+// ---------- overlapping pieces: fixed automatically, lap joints left alone ----------
 {
   console.log('overlapping pieces');
   const tmp = fs.mkdtempSync(path.join(OUT, 'overlap-'));
   const dae = path.join(tmp, 'Rail Test.dae');
-  execFileSync('python3', ['-c', `import sys; sys.path.insert(0, ${JSON.stringify(path.join(ROOT, 'tests'))}); import make_fixture; open(${JSON.stringify(dae)}, 'w').write(make_fixture.build(overlap=True))`]);
+  execFileSync('python3', ['-c', `import sys; sys.path.insert(0, ${JSON.stringify(path.join(ROOT, 'tests'))}); import make_fixture; open(${JSON.stringify(dae)}, 'w').write(make_fixture.build(overlap=True, lap=True))`]);
   const b2 = await chromium.launch(launchOpts);
   const p2 = await b2.newPage({ viewport: { width: 1400, height: 900 } });
   const errs = [];
   p2.on('pageerror', (e) => errs.push(e.message));
   const loaded = () => p2.waitForFunction(() => document.getElementById('loading').style.display === 'none', null, { timeout: 30000 });
-  const boardRows = () => p2.locator('#clList > .row', { hasText: 'Board' }).evaluateAll((els) => els.map((e) => e.querySelector('.dims').textContent + ' ' + e.querySelector('.qty').textContent));
+  const rowsOf = (label) => p2.locator('#clList > .row', { hasText: label }).evaluateAll((els) => els.map((e) => e.querySelector('.dims').textContent + ' ' + e.querySelector('.qty').textContent));
+  const boardRows = () => rowsOf('Board');
   try {
     await p2.goto(base);
     await loaded();
@@ -792,18 +793,25 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     await p2.waitForURL(/setup=1/, { timeout: 30000 });
     await loaded();
     await p2.locator('#setup .setup-cancel').click();
-    const row = p2.locator('#clList > .row', { hasText: 'Board' }).first();
-    check(/Overlaps another piece of this part by 4" .*together 16" long/.test(await row.innerText()), 'a board slid along another is flagged, with the combined length');
-    await row.click();
-    await p2.locator('#dimCard [data-act=join-overlap]').click();
-    check(JSON.stringify(await boardRows()) === JSON.stringify(['1" × 4" × 10" ×1', '1" × 4" × 16" ×1']), `"Join" makes the pair one 16" piece (${await boardRows()})`);
-    check((await p2.locator('#dimCard .dim-big').innerText()).includes('16"') && (await p2.locator('#axisLabels .axisLabel').allInnerTexts()).includes('16"'), 'the joined piece is selected and dimensioned end to end');
+    check(JSON.stringify(await boardRows()) === JSON.stringify(['1" × 4" × 10" ×1', '1" × 4" × 16" ×1']), `a board modeled as two overlapping boards is joined automatically (${await boardRows()})`);
+    check(/Fixed automatically: joined 1 part/.test(await p2.locator('#toast').innerText()), 'a notice says what was fixed automatically');
+    const lapRow = await p2.locator('#clList > .row', { hasText: 'Lap rail' }).innerText();
+    check(/×2/.test(lapRow) && !/Overlaps/.test(lapRow), `a half-lap joint is real joinery: two boards, no warning (${lapRow.replace(/\n/g, ' ')})`);
+    await p2.locator('#clList > .row', { hasText: '16"' }).click();
+    check(/Joined automatically/.test(await p2.locator('#dimCard').innerText()), 'the joined part says it was joined automatically');
+    check((await p2.locator('#axisLabels .axisLabel').allInnerTexts()).includes('16"'), 'and is dimensioned end to end');
+    await p2.locator('#dimCard [data-act=split]').click();
+    check(JSON.stringify(await boardRows()) === JSON.stringify(['1" × 4" × 10" ×3']), '"Split apart" undoes an automatic join');
     await p2.reload();
     await loaded();
-    check(JSON.stringify(await boardRows()) === JSON.stringify(['1" × 4" × 10" ×1', '1" × 4" × 16" ×1']), 'the join is saved with the model');
+    check(JSON.stringify(await boardRows()) === JSON.stringify(['1" × 4" × 10" ×3']), 'a split stays split after a reload');
+    const row = p2.locator('#clList > .row', { hasText: 'Board' }).first();
+    check(/Overlaps another piece of this part by 4" .*together 16" long/.test(await row.innerText()), 'the overlap is still pointed out, with the combined length');
+    await row.click();
+    await p2.locator('#dimCard [data-act=join-overlap]').click();
+    check(JSON.stringify(await boardRows()) === JSON.stringify(['1" × 4" × 10" ×1', '1" × 4" × 16" ×1']), '"Join" joins it again by hand');
     await p2.locator('#clList > .row', { hasText: '16"' }).click();
     await p2.locator('#dimCard [data-act=split]').click();
-    check(JSON.stringify(await boardRows()) === JSON.stringify(['1" × 4" × 10" ×3']), '"Split apart" undoes it');
     await p2.locator('#clList > .row', { hasText: 'Board' }).first().click();
     await p2.locator('#dimCard [data-act=del-overlap]').click();
     check(JSON.stringify(await boardRows()) === JSON.stringify(['1" × 4" × 10" ×2']) && !/Overlaps/.test(await p2.locator('#clList > .row', { hasText: 'Board' }).first().innerText()), '"Delete the overlapping copy" removes one piece and the warning');

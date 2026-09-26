@@ -11,6 +11,8 @@ Covers the paths parse_dae.py has to handle in the real export:
   - a flat printed plan sheet that must be excluded
   - optionally (overlap=True) a third board slid 6" along the first, so
     the two overlap by 4" (a rail modeled as two boards)
+  - optionally (lap=True) two boards joined by a half lap: their boxes
+    overlap by 4" but each is cut to half thickness there (real joinery)
   - optionally (scaled=True) a copy of the board component stretched 2x
     along its length, the way SketchUp's Scale tool leaves it
   - optionally (sketchup2023=True) an unnamed group the way newer SketchUp
@@ -171,19 +173,19 @@ def polygons_geometry(gid, verts, material_symbol):
 
 
 def build(unit_meter=0.0254, scale=1.0, up_axis='Z_UP', leg_as='polylist', transforms='matrix', namespace=NS,
-          sketchup2023=False, scaled=False, overlap=False):
+          sketchup2023=False, scaled=False, overlap=False, lap=False):
     """`scale` multiplies every length, for writing the same model in another
     unit (e.g. unit_meter=0.001, scale=25.4 for millimetres). `leg_as` picks
     the primitive the leg is written with ('polylist' or 'polygons');
     `transforms='trs'` places parts with <translate>/<rotate> instead of
     <matrix>; `namespace` may be the COLLADA 1.5 one or '' (none)."""
-    xml = _build(unit_meter, scale, up_axis, leg_as, transforms, sketchup2023, scaled, overlap)
+    xml = _build(unit_meter, scale, up_axis, leg_as, transforms, sketchup2023, scaled, overlap, lap)
     if namespace != NS:
         xml = xml.replace(f' xmlns="{NS}"', f' xmlns="{namespace}"' if namespace else '')
     return xml
 
 
-def _build(unit_meter, scale, up_axis, leg_as, transforms, sketchup2023=False, scaled=False, overlap=False):
+def _build(unit_meter, scale, up_axis, leg_as, transforms, sketchup2023=False, scaled=False, overlap=False, lap=False):
     if transforms == 'trs':
         place_board = lambda y: f'<translate>0 {6 * scale if y else 0} {20 * scale}</translate>'  # noqa: E731
         place_leg = f'<translate>{2 * scale} 0 0</translate><rotate>1 0 0 90</rotate>'
@@ -206,6 +208,21 @@ def _build(unit_meter, scale, up_axis, leg_as, transforms, sketchup2023=False, s
           <node name="Board">{matrix((2, 0, 0, 0, 0, 1, 0, 12 * scale, 0, 0, 1, 20 * scale, 0, 0, 0, 1))}
             <instance_geometry url="#geom_board">{bind()}</instance_geometry>
           </node>''' if scaled else ''
+    if lap:
+        # two closed boxes per board: full thickness, then the half-thickness lap
+        box_quads = [(0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)]
+        sc = lambda pts: [tuple(v * scale for v in p) for p in pts]  # noqa: E731
+        lap_a = sc(box_at((0, 0, 0), (6, 4, 1)) + box_at((6, 0, 0.5), (10, 4, 1)))
+        lap_b = sc(box_at((0, 0, 0), (4, 4, 0.5)) + box_at((4, 0, 0), (10, 4, 1)))
+        two = box_quads + [tuple(i + 8 for i in q) for q in box_quads]
+        geoms += mesh_geometry('geom_lap_a', lap_a, two, 'mat') + mesh_geometry('geom_lap_b', lap_b, two, 'mat')
+        scaled_node += f'''
+          <node name="Lap_rail">{matrix(translate(0, -10 * scale, 20 * scale))}
+            <instance_geometry url="#geom_lap_a">{bind()}</instance_geometry>
+          </node>
+          <node name="Lap_rail">{matrix(translate(6 * scale, -10 * scale, 20 * scale))}
+            <instance_geometry url="#geom_lap_b">{bind()}</instance_geometry>
+          </node>'''
     if overlap:
         scaled_node += f'''
           <node name="Board">{matrix(translate(6 * scale, 0, 20 * scale))}

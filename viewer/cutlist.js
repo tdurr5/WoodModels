@@ -23,9 +23,10 @@ export function prepareRows(rawRows, config, edits = config.edits) {
   const split = [];
   rawRows.forEach((r) => {
     const names = r.obj_names || [];
-    const moved = names.filter((n) => ed.pieces[n]);
+    const off = (n) => ed.pieces[n] === 'deleted' || ed.pieces[n] === 'aside';
+    const moved = names.filter(off);
     if (!moved.length || r.count !== names.length) { split.push(r); return; }
-    const rest = names.filter((n) => !ed.pieces[n]);
+    const rest = names.filter((n) => !off(n));
     if (rest.length) split.push({ ...r, obj_names: rest, count: rest.length });
     ['deleted', 'aside'].forEach((st) => {
       const these = moved.filter((n) => ed.pieces[n] === st);

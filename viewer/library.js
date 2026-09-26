@@ -48,6 +48,12 @@ export async function importFile(file, onStatus = () => {}) {
   // name the model after the upload (Warehouse zips are named after the model; the .dae inside often isn't)
   const { files, stats } = parseCollada(xml, { fileName: file.name });
   const cfg = JSON.parse(files['model.json']);
+  // readable species names up front, so texture variants of one wood total up as one
+  Object.entries(cfg.materials || {}).forEach(([name, m]) => {
+    const clean = cleanMaterialName(name);
+    if (!m.label && clean !== name) m.label = clean;
+  });
+  files['model.json'] = JSON.stringify(cfg, null, 2);
   return { name: cfg.title, files, parts: stats.parts };
 }
 
