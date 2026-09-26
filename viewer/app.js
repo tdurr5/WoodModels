@@ -32,7 +32,7 @@ let camera = perspCamera;
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.15;
-controls.enableZoom = false; // replaced below with a fixed-step handler
+controls.enableZoom = true;  // pinch-to-zoom on touch; the mouse wheel is handled below
 controls.minDistance = 1.5;   // inches - stop before clipping into a part
 controls.maxDistance = 400;   // inches - stop before flying off into space
 controls.panSpeed = 0.9;
@@ -79,9 +79,12 @@ function setOrtho(on) {
 // scroll delta, which varies wildly across mice/trackpads and makes zoom feel
 // random (tiny steps on one device, huge jumps on another). Use a fixed
 // percentage step per wheel event instead, so it's always smooth increments.
+// Registered in the capture phase so it runs before OrbitControls' own wheel
+// listener, which it then stops (pinch zoom still goes through OrbitControls).
 const ZOOM_STEP = 0.08;
 renderer.domElement.addEventListener('wheel', (e) => {
   e.preventDefault();
+  e.stopImmediatePropagation();
   cancelCameraTween();
   const factor = e.deltaY > 0 ? (1 + ZOOM_STEP) : (1 - ZOOM_STEP);
   if (camera.isOrthographicCamera) {
@@ -93,7 +96,7 @@ renderer.domElement.addEventListener('wheel', (e) => {
   const newDist = THREE.MathUtils.clamp(offset.length() * factor, controls.minDistance, controls.maxDistance);
   offset.setLength(newDist);
   camera.position.copy(controls.target).add(offset);
-}, { passive: false });
+}, { passive: false, capture: true });
 
 scene.add(new THREE.AmbientLight(0xffffff, 0.55));
 const sun1 = new THREE.DirectionalLight(0xffffff, 1.1);

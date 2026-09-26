@@ -197,6 +197,14 @@ try {
   check(await page.locator('#measureLabels .measureLabel').count() === 0, 'Clear measurements removes labels');
   await page.locator('#measureDistBtn').click();
 
+  console.log('zoom');
+  const d0 = await page.evaluate(() => window.__viewer.camera.position.distanceTo(window.__viewer.controls.target));
+  await page.mouse.move(400, 400);
+  await page.mouse.wheel(0, 500); // one big notch
+  await page.waitForTimeout(150);
+  const d1 = await page.evaluate(() => window.__viewer.camera.position.distanceTo(window.__viewer.controls.target));
+  check(Math.abs(d1 / d0 - 1.08) < 0.01, `mouse wheel zooms one fixed 8% step regardless of scroll size (${(d1 / d0).toFixed(3)})`);
+
   console.log('wireframe');
   await page.locator('#wireBtn').click();
   check(await page.locator('#wireBtn.on').count() === 1, 'wireframe toggles on');
