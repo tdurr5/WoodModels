@@ -101,13 +101,28 @@ def bind(symbol='mat', target='ID_wood'):
         </technique_common></bind_material>'''
 
 
-def build(unit_meter=0.0254, scale=1.0):
+def polygons_geometry(gid, verts, material_symbol):
+    ps = ''.join(f'<p>{" ".join(str(i) for i in q)}</p>' for q in QUADS)
+    return f'''
+    <geometry id="{gid}"><mesh>
+      <source id="{gid}-pos"><float_array id="{gid}-pos-arr" count="{len(verts) * 3}">{floats(v for p in verts for v in p)}</float_array>
+        <technique_common><accessor source="#{gid}-pos-arr" count="{len(verts)}" stride="3"/></technique_common></source>
+      <vertices id="{gid}-vtx"><input semantic="POSITION" source="#{gid}-pos"/></vertices>
+      <polygons count="{len(QUADS)}" material="{material_symbol}">
+        <input semantic="VERTEX" source="#{gid}-vtx" offset="0"/>
+        {ps}
+      </polygons>
+    </mesh></geometry>'''
+
+
+def build(unit_meter=0.0254, scale=1.0, up_axis='Z_UP', leg_as='polylist'):
     """`scale` multiplies every length, for writing the same model in another
-    unit (e.g. unit_meter=0.001, scale=25.4 for millimetres)."""
-    return _build(unit_meter, scale)
+    unit (e.g. unit_meter=0.001, scale=25.4 for millimetres). `leg_as` picks
+    the primitive the leg is written with ('polylist' or 'polygons')."""
+    return _build(unit_meter, scale, up_axis, leg_as)
 
 
-def _build(unit_meter, scale):
+def _build(unit_meter, scale, up_axis, leg_as):
     sc = lambda pts: [tuple(v * scale for v in p) for p in pts]  # noqa: E731
     board = sc(box_corners(10, 4, 1))
     # Leg: a 12 x 3 x 1.5 board authored already rotated 30 deg about its
@@ -116,12 +131,12 @@ def _build(unit_meter, scale):
     sheet = sc(box_corners(11, 8.5, 0.01))
     geoms = (
         triangles_geometry('geom_board', board, 'mat')
-        + polylist_geometry('geom_leg', leg, 'mat')
+        + (polygons_geometry if leg_as == 'polygons' else polylist_geometry)('geom_leg', leg, 'mat')
         + triangles_geometry('geom_sheet', sheet, 'mat')
     )
     return f'''<?xml version="1.0" encoding="utf-8"?>
 <COLLADA xmlns="{NS}" version="1.4.1">
-  <asset><unit name="unit" meter="{unit_meter}"/><up_axis>Z_UP</up_axis></asset>
+  <asset><unit name="unit" meter="{unit_meter}"/><up_axis>{up_axis}</up_axis></asset>
   <library_effects>
     <effect id="eff_wood"><profile_COMMON><technique sid="common"><lambert>
       <diffuse><color>0.9 0.7 0.5 1</color></diffuse></lambert></technique></profile_COMMON></effect>

@@ -174,6 +174,31 @@ class Units(unittest.TestCase):
         self.assertEqual(parse_dae.read_unit_scale(root), 1.0)
 
 
+class OtherExporters(unittest.TestCase):
+    def convert(self, **kw):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__('shutil').rmtree(tmp, ignore_errors=True))
+        dae = os.path.join(tmp, 'm.dae')
+        with open(dae, 'w') as f:
+            f.write(make_fixture.build(**kw))
+        out = os.path.join(tmp, 'out')
+        parse_dae.main([dae, '-o', out, '-q'])
+        return load_json(out, 'parts_report.json'), load_json(out, 'object_dims.json')
+
+    def test_polygons_primitive(self):
+        rows, _ = self.convert(leg_as='polygons')
+        self.assertEqual(next(r for r in rows if r['label'] == 'Leg')['dims'], [12, 3, 1.5])
+
+    def test_y_up_file_is_not_rotated(self):
+        rows_z, dims_z = self.convert()
+        rows_y, dims_y = self.convert(up_axis='Y_UP')
+        name = next(r for r in rows_z if r['label'] == 'Board')['obj_names'][0]
+        cz, cy = dims_z[name]['center'], dims_y[name]['center']
+        # Z-up (x, y, z) -> (x, z, -y); a Y-up file is used as-is
+        self.assertEqual([round(v, 4) for v in cy], [round(cz[0], 4), round(-cz[2], 4), round(cz[1], 4)])
+        self.assertEqual(rows_y[0]['dims'], rows_z[0]['dims'])
+
+
 class StarterConfig(unittest.TestCase):
     def test_written_once_with_guessed_categories(self):
         with tempfile.TemporaryDirectory() as tmp:

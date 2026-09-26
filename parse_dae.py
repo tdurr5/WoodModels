@@ -8,8 +8,10 @@ Writes into the output directory:
   object_dims.json       per-instance oriented length/width/thickness axes
   parts_report.json      the cut list: one row per distinct part, with qty
 
-Standard library only. Units are whatever the model was drawn in (inches for
-the shaving horse); nothing is converted.
+Standard library only. Lengths are converted to inches from the file's
+declared unit, and Z-up files (SketchUp) are turned Y-up for three.js.
+viewer/collada.js is a line-for-line JavaScript port used for uploads in the
+browser; tests/parser_parity.mjs checks the two agree.
 """
 import argparse
 import json
@@ -99,10 +101,18 @@ def apply_rotation(m, v):
     )
 
 
-def to_yup(p):
-    # source data is Z-up (SketchUp/COLLADA convention); OBJ/three.js default to Y-up
+def to_yup(p, up='Z_UP'):
+    # SketchUp (and most COLLADA) is Z-up; OBJ/three.js are Y-up. Files that
+    # declare <up_axis>Y_UP</up_axis> are already Y-up.
+    if up == 'Y_UP':
+        return tuple(p)
     x, y, z = p
     return (x, z, -y)
+
+
+def read_up_axis(root):
+    el = root.find(f'{q("asset")}/{q("up_axis")}', NS)
+    return 'Y_UP' if el is not None and (el.text or '').strip().upper() == 'Y_UP' else 'Z_UP'
 
 
 # ---------- oriented bounding boxes ----------
@@ -261,6 +271,18 @@ def load_geometries(root, scale=1.0):
                 n = len(idx) // stride
                 for t in range(0, n - n % 3, 3):
                     faces.append(tuple(idx[(t+k)*stride + vertex_offset] for k in range(3)))
+        # <polygons>: one <p> per polygon (used by some non-SketchUp exporters)
+        for prim in mesh.findall(q('polygons'), NS):
+            if prim.get('material'):
+                materials_used.add(prim.get('material'))
+            inputs = prim.findall(q('input'), NS)
+            stride = len(set(i.get('offset') for i in inputs)) or 1
+            vertex_offset = next((int(i.get('offset')) for i in inputs if i.get('semantic') == 'VERTEX'), 0)
+            for p in prim.findall(q('p'), NS):
+                idx = [int(x) for x in (p.text or '').split()]
+                verts = [idx[k*stride + vertex_offset] for k in range(len(idx) // stride)]
+                for k in range(1, len(verts)-1):
+                    faces.append((verts[0], verts[k], verts[k+1]))
 
         bbox, local_center, local_axes = fit_box(positions)
         geoms[gid] = dict(positions=positions, faces=faces, bbox=bbox, local_center=local_center,
@@ -359,8 +381,7 @@ def resolve_instances(root, scale=1.0):
             if top_group is None:
                 top_group = name
 
-        ig = node.find(q('instance_geometry'), NS)
-        if ig is not None:
+        for ig in node.findall(q('instance_geometry'), NS):
             gid = ig.get('url').lstrip('#')
             label = name_path[-1] if name_path else gid
             # Exporter quirk in the shaving horse model: the "Nut_3_4"
@@ -378,8 +399,7 @@ def resolve_instances(root, scale=1.0):
                 material_bindings=get_material_bindings(ig),
             ))
 
-        inode = node.find(q('instance_node'), NS)
-        if inode is not None:
+        for inode in node.findall(q('instance_node'), NS):
             target = lib_nodes_by_id.get(inode.get('url').lstrip('#'))
             if target is not None:
                 visit(target, world, name_path, top_group)
@@ -388,9 +408,16 @@ def resolve_instances(root, scale=1.0):
             visit(child, world, name_path, top_group)
 
     vs = root.find(f'.//{q("library_visual_scenes")}/{q("visual_scene")}', NS)
-    top = vs.find(q('node'), NS)  # the single "SketchUp" root node
-    for child in top.findall(q('node'), NS):
-        visit(child, IDENTITY4, [], None)
+    roots = vs.findall(q('node'), NS) if vs is not None else []
+    if len(roots) == 1 and roots[0].find(q('instance_geometry'), NS) is None:
+        # SketchUp wraps everything in one "SketchUp" root node: its children
+        # are the model's top-level groups
+        top = roots[0]
+        for child in top.findall(q('node'), NS):
+            visit(child, parse_matrix(top, scale), [], None)
+    else:
+        for node in roots:
+            visit(node, IDENTITY4, [], None)
     return instances
 
 
@@ -415,7 +442,7 @@ def pick_material(bindings, material_info):
     return next(iter(bindings.values()), None)
 
 
-def write_obj(instances, geoms, material_info, dae_path, out_dir):
+def write_obj(instances, geoms, material_info, dae_path, out_dir, up='Z_UP'):
     """Writes scene.obj/.mtl; sets inst['safe_name'] / inst['in_obj'].
     Returns {obj material key: SketchUp material name}."""
     mat_key_to_name = {}
@@ -438,7 +465,7 @@ def write_obj(instances, geoms, material_info, dae_path, out_dir):
             f.write(f"o {inst['safe_name']}\n")
             wm = inst['world_matrix']
             for p in geo['positions']:
-                wp = to_yup(apply_matrix(wm, p))
+                wp = to_yup(apply_matrix(wm, p), up)
                 f.write(f"v {wp[0]:.5f} {wp[1]:.5f} {wp[2]:.5f}\n")
 
             mat_target = pick_material(inst['material_bindings'], material_info)
@@ -467,7 +494,7 @@ def write_obj(instances, geoms, material_info, dae_path, out_dir):
     return mat_key_to_name
 
 
-def compute_object_dims(instances, geoms):
+def compute_object_dims(instances, geoms, up='Z_UP'):
     # Uses each part's true LOCAL axes (not world-aligned), since parts are rotated
     # into the assembly. Gives exact length/width/thickness + world position/direction
     # so the viewer can draw CAD-style dimension lines on the actual board faces.
@@ -479,13 +506,13 @@ def compute_object_dims(instances, geoms):
         if not geo:
             continue
         wm = inst['world_matrix']
-        world_center = to_yup(apply_matrix(wm, geo['local_center']))
+        world_center = to_yup(apply_matrix(wm, geo['local_center']), up)
         axes = []
         for i in range(3):
             length = geo['bbox'][i]
             if length < 1e-6:
                 continue
-            direction = to_yup(normalize(apply_rotation(wm, geo['local_axes'][i])))
+            direction = to_yup(normalize(apply_rotation(wm, geo['local_axes'][i])), up)
             axes.append(dict(direction=[round(v, 6) for v in direction], length=round(length, 4)))
         axes.sort(key=lambda a: a['length'], reverse=True)
         for i, a in enumerate(axes):
@@ -505,8 +532,8 @@ def build_report(instances, geoms, material_info):
         if is_plan_sheet(inst):
             continue
         geo = geoms.get(inst['geom_id'])
-        if not geo:
-            continue
+        if not geo or not geo['faces']:
+            continue  # edges/guides only (SketchUp <lines>): nothing to cut
         dims = tuple(round(d, 3) for d in sorted(geo['bbox'], reverse=True))  # L,W,T sorted desc
         mat_names = [material_info.get(t, {}).get('name') for t in inst['material_bindings'].values()]
         rep = report.setdefault((inst['label'], dims), dict(
@@ -629,7 +656,8 @@ def convert(dae_path, out_dir, verbose=True):
     instances = resolve_instances(root, scale)
     log(f"Resolved {len(instances)} geometry instances")
 
-    mat_key_to_name = write_obj(instances, geoms, material_info, dae_path, out_dir)
+    up = read_up_axis(root)
+    mat_key_to_name = write_obj(instances, geoms, material_info, dae_path, out_dir, up)
     log(f"Wrote {os.path.join(out_dir, 'scene.obj')} and scene.mtl")
     with open(os.path.join(out_dir, 'materials.json'), 'w') as jf:
         json.dump(mat_key_to_name, jf, indent=2)
@@ -639,7 +667,7 @@ def convert(dae_path, out_dir, verbose=True):
             json.dump(starter_config(dae_path, mat_key_to_name, material_info), jf, indent=2)
         log(f"Wrote a starter {config_path} - edit the title, part names, materials and axisNames")
 
-    object_dims = compute_object_dims(instances, geoms)
+    object_dims = compute_object_dims(instances, geoms, up)
     with open(os.path.join(out_dir, 'object_dims.json'), 'w') as jf:
         json.dump(object_dims, jf, indent=2)
     log(f"Wrote object_dims.json ({len(object_dims)} objects)")

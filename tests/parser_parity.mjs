@@ -1,0 +1,119 @@
+// The browser parser (viewer/collada.js) must produce the same data as
+// parse_dae.py. Builds fixture COLLADA files with tests/make_fixture.py, runs
+// the Python parser on each, runs the JS parser on the same text in headless
+// Chromium, and compares every output file (numbers within a small tolerance).
+//
+//   node tests/parser_parity.mjs
+
+import http from 'node:http';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { chromium } from 'playwright';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const VIEWER = path.join(ROOT, 'viewer');
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'parity-'));
+
+const VARIANTS = {
+  inches: {},
+  millimetres: { unit_meter: 0.001, scale: 25.4 },
+  y_up: { up_axis: 'Y_UP' },
+  polygons: { leg_as: 'polygons' },
+};
+
+let failures = 0;
+function check(cond, msg) {
+  if (cond) console.log(`  ok   ${msg}`);
+  else { console.log(`  FAIL ${msg}`); failures++; }
+}
+
+// deep compare with numeric tolerance; returns the first difference or null
+function diff(a, b, tol, where = '') {
+  if (typeof a === 'number' && typeof b === 'number') return Math.abs(a - b) <= tol ? null : `${where}: ${a} != ${b}`;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return `${where}: length ${a.length} != ${b.length}`;
+    for (let i = 0; i < a.length; i++) { const d = diff(a[i], b[i], tol, `${where}[${i}]`); if (d) return d; }
+    return null;
+  }
+  if (a && b && typeof a === 'object' && typeof b === 'object') {
+    const ka = Object.keys(a).sort(), kb = Object.keys(b).sort();
+    if (ka.join() !== kb.join()) return `${where}: keys ${ka} != ${kb}`;
+    for (const k of ka) { const d = diff(a[k], b[k], tol, `${where}.${k}`); if (d) return d; }
+    return null;
+  }
+  return a === b ? null : `${where}: ${JSON.stringify(a)} != ${JSON.stringify(b)}`;
+}
+
+function objDiff(pyText, jsText) {
+  const a = pyText.trim().split('\n'), b = jsText.trim().split('\n');
+  if (a.length !== b.length) return `line count ${a.length} != ${b.length}`;
+  for (let i = 0; i < a.length; i++) {
+    const [ta, ...ra] = a[i].split(' '), [tb, ...rb] = b[i].split(' ');
+    if (ta !== tb) return `line ${i + 1}: ${a[i]} != ${b[i]}`;
+    if (ta === 'v') { const d = diff(ra.map(Number), rb.map(Number), 2e-5, `line ${i + 1}`); if (d) return d; }
+    else if (a[i] !== b[i]) return `line ${i + 1}: ${a[i]} != ${b[i]}`;
+  }
+  return null;
+}
+
+// ---------- Python side ----------
+const outputs = {};
+for (const [name, kw] of Object.entries(VARIANTS)) {
+  const dae = path.join(tmp, `${name}.dae`);
+  const args = Object.entries(kw).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(', ');
+  execFileSync('python3', ['-c', `import sys; sys.path.insert(0, ${JSON.stringify(path.join(ROOT, 'tests'))}); import make_fixture; open(${JSON.stringify(dae)}, 'w').write(make_fixture.build(${args}))`]);
+  const out = path.join(tmp, `${name}-py`);
+  execFileSync('python3', [path.join(ROOT, 'parse_dae.py'), dae, '-o', out, '-q']);
+  const read = (f) => fs.readFileSync(path.join(out, f), 'utf8');
+  outputs[name] = { dae: fs.readFileSync(dae, 'utf8'), py: Object.fromEntries(['scene.obj', 'scene.mtl', 'materials.json', 'object_dims.json', 'parts_report.json', 'model.json'].map((f) => [f, read(f)])) };
+}
+
+// ---------- JS side (in the browser, where DOMParser lives) ----------
+const server = http.createServer((req, res) => {
+  const file = path.join(VIEWER, decodeURIComponent(new URL(req.url, 'http://x').pathname));
+  if (!file.startsWith(VIEWER) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); res.end(); return; }
+  res.writeHead(200, { 'Content-Type': file.endsWith('.js') ? 'text/javascript' : 'text/html' });
+  fs.createReadStream(file).pipe(res);
+});
+await new Promise((r) => server.listen(0, '127.0.0.1', r));
+const base = `http://127.0.0.1:${server.address().port}/`;
+const browser = await chromium.launch();
+const page = await browser.newPage();
+await page.goto(`${base}sw.js`); // any same-origin page works for module imports
+try {
+  for (const [name, o] of Object.entries(outputs)) {
+    console.log(name);
+    const js = await page.evaluate(async ({ url, xml, file }) => {
+      const m = await import(url);
+      return m.parseCollada(xml, { fileName: file }).files;
+    }, { url: `${base}collada.js`, xml: o.dae, file: `${name}.dae` });
+    const j = (f, src) => JSON.parse(src[f]);
+    const d1 = diff(j('parts_report.json', o.py), j('parts_report.json', js), 1e-9, 'parts_report');
+    check(!d1, `parts_report.json matches${d1 ? ` (${d1})` : ''}`);
+    const d2 = diff(j('object_dims.json', o.py), j('object_dims.json', js), 2e-4, 'object_dims');
+    check(!d2, `object_dims.json matches${d2 ? ` (${d2})` : ''}`);
+    const d3 = diff(j('materials.json', o.py), j('materials.json', js), 0, 'materials');
+    check(!d3, `materials.json matches${d3 ? ` (${d3})` : ''}`);
+    const d4 = diff(j('model.json', o.py), j('model.json', js), 0, 'model');
+    check(!d4, `model.json (starter config) matches${d4 ? ` (${d4})` : ''}`);
+    check(o.py['scene.mtl'].trim() === js['scene.mtl'].trim(), 'scene.mtl matches');
+    const d5 = objDiff(o.py['scene.obj'], js['scene.obj']);
+    check(!d5, `scene.obj matches${d5 ? ` (${d5})` : ''}`);
+  }
+  // unit behaviour the viewer relies on, checked directly
+  const units = await page.evaluate(async (url) => {
+    const m = await import(url);
+    return { a: m.toFrac(0.15625), b: m.toFrac(12.4697), g: m.guessCategory('White_Oak') };
+  }, `${base}collada.js`);
+  check(units.a === '1/8"' && units.b === '12-1/2"' && units.g === 'Wood', `toFrac rounds halves to even like Python (${units.a})`);
+} finally {
+  await browser.close();
+  server.close();
+  fs.rmSync(tmp, { recursive: true, force: true });
+}
+
+console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed');
+process.exit(failures ? 1 : 0);
