@@ -277,6 +277,13 @@ try {
   await page.keyboard.press('i');
 
   console.log('keyboard navigation + deep link');
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('ArrowUp');
+  const lastClickable = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('#clList .row:not(.disabled) .name')];
+    return rows[rows.length - 1].lastChild.textContent.trim();
+  });
+  check((await activeRowName()) === lastClickable, `ArrowUp with nothing selected picks the last part (${lastClickable})`);
   await selectPart('Bench');
   await page.keyboard.press('ArrowDown');
   const afterDown = await activeRowName();
@@ -314,7 +321,26 @@ try {
 
   await page.locator('#explodeRange').fill('1');
   await page.selectOption('#sectionAxis', 'x');
-  await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+  // make a measurement on the (exploded) bench first
+  await selectPart('Bench');
+  await page.keyboard.press('Escape'); // leave the section slider / focus
+  await selectPart('Bench');
+  await page.locator('#measureDistBtn').click();
+  for (const pt of await page.evaluate(visibleFacePoints, 2)) await page.mouse.click(pt.x, pt.y);
+  await page.locator('#measureDistBtn').click();
+  const nMeasures = await page.evaluate(() => window.__viewer.measure.measurements.length);
+  const measureShown = await page.evaluate(() => {
+    const { measure } = window.__viewer;
+    const seen = [];
+    const orig = window.__viewer.renderer.render.bind(window.__viewer.renderer);
+    window.__viewer.renderer.render = (sc, cam) => { seen.push(measure.measurements.some((m) => m.group.visible)); orig(sc, cam); };
+    window.dispatchEvent(new Event('beforeprint'));
+    window.__viewer.renderer.render = orig;
+    return seen.slice(0, 2);
+  });
+  check(nMeasures === 1 && measureShown.length === 2 && measureShown.every((v) => !v), `measurements are hidden in the print pictures (${nMeasures} measurement, visible during captures: ${measureShown})`);
+  check(await page.evaluate(() => window.__viewer.measure.measurements.every((m) => m.group.visible)), 'and shown again afterwards');
+  await page.locator('#clearMeasureBtn').click();
   const overviewSrc = await page.locator('#printSheet .ps-img').first().getAttribute('src');
   fs.writeFileSync(path.join(OUT, 'print-overview.png'), Buffer.from(overviewSrc.split(',')[1], 'base64'));
   const explodedSrc = await page.locator('#printSheet .ps-img').nth(1).getAttribute('src');
@@ -459,6 +485,12 @@ try {
   const cfg = JSON.parse(fs.readFileSync(path.join(sub, 'model.json'), 'utf8'));
   cfg.title = 'Test Copy';
   fs.writeFileSync(path.join(sub, 'model.json'), JSON.stringify(cfg));
+  // two rows sharing a label at different sizes: move Filler Front's mesh to a second "Bench" row
+  const report = JSON.parse(fs.readFileSync(path.join(sub, 'parts_report.json'), 'utf8'));
+  const ff = report.find((r) => r.label === 'Filler_Front');
+  report.push({ ...ff, label: 'Bench', dims: [7.9, 2.9, 2.01], dims_str: '7-7/8" x 2-7/8" x 2"' });
+  report.splice(report.indexOf(ff), 1);
+  fs.writeFileSync(path.join(sub, 'parts_report.json'), JSON.stringify(report));
   const b2 = await chromium.launch(launchOpts);
   const p2 = await b2.newPage();
   await p2.route(/^https:\/\/unpkg\.com\/three@[^/]+\/(.*)$/, (route) => {
@@ -469,6 +501,13 @@ try {
     await p2.goto(`${base}?model=_test_model`);
     await p2.waitForFunction(() => document.getElementById('loading').style.display === 'none', null, { timeout: 30000 });
     check((await p2.locator('#sidebar h1').innerText()) === 'Test Copy', '?model= loads another model folder');
+    await p2.locator('#clList .row', { hasText: '2" × 2-7/8" × 7-7/8"' }).first().click();
+    const ref = decodeURIComponent(new URL(p2.url()).hash);
+    check(/^#part=Bench@\d$/.test(ref), `duplicate labels get a distinct link (${ref})`);
+    await p2.reload();
+    await p2.waitForFunction(() => document.getElementById('loading').style.display === 'none', null, { timeout: 30000 });
+    const reopened = await p2.locator('#dimCard .dim-big').innerText();
+    check(reopened.startsWith('2" × 2-7/8"'), `that link reopens the right one of the two (${reopened})`);
     await p2.goto(`${base}?model=../../etc`);
     await p2.waitForFunction(() => document.getElementById('loading').style.display === 'none', null, { timeout: 30000 });
     check((await p2.locator('#sidebar h1').innerText()) === 'Shaving Horse', '?model= ignores paths that climb out of the viewer');

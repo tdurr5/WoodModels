@@ -294,6 +294,12 @@ export function initMeasure(ctx) {
       m.labels.forEach((l) => l.el.remove());
       return true;
     },
+    // hide/show everything this tool draws in 3D (for clean captures)
+    setVisible(on) {
+      measurements.forEach((m) => { m.group.visible = on; });
+      markers.forEach((m) => { m.visible = on; });
+      if (!on) preview.visible = false;
+    },
     refreshLabels() { measurements.forEach((m) => m.labels.forEach((l) => { l.el.textContent = l.text(); })); },
     // returns true if the click was consumed by a measuring tool
     handleClick(e) {

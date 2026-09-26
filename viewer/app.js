@@ -639,7 +639,7 @@ function selectRow(row, { frame = true } = {}) {
   markActive(row);
   measure.onSelectionChange();
   dismissIntro();
-  try { history.replaceState(null, '', `#part=${encodeURIComponent(row.label)}`); } catch { /* sandboxed */ }
+  try { history.replaceState(null, '', `#part=${encodeURIComponent(partRef(row))}`); } catch { /* sandboxed */ }
 }
 
 function clearSelection({ keepHash = false } = {}) {
@@ -652,12 +652,19 @@ function clearSelection({ keepHash = false } = {}) {
   if (!keepHash && location.hash) { try { history.replaceState(null, '', location.pathname + location.search); } catch { /* sandboxed */ } }
 }
 
+// Link reference for a part: its source label, plus "@n" when several rows
+// share a label (same component name at different sizes).
+function partRef(row) {
+  const same = rows.filter((r) => r.label === row.label);
+  return same.length > 1 ? `${row.label}@${same.indexOf(row) + 1}` : row.label;
+}
+
 function selectFromHash() {
   const m = /part=([^&]+)/.exec(location.hash);
   if (!m) return;
-  const label = decodeURIComponent(m[1]);
-  const row = rows.find((r) => r.label === label && r.clickable);
-  if (row) selectRow(row);
+  const ref = decodeURIComponent(m[1]);
+  const row = rows.find((r) => partRef(r) === ref) || rows.find((r) => r.label === ref.replace(/@\d+$/, ''));
+  if (row && row.clickable) selectRow(row);
 }
 window.addEventListener('hashchange', selectFromHash);
 
@@ -665,7 +672,8 @@ function stepSelection(delta) {
   const list = visibleRows().filter((r) => r.clickable);
   if (!list.length) return;
   const i = current ? list.findIndex((r) => r.key === current.row.key) : -1;
-  const next = list[(i + delta + list.length) % list.length];
+  // nothing selected (or selection filtered out): Down starts at the top, Up at the bottom
+  const next = i < 0 ? list[delta > 0 ? 0 : list.length - 1] : list[(i + delta + list.length) % list.length];
   selectRow(next);
 }
 
@@ -867,7 +875,7 @@ function contactHtml(row) {
   const mesh = current.meshes[0];
   if (!mesh) return '';
   const list = pieceContacts(mesh, row);
-  const link = ({ row: r, n }) => `<a href="#part=${encodeURIComponent(r.label)}" data-key="${escapeHtml(r.key)}">${escapeHtml(r.name)}</a>${n > 1 ? ` ×${n}` : ''}`;
+  const link = ({ row: r, n }) => `<a href="#part=${encodeURIComponent(partRef(r))}" data-key="${escapeHtml(r.key)}">${escapeHtml(r.name)}</a>${n > 1 ? ` ×${n}` : ''}`;
   const units = settings().units;
   if (isRod(row)) {
     const wood = list.filter((c) => c.row.category === 'Wood');
@@ -1087,6 +1095,7 @@ function captureOverview({ exploded = 0 } = {}) {
   meshes.forEach((m) => { m.visible = true; });
   setExplodePositions(exploded);
   if (savedWire) allMaterials().forEach((m) => { m.wireframe = false; });
+  measure.setVisible(false);
   renderer.localClippingEnabled = false; // ignore any section cut
   const capsOn = section.axis !== 'off';
   if (capsOn) showSectionCaps(false);
@@ -1106,6 +1115,7 @@ function captureOverview({ exploded = 0 } = {}) {
   applyMaterials();
   meshes.forEach((m, i) => { m.visible = savedVisible[i]; });
   renderer.localClippingEnabled = true;
+  measure.setVisible(true);
   if (capsOn) showSectionCaps(true);
   if (savedWire) setWireframe(true);
   setExplodePositions(savedExplode);
