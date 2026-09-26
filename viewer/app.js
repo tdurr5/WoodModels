@@ -9,6 +9,7 @@ import {
   prepareRows, renderCutList, renderRows, markActive, visibleRows, focusSearch, finishedDims, buildPrintSheet,
 } from './cutlist.js';
 import { initMeasure } from './measure.js';
+import { initDiagramModal, computeLayouts, layoutsHTML } from './diagram.js';
 
 const $ = (id) => document.getElementById(id);
 const viewport = $('viewport');
@@ -121,6 +122,7 @@ let explode = 0;
 let section = { axis: 'off', t: 1, flip: false };
 const clipPlane = new THREE.Plane(new THREE.Vector3(-1, 0, 0), 0);
 let current = null; // { row, meshes, box, gizmo: Group, labels: [{pos, el}] }
+let diagram = null; // cutting-diagram modal
 
 const dimCard = $('dimCard');
 const axisLabelsEl = $('axisLabels');
@@ -222,7 +224,8 @@ async function init() {
   rows = prepareRows(report, cfg);
   rows.forEach((r) => (r.obj_names || []).forEach((n) => rowByMeshName.set(n, r)));
 
-  renderCutList($('sidebar'), rows, cfg, { onSelect: (r) => selectRow(r), onPrint: printSheet });
+  renderCutList($('sidebar'), rows, cfg, { onSelect: (r) => selectRow(r), onPrint: printSheet, onDiagram: () => diagram.open() });
+  diagram = initDiagramModal({ rows, onSelectRow: (r) => selectRow(r) });
   buildViewButtons();
 
   const mtl = await loadMTL('scene.mtl');
@@ -841,7 +844,11 @@ function cropToContent(glCanvas, pad) {
 
 window.addEventListener('beforeprint', () => {
   const img = model ? captureOverview() : null;
-  buildPrintSheet($('printSheet'), rows, config, img);
+  // print-sized diagrams: 7.5" printable width at 96 css px per inch
+  const layouts = computeLayouts(rows);
+  const longest = Math.max(...layouts.flatMap((g) => g.boards.map((b) => b.length)), 1);
+  const diagrams = layouts.length ? layoutsHTML(layouts, { pxPerInch: 700 / longest, units: settings().units, colorFor: diagram.colorFor }) : '';
+  buildPrintSheet($('printSheet'), rows, config, img, diagrams);
 });
 
 // ---------- keyboard shortcuts ----------
@@ -859,6 +866,7 @@ window.addEventListener('keydown', (e) => {
   const k = e.key;
   if (k === 'Escape') {
     if ($('help').style.display === 'flex') toggleHelp(false);
+    else if (diagram && diagram.isOpen()) diagram.close();
     else if (measure.cancel()) syncToolButtons();
     else clearSelection();
   } else if (k === 'ArrowDown' || k === 'j') { stepSelection(1); e.preventDefault(); }
@@ -875,6 +883,7 @@ window.addEventListener('keydown', (e) => {
   else if (k === 'Backspace' || k === 'Delete') { if (measure.undo()) e.preventDefault(); }
   else if (k === '/') { focusSearch(); e.preventDefault(); }
   else if (k === '?') toggleHelp();
+  else if (k === 'c' && diagram) (diagram.isOpen() ? diagram.close() : diagram.open());
 });
 
 // ---------- per-frame ----------

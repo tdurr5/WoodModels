@@ -10,6 +10,7 @@ const DEFAULTS = {
   hiddenCategories: [],
   cut: [],          // row keys ticked off as cut / done
   isolate: false,   // hide (rather than ghost) unselected parts
+  stock: { length: 96, width: 8, kerf: 0.125 }, // lumber for cutting diagrams
 };
 
 let storageKey = 'woodmodels:settings';
@@ -21,7 +22,11 @@ export function initSettings(modelKey) {
   try {
     const saved = JSON.parse(localStorage.getItem(storageKey) || 'null');
     if (saved && typeof saved === 'object') {
-      state = { ...structuredClone(DEFAULTS), ...saved, allowance: { ...DEFAULTS.allowance, ...(saved.allowance || {}) } };
+      state = {
+        ...structuredClone(DEFAULTS), ...saved,
+        allowance: { ...DEFAULTS.allowance, ...(saved.allowance || {}) },
+        stock: { ...DEFAULTS.stock, ...(saved.stock || {}) },
+      };
     }
   } catch { /* storage unavailable or corrupt - fall back to defaults */ }
   return state;

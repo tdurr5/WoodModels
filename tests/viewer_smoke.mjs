@@ -290,18 +290,40 @@ try {
 
   await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
   const printRows = await page.locator('#printSheet tbody tr').count();
+  check(await page.locator('#printSheet .ps-diagrams .cd-board').count() >= 5, 'print sheet includes the cutting diagrams');
   check(printRows === 24, `print sheet lists every part (${printRows})`);
   await page.emulateMedia({ media: 'print' });
   await page.pdf({ path: path.join(OUT, 'cut-sheet.pdf'), format: 'Letter', margin: { top: '0.5in', bottom: '0.5in', left: '0.5in', right: '0.5in' } });
   await page.screenshot({ path: path.join(OUT, '15-print.png'), clip: { x: 0, y: 0, width: 1400, height: 900 } });
   await page.emulateMedia({ media: 'screen' });
 
+  console.log('cutting diagram');
+  await page.keyboard.press('c');
+  check(await page.locator('#diagram').isVisible(), 'C opens the cutting diagram');
+  const boards = await page.locator('#diagram .cd-board').count();
+  const shop = await page.locator('#diagram .cd-shop').innerText();
+  check(boards >= 5 && /8\/4 Wood/.test(shop), `diagram lays parts out on boards (${boards} boards)`);
+  const partsInDiagram = await page.locator('#diagram .part').count();
+  check(partsInDiagram === 26, `every wood piece appears once in the diagram (${partsInDiagram}/26)`);
+  await page.screenshot({ path: path.join(OUT, '16-cutting-diagram.png') });
+  await page.fill('#cdWidth', '12');
+  await page.locator('#cdWidth').dispatchEvent('change');
+  const boardsWide = await page.locator('#diagram .cd-board').count();
+  check(boardsWide <= boards, `wider stock needs no more boards (${boards} -> ${boardsWide})`);
+  await page.fill('#cdWidth', '8');
+  await page.locator('#cdWidth').dispatchEvent('change');
+  await page.locator('#diagram .part').first().click();
+  check(!(await page.locator('#diagram').isVisible()) && await page.locator('#clList .row.active').count() === 1, 'clicking a piece in the diagram selects that part');
+
+  const selectedBeforeReload = (await page.locator('#clList .row.active .name').innerText()).trim();
+
   console.log('cut tracking persists');
   await page.locator('#clList .row', { hasText: 'Leg Rear' }).first().locator('.cut-box').check();
   await page.reload();
   await page.waitForFunction(() => document.getElementById('loading').style.display === 'none', null, { timeout: 30000 });
   check(await page.locator('#clList .row.cut', { hasText: 'Leg Rear' }).count() === 1, 'ticked-off part stays ticked after reload');
-  check(await page.locator('#clList .row.active .name').innerText().catch(() => '') === 'Filler Front', 'reload restores the selection from the URL hash');
+  const selectedAfterReload = (await page.locator('#clList .row.active .name').innerText().catch(() => '')).trim();
+  check(selectedAfterReload === selectedBeforeReload, `reload restores the selection from the URL hash (${selectedAfterReload})`);
   check(await page.locator('#clRough').isChecked(), 'settings persist across reload');
 
   console.log('help');

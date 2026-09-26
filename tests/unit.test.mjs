@@ -129,3 +129,87 @@ test('angleBetween / dihedral / slope', () => {
   near(s.fromPlumb, 45);
   near(slopeAngles([0, 0, 0], [0, 0, 5]).fromLevel, 0);
 });
+
+// ---------- nesting ----------
+import { packBoards, boardParts, boardYield, piecesByStock } from '../viewer/nesting.js';
+
+function assertValidLayout(result, stock) {
+  const kerf = stock.kerf ?? 0.125;
+  for (const b of result.boards) {
+    const parts = boardParts(b);
+    for (const p of parts) {
+      assert.ok(p.x >= -1e-9 && p.y >= -1e-9, 'part inside board origin');
+      assert.ok(p.x + p.length <= b.length + 1e-9, `part ${p.id} runs off the end of the board`);
+      assert.ok(p.y + p.width <= b.width + 1e-9, `part ${p.id} runs off the edge of the board`);
+    }
+    for (let i = 0; i < parts.length; i++) {
+      for (let j = i + 1; j < parts.length; j++) {
+        const a = parts[i], c = parts[j];
+        const apart = a.x + a.length + kerf <= c.x + 1e-9 || c.x + c.length + kerf <= a.x + 1e-9
+          || a.y + a.width + kerf <= c.y + 1e-9 || c.y + c.width + kerf <= a.y + 1e-9;
+        assert.ok(apart, `parts ${a.id} and ${c.id} overlap (or share a kerf)`);
+      }
+    }
+  }
+}
+
+test('packBoards: one part on one board', () => {
+  const r = packBoards([{ id: 'a', label: 'A', length: 30, width: 4 }], { length: 96, width: 8 });
+  assert.equal(r.boards.length, 1);
+  assert.deepEqual(boardParts(r.boards[0]).map((p) => [p.x, p.y]), [[0, 0]]);
+});
+
+test('packBoards: short parts share strips and sections before a new board', () => {
+  const pieces = Array.from({ length: 6 }, (_, i) => ({ id: `k${i}`, label: 'Key', length: 2.875, width: 1 }));
+  const r = packBoards(pieces, { length: 96, width: 8 });
+  assert.equal(r.boards.length, 1);
+  assert.equal(r.boards[0].sections.length, 1, 'all keys come out of one crosscut section');
+  assertValidLayout(r, { kerf: 0.125 });
+});
+
+test('packBoards: fills a board before starting another', () => {
+  // four 47-3/8 x 8-1/8 wouldn't fit 8" stock; use 45 x 3.5 on 96 x 8 -> 2 per section across, 2 sections
+  const pieces = Array.from({ length: 4 }, (_, i) => ({ id: `p${i}`, label: 'P', length: 45, width: 3.5 }));
+  const r = packBoards(pieces, { length: 96, width: 8, kerf: 0.125 });
+  assert.equal(r.boards.length, 1);
+  assertValidLayout(r, { kerf: 0.125 });
+  const five = packBoards([...pieces, { id: 'p4', label: 'P', length: 45, width: 3.5 }], { length: 96, width: 8 });
+  assert.equal(five.boards.length, 2);
+});
+
+test('packBoards: oversize parts get their own flagged board', () => {
+  const r = packBoards([{ id: 'wide', label: 'W', length: 20, width: 10 }], { length: 96, width: 8 });
+  assert.equal(r.boards.length, 1);
+  assert.equal(r.boards[0].oversize, true);
+  assert.equal(r.boards[0].width, 10);
+  const long = packBoards([{ id: 'long', label: 'L', length: 120, width: 3 }], { length: 96, width: 8 });
+  assert.equal(long.boards[0].length, 120);
+});
+
+test('packBoards: random cut lists never overlap or overhang', () => {
+  let seed = 42;
+  const rand = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+  for (let trial = 0; trial < 60; trial++) {
+    const stock = { length: [72, 96, 120][trial % 3], width: [6, 8, 10][trial % 3], kerf: [0, 0.125, 0.25][trial % 3] };
+    const pieces = Array.from({ length: 1 + Math.floor(rand() * 25) }, (_, i) => ({
+      id: `t${trial}-${i}`, label: 'x',
+      length: 1 + rand() * (stock.length * 1.1), width: 0.5 + rand() * stock.width * 1.1,
+    }));
+    const r = packBoards(pieces, stock);
+    assertValidLayout(r, stock);
+    assert.equal(r.boards.reduce((n, b) => n + boardParts(b).length, 0), pieces.length, 'every piece placed exactly once');
+  }
+});
+
+test('boardYield and piecesByStock', () => {
+  const r = packBoards([{ id: 'a', label: 'A', length: 48, width: 8 }], { length: 96, width: 8 });
+  near(boardYield(r.boards[0]), 0.5);
+  const rows = [
+    { key: 'leg', name: 'Leg', count: 2, materialLabel: 'Wood', dims: [20, 3, 1.625] },
+    { key: 'peg', name: 'Peg', count: 1, materialLabel: 'Wood', dims: [16, 3, 1] },
+    { key: 'rod', name: 'Rod', count: 1, materialLabel: 'Steel', dims: [6, 0.5, 0.5] },
+  ];
+  const groups = piecesByStock(rows, (r) => (r.materialLabel === 'Wood' ? roughStock(r.dims) : null));
+  assert.deepEqual(groups.map((g) => [g.thicknessLabel, g.pieces.length]), [['5/4', 1], ['8/4', 2]]);
+  assert.equal(groups[1].pieces[0].length, 21);
+});

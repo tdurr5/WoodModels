@@ -114,6 +114,9 @@ export function renderCutList(container, rows, config, h) {
         <button id="clCsv" title="Download the cut list as a spreadsheet (CSV)">Export CSV</button>
         <button id="clPrint" title="Print a shop cut sheet with checkboxes">Print cut sheet</button>
       </div>
+      <div class="cl-row">
+        <button id="clDiagram" title="Lay the parts out on boards: what lumber to buy and how to cut it (C)">Cutting diagram &amp; lumber to buy</button>
+      </div>
     </div>
     <div id="clSummary" class="cl-summary"></div>
     <div id="clList"></div>
@@ -142,6 +145,7 @@ export function renderCutList(container, rows, config, h) {
   });
   container.querySelector('#clCsv').addEventListener('click', () => downloadCSV(allRows, config));
   container.querySelector('#clPrint').addEventListener('click', () => handlers.onPrint && handlers.onPrint());
+  container.querySelector('#clDiagram').addEventListener('click', () => handlers.onDiagram && handlers.onDiagram());
   renderRows();
 }
 
@@ -303,7 +307,7 @@ function downloadCSV(rows, config) {
 
 // ---------- printable cut sheet ----------
 
-export function buildPrintSheet(target, rows, config, imageDataUrl) {
+export function buildPrintSheet(target, rows, config, imageDataUrl, extraHtml = '') {
   const s = settings();
   const t = totals(rows);
   const sections = [];
@@ -335,5 +339,6 @@ export function buildPrintSheet(target, rows, config, imageDataUrl) {
       </table>`).join('')}
     <div class="ps-tot">${t.pieces} wood pieces · ${t.finishedBF.toFixed(1)} bf finished · ${t.roughBF.toFixed(1)} bf rough
       (allowance +${formatLength(s.allowance.length, s.units)} L, +${formatLength(s.allowance.width, s.units)} W) — buy ~20% extra for defects.</div>
+    ${extraHtml ? `<div class="ps-diagrams"><h2>Cutting diagrams</h2>${extraHtml}</div>` : ''}
   `;
 }
