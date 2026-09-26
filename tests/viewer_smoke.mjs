@@ -398,6 +398,7 @@ try {
   await page.reload();
   await page.waitForFunction(() => document.getElementById('loading').style.display === 'none', null, { timeout: 30000 });
   check(await page.locator('#clList .row.cut', { hasText: 'Leg Rear' }).count() === 1, 'ticked-off part stays ticked after reload');
+  check(/2 of 26 pieces cut/.test(await page.locator('.progress').innerText()), 'progress counts pieces (Leg Rear ×2 = 2 of 26)');
   const selectedAfterReload = await activeRowName().catch(() => '');
   check(selectedAfterReload === selectedBeforeReload, `reload restores the selection from the URL hash (${selectedAfterReload})`);
   check(await page.locator('#clRough').isChecked(), 'settings persist across reload');

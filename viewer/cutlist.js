@@ -87,10 +87,10 @@ export function totals(rows) {
     m.roughBF += rb;
     m.byThickness[rough.thicknessLabel] = (m.byThickness[rough.thicknessLabel] || 0) + rb;
   });
+  // progress counts pieces, so ticking off "Bench x2" counts as two
   const cutSet = new Set(settings().cut);
-  const trackable = rows.filter((r) => r.category === 'Wood');
-  const done = trackable.filter((r) => cutSet.has(r.key)).length;
-  return { pieces, finishedBF, roughBF, byMaterial, done, trackable: trackable.length };
+  const done = wood.filter((r) => cutSet.has(r.key)).reduce((n, r) => n + r.count, 0);
+  return { pieces, finishedBF, roughBF, byMaterial, done, trackable: pieces };
 }
 
 // ---------- sidebar ----------
@@ -277,7 +277,7 @@ function renderSummary() {
     <div class="sum-line"><b>${t.pieces}</b> wood pieces · <b>${t.finishedBF.toFixed(1)}</b> bf finished</div>
     ${mats}
     <div class="muted small">Rough adds ${formatLength(s.allowance.length, s.units)} length, ${formatLength(s.allowance.width, s.units)} width, next 4/4-5/4-8/4… thickness. Buy ~20% extra for defects.</div>
-    <div class="progress" title="Wood parts ticked off as cut"><div style="width:${pct}%"></div><span>${t.done}/${t.trackable} cut</span></div>
+    <div class="progress" title="Wood pieces ticked off as cut"><div style="width:${pct}%"></div><span>${t.done} of ${t.trackable} pieces cut</span></div>
   `;
 }
 
