@@ -19,7 +19,20 @@ export function prepareRows(rawRows, config, edits = config.edits) {
   // groups nobody named (group_12, instance_9) are numbered Group 1, 2, ...
   const generic = [...new Set(rawRows.map((r) => String(r.top_group)))].filter(isGenericName).sort();
   const groupName = (g) => ed.groups[g] || (generic.includes(g) ? `Group ${generic.indexOf(g) + 1}` : displayName(g, config.displayNames));
-  const rows = rawRows.map((r) => {
+  // single pieces deleted or set aside split off into their own row
+  const split = [];
+  rawRows.forEach((r) => {
+    const names = r.obj_names || [];
+    const moved = names.filter((n) => ed.pieces[n]);
+    if (!moved.length || r.count !== names.length) { split.push(r); return; }
+    const rest = names.filter((n) => !ed.pieces[n]);
+    if (rest.length) split.push({ ...r, obj_names: rest, count: rest.length });
+    ['deleted', 'aside'].forEach((st) => {
+      const these = moved.filter((n) => ed.pieces[n] === st);
+      if (these.length) split.push({ ...r, obj_names: these, count: these.length, pieceStatus: st });
+    });
+  });
+  const rows = split.map((r) => {
     // parts with no material use the model's "(none)" setting, if it has one
     const matName = (r.materials || []).find((m) => mats[m]) || (r.materials || [])[0] || (mats['(none)'] ? '(none)' : '');
     const category = (mats[matName] && mats[matName].category) || 'Other';
@@ -32,11 +45,13 @@ export function prepareRows(rawRows, config, edits = config.edits) {
     const configNote = (config.notes || {})[r.label];
     const warning = r.warning || configNote;
     const notes = [r.note, r.warning, configNote].filter(Boolean);
-    const key = `${r.label}|${r.dims.join('x')}`;
+    const baseKey = `${r.label}|${r.dims.join('x')}`;
+    const key = r.pieceStatus ? `${baseKey}#${r.pieceStatus}` : baseKey;
     return {
       ...r,
       key,
-      name: ed.names[key] || displayName(r.label, config.displayNames),
+      baseKey,
+      name: ed.names[baseKey] || displayName(r.label, config.displayNames),
       groupName: groupName(String(r.top_group)),
       category,
       material: matName,
@@ -48,7 +63,10 @@ export function prepareRows(rawRows, config, edits = config.edits) {
       clickable: !!(r.obj_names && r.obj_names.length),
     };
   });
-  rows.forEach((r) => { r.status = rowStatus(r, ed); });
+  rows.forEach((r) => {
+    const s = rowStatus({ ...r, key: r.baseKey }, ed);
+    r.status = s === 'deleted' || r.pieceStatus === 'deleted' ? 'deleted' : (s || r.pieceStatus || null);
+  });
   const catRank = (c) => { const i = order.indexOf(c); return i < 0 ? order.length : i; };
   rows.sort((a, b) => catRank(a.category) - catRank(b.category)
     || String(a.top_group).localeCompare(String(b.top_group))

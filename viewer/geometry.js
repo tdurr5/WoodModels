@@ -80,3 +80,42 @@ export function partsTouch(A, trisA, B, trisB, tol = 0.03) {
   };
   return edgesHit(trisA, B) || edgesHit(trisB, A);
 }
+
+// Pieces of the same cross-section lying in the same place: a board copied
+// and left on top of itself, or slid along (two 68" rails overlapping by 56"
+// that look like one 80" rail). Rough models have these; a dowel in a hole or
+// a tenon in a mortise has a different cross-section, so it isn't flagged.
+// dims: object_dims.json. Returns [{ a, b, overlap, span }] (inches, along
+// the pieces' length), each pair once.
+export function findOverlaps(dims, { tol = 1 / 16, minOverlap = 1 } = {}) {
+  const parts = Object.entries(dims)
+    .filter(([, d]) => d.axes && d.axes.length === 3)
+    .map(([name, d]) => ({ name, c: d.center, ax: d.axes.map((a) => a.direction), len: d.axes.map((a) => a.length) }));
+  // bucket by cross-section so only look-alikes are compared
+  const buckets = new Map();
+  parts.forEach((p) => {
+    const k = `${Math.round(p.len[1] * 16)}|${Math.round(p.len[2] * 16)}`;
+    if (!buckets.has(k)) buckets.set(k, []);
+    buckets.get(k).push(p);
+  });
+  const out = [];
+  buckets.forEach((list) => {
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        const A = list[i], B = list[j];
+        if (Math.abs(A.len[1] - B.len[1]) > tol || Math.abs(A.len[2] - B.len[2]) > tol) continue;
+        // same orientation: length along length, width along width
+        if (Math.abs(dot(A.ax[0], B.ax[0])) < 0.999 || Math.abs(dot(A.ax[1], B.ax[1])) < 0.999) continue;
+        const d = sub(B.c, A.c);
+        // side by side is fine; they must sit on the same line
+        if (Math.abs(dot(d, A.ax[1])) > tol || Math.abs(dot(d, A.ax[2])) > tol) continue;
+        const t = dot(d, A.ax[0]);
+        const lo = Math.max(-A.len[0] / 2, t - B.len[0] / 2), hi = Math.min(A.len[0] / 2, t + B.len[0] / 2);
+        if (hi - lo < minOverlap) continue;
+        const span = Math.max(A.len[0] / 2, t + B.len[0] / 2) - Math.min(-A.len[0] / 2, t - B.len[0] / 2);
+        out.push({ a: A.name, b: B.name, overlap: hi - lo, span });
+      }
+    }
+  });
+  return out;
+}

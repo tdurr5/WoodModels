@@ -6,12 +6,14 @@
 //                                tools drawn on the bench: kept with its sizes,
 //                                left out of totals, shopping list and prints)
 //                    | 'build'  (overrides a default, e.g. a flat face)
+//   pieces  mesh name -> 'deleted' | 'aside' for one piece of a part with
+//           several (e.g. one of two copies of a board left on top of each other)
 // Row keys are `${label}|${dims}` like everywhere else. Pure functions; app.js
 // stores the result (in the uploaded model itself, or in browser storage).
 
 export function normalizeEdits(e) {
   const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? { ...v } : {});
-  return { names: obj(e?.names), groups: obj(e?.groups), status: obj(e?.status) };
+  return { names: obj(e?.names), groups: obj(e?.groups), status: obj(e?.status), pieces: obj(e?.pieces) };
 }
 
 // A loose face with no thickness isn't a piece of wood: set aside by default.
@@ -34,6 +36,13 @@ export function withStatus(edits, rows, status) {
   return next;
 }
 
+// single pieces (mesh names); status 'deleted' | 'aside' | null
+export function withPieceStatus(edits, names, status) {
+  const next = normalizeEdits(edits);
+  names.forEach((n) => { if (status) next.pieces[n] = status; else delete next.pieces[n]; });
+  return next;
+}
+
 export function withName(edits, key, name) {
   const next = normalizeEdits(edits);
   if (name && name.trim()) next.names[key] = name.trim(); else delete next.names[key];
@@ -46,4 +55,4 @@ export function withGroupName(edits, group, name) {
   return next;
 }
 
-export const hasEdits = (e) => Object.keys(e.names).length + Object.keys(e.groups).length + Object.keys(e.status).length > 0;
+export const hasEdits = (e) => ['names', 'groups', 'status', 'pieces'].some((k) => Object.keys(e[k]).length > 0);

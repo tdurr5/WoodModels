@@ -339,3 +339,8 @@ body.dragging #dropHint { display: flex; }
 .group-title .gt-name { cursor: pointer; }
 .group-title .gt-name:hover { text-decoration: underline; }
 .group-title.active .gt-name { color: var(--accent-text); }
+.axisLabel.differs { outline: 2px solid var(--warn); outline-offset: 1px; }
+.axisLabel.version { color: #111; border-radius: 50%; min-width: 18px; text-align: center; font-weight: 700; box-shadow: 0 0 0 2px #ff5b3d; }
+#dimCard .card-variants { margin: 3px 0 0 0; padding-left: 16px; font-style: normal; }
+#dimCard .card-variants li { margin: 1px 0; }
+#dimCard .card-piece { margin-top: 6px; font-size: 11.5px; color: var(--text-2); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }

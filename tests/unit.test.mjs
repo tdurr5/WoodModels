@@ -374,5 +374,41 @@ test('edits: names are trimmed and cleared by an empty name', () => {
   assert.deepEqual(e.names, {});
   e = withGroupName(e, 'group_7', 'Base');
   assert.deepEqual(e.groups, { group_7: 'Base' });
-  assert.deepEqual(normalizeEdits({ names: [], status: 'x' }), { names: {}, groups: {}, status: {} }, 'bad data is ignored');
+  assert.deepEqual(normalizeEdits({ names: [], status: 'x' }), { names: {}, groups: {}, status: {}, pieces: {} }, 'bad data is ignored');
+});
+
+// ---------- overlapping copies and single-piece edits ----------
+import { findOverlaps } from '../viewer/geometry.js';
+import { prepareRows } from '../viewer/cutlist.js';
+import { withPieceStatus } from '../viewer/edits.js';
+
+const board = (x, z, len = 68, w = 3.5, t = 1.5) => ({
+  center: [x, 10, z],
+  axes: [{ direction: [0, 0, 1], length: len }, { direction: [0, 1, 0], length: w }, { direction: [1, 0, 0], length: t }],
+});
+
+test('findOverlaps: a copy slid along another board is flagged with the combined length', () => {
+  const o = findOverlaps({ a: board(0, 0), b: board(0, 12), side: board(5, 0), dowel: board(0, 3, 3, 0.75, 0.75) });
+  assert.equal(o.length, 1);
+  assert.deepEqual([o[0].a, o[0].b].sort(), ['a', 'b']);
+  near(o[0].overlap, 56);
+  near(o[0].span, 80);
+});
+
+test('findOverlaps: boards end to end or side by side are not overlaps', () => {
+  assert.equal(findOverlaps({ a: board(0, 0), b: board(0, 68) }).length, 0);
+  assert.equal(findOverlaps({ a: board(0, 0), b: board(1.5, 0) }).length, 0);
+});
+
+test('prepareRows: one deleted piece splits off its own row', () => {
+  const raw = [{ label: 'Rail', top_group: 'Base', dims: [68, 3.5, 1.5], count: 3, materials: [], obj_names: ['r1', 'r2', 'r3'], dims_str: '68 x 3-1/2 x 1-1/2' }];
+  const rows = prepareRows(raw, { materials: {} }, withPieceStatus(null, ['r2'], 'deleted'));
+  const main = rows.find((r) => !r.status), gone = rows.find((r) => r.status === 'deleted');
+  assert.equal(main.count, 2);
+  assert.deepEqual(main.obj_names, ['r1', 'r3']);
+  assert.equal(main.key, 'Rail|68x3.5x1.5');
+  assert.equal(gone.count, 1);
+  assert.deepEqual(gone.obj_names, ['r2']);
+  assert.notEqual(gone.key, main.key);
+  assert.equal(gone.letter, '');
 });

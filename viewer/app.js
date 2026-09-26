@@ -9,13 +9,13 @@ import {
   prepareRows, renderCutList, renderRows, markActive, visibleRows, focusSearch, finishedDims, buildPrintSheet, isRod, userNote,
   millingPlanHTML, setCutListRows, inlineEdit, markActiveGroup,
 } from './cutlist.js';
-import { normalizeEdits, withStatus, withName, withGroupName } from './edits.js';
+import { normalizeEdits, withStatus, withName, withGroupName, withPieceStatus } from './edits.js';
 import { initMeasure } from './measure.js';
 import { initDiagramModal, computeLayouts, layoutsHTML } from './diagram.js';
 import { buildTemplate } from './template.js';
 import { initLibrary } from './library.js';
 import { getModelFiles, lastOpened, rememberOpened, putModelFile } from './modelstore.js';
-import { obbFromDims, partsTouch } from './geometry.js';
+import { obbFromDims, partsTouch, findOverlaps } from './geometry.js';
 
 const $ = (id) => document.getElementById(id);
 const viewport = $('viewport');
@@ -123,6 +123,7 @@ let allPartRows = [];   // plus parts set aside or deleted (edits.js)
 let rawRows = [];       // parts_report.json as loaded
 let edits = normalizeEdits(null);
 let modelKey = 'model'; // per-model storage key
+let overlaps = [];      // same-size pieces sharing space (geometry.js findOverlaps)
 let model = null;
 const meshes = [];                 // every part mesh
 const meshByName = new Map();      // obj name -> mesh
@@ -281,7 +282,9 @@ async function init() {
   applyTheme();
   rawRows = JSON.parse(files['parts_report.json']);
   edits = loadEdits(cfg);
+  overlaps = findOverlaps(objectDims);
   allPartRows = prepareRows(rawRows, cfg, edits);
+  addOverlapNotes(allPartRows);
   rows = allPartRows.filter((r) => !r.status);
   allPartRows.forEach((r) => (r.obj_names || []).forEach((n) => rowByMeshName.set(n, r)));
 
@@ -379,7 +382,37 @@ function setPartStatus(list, status) {
   if (!list.length) return;
   const what = list.length === 1 ? `"${list[0].name}"` : `${list.length} parts`;
   const msg = status === 'deleted' ? `Deleted ${what}` : status === 'aside' ? `Set aside ${what} - not in the build` : `Put ${what} back in the build`;
-  commitEdits(withStatus(edits, list, status), msg);
+  // rows split off from single pieces change those pieces; others the whole part
+  let next = withStatus(edits, list.filter((r) => !r.pieceStatus).map((r) => ({ ...r, key: r.baseKey })), status);
+  const pieces = list.filter((r) => r.pieceStatus).flatMap((r) => r.obj_names);
+  if (pieces.length) next = withPieceStatus(next, pieces, status);
+  commitEdits(next, msg);
+}
+// one piece (mesh) of a part that has several
+function setPieceStatus(mesh, status) {
+  const row = rowByMeshName.get(mesh.name);
+  const msg = `${status === 'deleted' ? 'Deleted' : 'Set aside'} one piece of "${row?.name || 'part'}"`;
+  commitEdits(withPieceStatus(edits, [mesh.name], status), msg);
+}
+
+// Warn on parts with a same-size piece lying in the same space - a copy left
+// on top of another, or two boards slid along each other that look like one
+// longer board. Notes go on the rows (sidebar and card).
+function addOverlapNotes(all) {
+  const rowOf = new Map();
+  all.forEach((r) => (r.obj_names || []).forEach((n) => rowOf.set(n, r)));
+  const units = settings().units;
+  overlaps.forEach((o) => {
+    const ra = rowOf.get(o.a), rb = rowOf.get(o.b);
+    if (!ra || !rb || ra.status || rb.status) return;
+    const text = (other) => `Overlaps ${other === ra && ra === rb ? 'another piece of this part' : `"${other.name}"`} by ${formatLength(o.overlap, units)} - two pieces in the same space (together ${formatLength(o.span, units)} long). Probably a copy left in the model, or meant as one longer piece.`;
+    [[ra, rb, o.b], [rb, ra, o.a]].forEach(([r, other, otherMesh]) => {
+      const t = text(other);
+      if (!r.notes.includes(t)) r.notes.push(t);
+      r.warn = true;
+      (r.overlapPieces = r.overlapPieces || []).push(otherMesh);
+    });
+  });
 }
 function renamePart(row, name) { commitEdits(withName(edits, row.key, name), name ? `Renamed to "${name}"` : 'Name reset'); }
 function renameGroup(group, name) { commitEdits(withGroupName(edits, group, name), name ? `Group renamed to "${name}"` : 'Group name reset'); }
@@ -387,6 +420,7 @@ function renameGroup(group, name) { commitEdits(withGroupName(edits, group, name
 // Rebuild the rows after an edit, keeping the 3D scene, camera and selection.
 function refreshRows() {
   allPartRows = prepareRows(rawRows, config, edits);
+  addOverlapNotes(allPartRows);
   rows = allPartRows.filter((r) => !r.status);
   rowByMeshName.clear();
   allPartRows.forEach((r) => (r.obj_names || []).forEach((n) => rowByMeshName.set(n, r)));
@@ -398,7 +432,14 @@ function refreshRows() {
   if (current) {
     const row = allPartRows.find((r) => r.key === current.row.key);
     if (!row || row.status === 'deleted') clearSelection();
-    else { current.row = row; renderDimCard(); markActive(row, false); }
+    else {
+      current.row = row;
+      // a piece of it may have been deleted or set aside
+      current.meshes = row.obj_names.map((n) => meshByName.get(n)).filter(Boolean);
+      if (!current.meshes.includes(current.piece)) current.piece = null;
+      buildSelectionOverlays();
+      markActive(row, false);
+    }
   }
   updateModelBox();
   applyMaterials();
@@ -455,11 +496,14 @@ function prepareMeshes(materialNames) {
     hl.emissive = new THREE.Color(0xff5b3d);
     hl.emissiveIntensity = 0.55;
     if (!hl.map) hl.color = new THREE.Color(0xff8a66);
+    const hlPiece = hl.clone(); // the one piece clicked of a part with several
+    hlPiece.emissive = new THREE.Color(0xffb020);
+    if (!hlPiece.map) hlPiece.color = new THREE.Color(0xffc266);
     const row = rowByMeshName.get(child.name);
     meshes.push(child);
     meshByName.set(child.name, child);
     child.geometry.computeBoundingBox();
-    meshInfo.set(child, { orig, dim, hl, row, baseCenter: child.geometry.boundingBox.getCenter(new THREE.Vector3()) });
+    meshInfo.set(child, { orig, dim, hl, hlPiece, row, baseCenter: child.geometry.boundingBox.getCenter(new THREE.Vector3()) });
   });
   updateModelBox();
 
@@ -481,7 +525,7 @@ function prepareMeshes(materialNames) {
 // ---------- materials / visibility ----------
 function allMaterials() {
   const out = [];
-  meshInfo.forEach(({ orig, dim, hl }) => out.push(orig, dim, hl));
+  meshInfo.forEach(({ orig, dim, hl, hlPiece }) => out.push(orig, dim, hl, hlPiece));
   return out;
 }
 
@@ -495,7 +539,7 @@ function applyMaterials() {
     const inGroup = !current && groupSel !== null && info.row?.top_group === groupSel;
     const isSel = selected.has(m) || inGroup;
     m.visible = isSel || (isShownPart(m) && !catHidden && !(s.isolate && (current || groupSel !== null) && !isSel));
-    m.material = !current && groupSel === null ? info.orig : isSel ? info.hl : info.dim;
+    m.material = !current && groupSel === null ? info.orig : isSel ? (current?.piece === m && current.meshes.length > 1 ? info.hlPiece : info.hl) : info.dim;
   });
 }
 
@@ -678,6 +722,7 @@ function applySettingsToScene() {
 onSettingsChange((s, patch) => {
   if ('units' in patch || 'showRough' in patch || 'allowance' in patch || 'cut' in patch || 'hiddenCategories' in patch || 'userNotes' in patch || 'showAside' in patch) renderRows();
   if ('showAside' in patch && model) updateModelBox();
+  if ('units' in patch && model && overlaps.length) refreshRows(); // overlap notes are written in the units shown
   // typing a note mustn't rebuild the card it's being typed into
   if (Object.keys(patch).every((k) => k === 'userNotes')) return;
   if ('hiddenCategories' in patch && current && settings().hiddenCategories.includes(current.row.category)) clearSelection();
@@ -859,24 +904,37 @@ function buildSelectionOverlays() {
     const helper = new THREE.Box3Helper(current.box, new THREE.Color(0x555555));
     gizmo.add(helper);
   }
-  // Identical copies share dimensions, so only dimension the first one; show
-  // the lean on each, since mirrored pairs lean in opposite directions.
+  // Dimension every piece (the pieces in one row share a size to 1/16", but
+  // not always their holes and cuts, and a named part can differ slightly);
+  // a measurement that differs from the first piece's is flagged. Show the
+  // lean on each, since mirrored pairs lean in opposite directions.
+  const first = objectDims[current.meshes[0]?.name];
+  // (hardware with a hand-written size is stored as one mesh per facet: not versions)
+  const variants = current.row.customDims ? [] : pieceVariants(current.meshes);
   current.meshes.forEach((m, i) => {
     const data = objectDims[m.name];
     if (!data || !data.axes) return;
     const sub = new THREE.Group();
     sub.position.copy(m.position); // exploded-view offset
-    if (i === 0) buildDimensionGizmo(sub, data, labelSpecs, m.position);
+    if (i < MAX_DIMENSIONED) buildDimensionGizmo(sub, data, labelSpecs, m.position, i ? first : null);
     buildAngleGizmo(sub, data, labelSpecs, m.position);
+    // several versions of the part: number each piece by its version
+    if (variants.length > 1) {
+      const v = variants.findIndex((g) => g.meshes.includes(m));
+      labelSpecs.push({ pos: new THREE.Vector3(...data.center).add(m.position), text: `${v + 1}`, color: '#f2f2f2', cls: 'version' });
+    }
     gizmo.add(sub);
   });
+  current.variants = variants;
   scene.add(gizmo);
   current.gizmo = gizmo;
   current.labels = labelSpecs.map((spec) => {
     const el = document.createElement('div');
-    el.className = 'axisLabel';
+    el.className = `axisLabel${spec.differs ? ' differs' : ''}${spec.cls ? ` ${spec.cls}` : ''}`;
     el.textContent = spec.text;
     el.style.background = spec.color;
+    if (spec.differs) el.title = 'Different from the first piece';
+    if (spec.cls === 'version') el.title = `Version ${spec.text} of this part - see the part card`;
     axisLabelsEl.appendChild(el);
     return { pos: spec.pos, el };
   });
@@ -886,7 +944,54 @@ function buildSelectionOverlays() {
 const MARGIN = 0.6;   // inches, how far the dimension line stands off the part's face
 const TICK_LEN = 0.5; // inches, length of the little perpendicular end-ticks
 
-function buildDimensionGizmo(group, data, labelSpecs, offset) {
+const MAX_DIMENSIONED = 12; // pieces of one row that get dimension lines
+
+// The selected pieces grouped into versions: same size (in the units shown)
+// and the same surface area (holes, slots and notches change it).
+function pieceVariants(list) {
+  const units = settings().units;
+  const size = (m) => (objectDims[m.name]?.axes || []).map((a) => formatLength(a.length, units)).join('|');
+  const out = [];
+  list.forEach((m) => {
+    const info = meshInfo.get(m);
+    if (info.area === undefined) info.area = meshArea(m);
+    const k = size(m);
+    const v = out.find((g) => g.size === k && Math.abs(g.area - info.area) <= Math.max(0.25, g.area * 0.002));
+    if (v) v.meshes.push(m); else out.push({ size: k, area: info.area, meshes: [m] });
+  });
+  return out;
+}
+
+function meshArea(m) {
+  const pos = singleSidedGeometry(m.geometry).attributes.position;
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), tri = new THREE.Triangle();
+  let area = 0;
+  for (let i = 0; i + 2 < pos.count; i += 3) {
+    a.fromBufferAttribute(pos, i); b.fromBufferAttribute(pos, i + 1); c.fromBufferAttribute(pos, i + 2);
+    area += tri.set(a, b, c).getArea();
+  }
+  return area;
+}
+
+// Card lines for a part whose pieces aren't all the same.
+function variantsHtml(variants) {
+  if (!variants || variants.length < 2) return '';
+  const units = settings().units;
+  const dimsOf = (g) => {
+    const axes = objectDims[g.meshes[0].name]?.axes || [];
+    return axes.length === 3 ? [2, 1, 0].map((i) => formatLength(axes[i].length, units)).join(' × ') : '';
+  };
+  const base = variants[0];
+  const items = variants.map((g, i) => {
+    const what = i === 0 ? dimsOf(g) : g.size !== base.size ? dimsOf(g) : 'same size, different holes / cuts';
+    return `<li><b>${i + 1}</b> ×${g.meshes.length} · ${escapeHtml(what)}</li>`;
+  }).join('');
+  const n = variants.reduce((k, g) => k + g.meshes.length, 0);
+  return `<div class="card-note warn">⚠ These ${n} pieces aren't all identical - ${variants.length} versions (numbered on the model):<ul class="card-variants">${items}</ul></div>`;
+}
+
+// ref: the first piece's dimensions, to flag measurements that differ from it
+function buildDimensionGizmo(group, data, labelSpecs, offset, ref = null) {
   if (data.axes.length < 3) return;
   const units = settings().units;
   const center = new THREE.Vector3(...data.center);
@@ -909,7 +1014,9 @@ function buildDimensionGizmo(group, data, labelSpecs, offset) {
       const t = axes[j].dir.clone().multiplyScalar(TICK_LEN / 2);
       group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([p.clone().sub(t), p.clone().add(t)]), mat));
     });
-    labelSpecs.push({ pos: lineCenter.clone().add(offset), text: formatLength(axes[i].length, units), color: AXIS_COLORS[axes[i].role] });
+    const text = formatLength(axes[i].length, units);
+    const differs = !!ref && ref.axes[i] && formatLength(ref.axes[i].length, units) !== text;
+    labelSpecs.push({ pos: lineCenter.clone().add(offset), text, color: AXIS_COLORS[axes[i].role], differs });
   }
 }
 
@@ -1157,18 +1264,23 @@ function renderDimCard() {
     <div class="dim-axes">${row.customDims ? '' : 'Thickness × Width × Length'}</div>
     ${angleHtml(data)}
     <div class="meta">qty ${row.count} · ${escapeHtml(row.materialLabel)} · ${escapeHtml(row.groupName)}</div>
+    ${variantsHtml(current.variants)}
     ${contactHtml(row)}
     ${notes}
     <details class="card-mynote"${userNote(row) ? ' open' : ''}>
       <summary>${userNote(row) ? 'Your note' : 'Add a note'}</summary>
       <textarea rows="2" placeholder="e.g. use the quartersawn offcut; check grain runout">${escapeHtml(userNote(row))}</textarea>
     </details>
+    ${row.overlapPieces?.length && !row.status ? '<div class="card-actions"><button class="card-btn danger" data-act="del-overlap" title="Delete the overlapping copy (you can restore it from Deleted)">Delete the overlapping copy</button></div>' : ''}
+    ${current.piece && row.count > 1 && !row.pieceStatus && !row.status ? `<div class="card-piece">The piece you clicked:
+      <button class="card-btn" data-act="piece-aside" title="Set aside just this piece">Set aside</button>
+      <button class="card-btn danger" data-act="piece-delete" title="Delete just this piece, not all ${row.count}">Delete</button></div>` : ''}
     <div class="card-actions">
       ${data && row.category === 'Wood' && !row.status ? '<button class="card-btn" data-act="template" title="Print this part at full size to trace onto your stock">Print full-size template</button>' : ''}
       ${row.status === 'aside'
     ? '<button class="card-btn" data-act="build" title="Put this part back in the build">Put back in build</button>'
-    : '<button class="card-btn" data-act="aside" title="Keep it with its sizes, but leave it out of the build: totals, shopping list, prints (e.g. a tool drawn on the bench)">Set aside</button>'}
-      <button class="card-btn danger" data-act="delete" title="Delete from this model: a mistake or junk in the model (Del). You can restore it.">Delete</button>
+    : `<button class="card-btn" data-act="aside" title="Keep it with its sizes, but leave it out of the build: totals, shopping list, prints (e.g. a tool drawn on the bench)">Set aside${row.count > 1 ? ` all ×${row.count}` : ''}</button>`}
+      <button class="card-btn danger" data-act="delete" title="Delete from this model: a mistake or junk in the model (Del). You can restore it.">Delete${row.count > 1 ? ` all ×${row.count}` : ''}</button>
     </div>
   `;
   dimCard.style.display = 'block';
@@ -1195,6 +1307,12 @@ function renderDimCard() {
   dimCard.querySelector('[data-act="aside"]')?.addEventListener('click', () => setPartStatus([row], 'aside'));
   dimCard.querySelector('[data-act="build"]')?.addEventListener('click', () => setPartStatus([row], null));
   dimCard.querySelector('[data-act="delete"]').addEventListener('click', () => setPartStatus([row], 'deleted'));
+  dimCard.querySelector('[data-act="piece-aside"]')?.addEventListener('click', () => setPieceStatus(current.piece, 'aside'));
+  dimCard.querySelector('[data-act="piece-delete"]')?.addEventListener('click', () => setPieceStatus(current.piece, 'deleted'));
+  dimCard.querySelector('[data-act="del-overlap"]')?.addEventListener('click', () => {
+    const m = meshByName.get(row.overlapPieces[0]);
+    if (m) setPieceStatus(m, 'deleted');
+  });
 }
 
 // ---------- hover + click picking ----------
@@ -1298,6 +1416,12 @@ renderer.domElement.addEventListener('click', (e) => {
   if (!hit) { if (current) clearSelection(); return; }
   const row = rowByMeshName.get(hit.object.name);
   if (row && (!current || row.key !== current.row.key)) selectRow(row, { frame: false });
+  // remember which of the part's pieces was clicked (to delete just that one)
+  if (current && row && row.key === current.row.key && current.piece !== hit.object) {
+    current.piece = hit.object;
+    applyMaterials();
+    renderDimCard();
+  }
 });
 renderer.domElement.addEventListener('dblclick', (e) => { if (current?.box && !wasDrag(e)) frameBox(current.box, null); });
 

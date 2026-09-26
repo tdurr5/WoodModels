@@ -799,6 +799,22 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     await p2.locator('.aside-section summary', { hasText: 'Deleted' }).click();
     await p2.locator('.aside-section .row', { hasText: 'Seat Handle' }).locator('[data-act=build]').click();
     check((await names()).includes('Seat Handle') && (await names()).length === 24, 'restoring brings it back');
+
+    // one piece of a part with several
+    await p2.locator('#clList .row', { hasText: 'Bench' }).first().click();
+    await p2.waitForTimeout(300);
+    const benchLabels = await p2.locator('#axisLabels .axisLabel').allInnerTexts();
+    check(benchLabels.filter((t) => t === '46-3/8"').length === 2, `every piece of a part gets its own dimensions (${benchLabels.join(' ')})`);
+    const [pt] = await p2.evaluate(visibleFacePoints, 1);
+    await p2.mouse.click(pt.x, pt.y);
+    await p2.waitForTimeout(300);
+    check(await p2.locator('#dimCard .card-piece').isVisible(), 'clicking one piece in 3D offers actions for just that piece');
+    await p2.locator('#dimCard [data-act=piece-delete]').click();
+    const benchRow = await p2.locator('#clList > .row', { hasText: 'Bench' }).first().innerText();
+    check(/×1/.test(benchRow) && await p2.locator('.aside-section .row', { hasText: 'Bench' }).count() === 1, `deleting one piece leaves the rest (${benchRow.replace(/\n/g, ' ')})`);
+    check(/qty 1/.test(await p2.locator('#dimCard').innerText()), 'the card updates to the pieces left');
+    await p2.keyboard.press('Control+z');
+    check(/×2/.test(await p2.locator('#clList > .row', { hasText: 'Bench' }).first().innerText()), 'undo brings the piece back');
   } finally {
     await b2.close();
   }
