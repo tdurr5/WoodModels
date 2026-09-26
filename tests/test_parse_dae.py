@@ -1,0 +1,172 @@
+"""Tests for parse_dae.py. Run with: python3 -m unittest discover -s tests"""
+import contextlib
+import json
+import math
+import os
+import sys
+import tempfile
+import unittest
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(HERE)
+sys.path.insert(0, ROOT)
+sys.path.insert(0, HERE)
+
+import parse_dae  # noqa: E402
+import make_fixture  # noqa: E402
+
+
+def load_json(*parts):
+    with open(os.path.join(*parts)) as f:
+        return json.load(f)
+
+
+class Helpers(unittest.TestCase):
+    def test_to_frac(self):
+        self.assertEqual(parse_dae.to_frac(12.4697), '12-1/2"')
+        self.assertEqual(parse_dae.to_frac(0.5), '1/2"')
+        self.assertEqual(parse_dae.to_frac(3), '3"')
+        self.assertEqual(parse_dae.to_frac(2.999), '3"')
+
+    def test_fit_box_axis_aligned(self):
+        ext, center, axes = parse_dae.fit_box(make_fixture.box_corners(10, 4, 1))
+        self.assertEqual(sorted(round(e, 6) for e in ext), [1, 4, 10])
+        self.assertEqual(tuple(round(c, 6) for c in center), (5, 2, 0.5))
+        self.assertEqual(axes, ((1, 0, 0), (0, 1, 0), (0, 0, 1)))
+
+    def test_fit_box_pre_rotated_mesh_uses_pca(self):
+        pts = [make_fixture.rot_z(p, 30) for p in make_fixture.box_corners(12, 3, 1.5)]
+        ext, _, axes = parse_dae.fit_box(pts)
+        self.assertEqual(sorted(round(e, 4) for e in ext), [1.5, 3, 12])
+        long_axis = axes[max(range(3), key=lambda i: ext[i])]
+        self.assertAlmostEqual(abs(long_axis[0]), math.cos(math.radians(30)), places=4)
+
+    def test_fit_box_empty(self):
+        self.assertEqual(parse_dae.fit_box([])[0], (0, 0, 0))
+
+    def test_axis_angle(self):
+        self.assertIsNone(parse_dae.compute_axis_angle((0, 1, 0)))
+        a = parse_dae.compute_axis_angle((0.2065, 0.948805, 0.239014))  # rear leg
+        self.assertEqual(a['reference'], '+Y (vertical)')
+        self.assertEqual(a['total_deg'], 18.4)
+        self.assertEqual([(c['label'], c['deg']) for c in a['components']], [('x', 12.3), ('z', 14.1)])
+
+
+class ConvertFixture(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        dae = os.path.join(cls.tmp.name, 'mini.dae')
+        with open(dae, 'w') as f:
+            f.write(make_fixture.build())
+        cls.out = os.path.join(cls.tmp.name, 'out')
+        parse_dae.main([dae, '-o', cls.out, '-q'])
+        cls.rows = load_json(cls.out, 'parts_report.json')
+        cls.dims = load_json(cls.out, 'object_dims.json')
+        cls.materials = load_json(cls.out, 'materials.json')
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def row(self, label):
+        return next(r for r in self.rows if r['label'] == label)
+
+    def test_cut_list_rows(self):
+        self.assertEqual([r['label'] for r in self.rows], ['Board', 'Leg'])  # plan sheet excluded
+
+    def test_identical_instances_are_counted(self):
+        board = self.row('Board')
+        self.assertEqual(board['count'], 2)
+        self.assertEqual(board['dims'], [10, 4, 1])
+        self.assertEqual(board['dims_str'], '10" x 4" x 1"')
+        self.assertEqual(board['top_group'], 'Body')
+        self.assertEqual(len(board['obj_names']), 2)
+
+    def test_library_node_behind_generic_wrapper_keeps_component_name(self):
+        leg = self.row('Leg')
+        self.assertEqual(leg['top_group'], 'Legs')
+        self.assertEqual(leg['paths'], ['Legs/Leg'])
+        self.assertEqual(leg['dims'], [12, 3, 1.5])  # PCA recovers the true board
+
+    def test_edge_color_materials_ignored(self):
+        self.assertEqual(self.row('Board')['materials'], ['Wood'])
+        self.assertEqual(self.materials, {'ID_wood': 'Wood'})
+
+    def test_object_dims_follow_world_transform(self):
+        leg = self.dims[self.row('Leg')['obj_names'][0]]
+        length = leg['axes'][0]
+        self.assertEqual(length['role'], 'Length')
+        self.assertAlmostEqual(length['length'], 12, places=3)
+        # local 30deg-about-Z, stood up by a 90deg rotation about X, then Z-up -> Y-up:
+        # the leg rises 30 deg from horizontal along X
+        d = length['direction']
+        self.assertAlmostEqual(abs(d[0]), math.cos(math.radians(30)), places=4)
+        self.assertAlmostEqual(abs(d[1]), math.sin(math.radians(30)), places=4)
+        self.assertEqual(length['angle']['total_deg'], 30.0)
+
+        board_a, board_b = (self.dims[n] for n in self.row('Board')['obj_names'])
+        # 6" apart along source Y -> -Z in the Y-up output
+        self.assertAlmostEqual(board_a['center'][2] - board_b['center'][2], 6, places=4)
+        self.assertAlmostEqual(board_a['center'][1], 20.5, places=4)  # source Z 20 + half thickness
+
+    def test_obj_is_well_formed(self):
+        verts = faces = 0
+        objects = []
+        with open(os.path.join(self.out, 'scene.obj')) as f:
+            for line in f:
+                if line.startswith('v '):
+                    verts += 1
+                elif line.startswith('f '):
+                    faces += 1
+                    self.assertTrue(all(1 <= int(i) <= verts for i in line.split()[1:]))
+                elif line.startswith('o '):
+                    objects.append(line[2:].strip())
+        self.assertEqual(len(objects), 3)
+        self.assertEqual(verts, 24)
+        # board: 12 tris + 1 edge-material tri; leg polylist: 6 quads -> 12 tris
+        self.assertEqual(faces, 13 * 2 + 12)
+        self.assertEqual(set(objects), set(self.dims))
+
+    def test_cli_requires_input(self):
+        env = os.environ.pop('WOODMODELS_DAE', None)
+        try:
+            with open(os.devnull, 'w') as devnull, contextlib.redirect_stderr(devnull), self.assertRaises(SystemExit):
+                parse_dae.main([])
+        finally:
+            if env is not None:
+                os.environ['WOODMODELS_DAE'] = env
+
+
+class CommittedViewerData(unittest.TestCase):
+    """The checked-in viewer data must be internally consistent."""
+
+    @classmethod
+    def setUpClass(cls):
+        v = os.path.join(ROOT, 'viewer')
+        cls.rows = load_json(v, 'parts_report.json')
+        cls.dims = load_json(v, 'object_dims.json')
+        with open(os.path.join(v, 'scene.obj')) as f:
+            cls.objects = {line[2:].strip() for line in f if line.startswith('o ')}
+
+    def test_every_linked_mesh_exists(self):
+        for r in self.rows:
+            for n in r['obj_names']:
+                self.assertIn(n, self.objects, f"{r['label']} links to missing mesh {n}")
+                self.assertIn(n, self.dims)
+
+    def test_every_mesh_belongs_to_one_row(self):
+        linked = [n for r in self.rows for n in r['obj_names']]
+        self.assertEqual(len(linked), len(set(linked)))
+        self.assertEqual(set(linked), self.objects)
+
+    def test_dims_sorted_and_axes_unit_length(self):
+        for r in self.rows:
+            self.assertEqual(r['dims'], sorted(r['dims'], reverse=True))
+        for name, d in self.dims.items():
+            for a in d['axes']:
+                self.assertAlmostEqual(math.hypot(*a['direction']), 1, places=4, msg=name)
+
+
+if __name__ == '__main__':
+    unittest.main()
