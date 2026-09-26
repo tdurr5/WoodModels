@@ -11,7 +11,9 @@ A 3D cut-list viewer for woodworking plans, starting with the Lie-Nielsen/Brian 
 - `viewer/` - the browser app (three.js, no build step)
   - `index.html`, `style.css`, `app.js` - page, styles, 3D scene and selection
   - `cutlist.js` - sidebar cut list, totals, CSV export, printable cut sheet
-  - `diagram.js`, `nesting.js` - cutting diagrams / lumber to buy
+  - `diagram.js`, `nesting.js` - shopping list, cost estimate, cutting diagrams
+  - `template.js` - printable full-size part templates
+  - `geometry.js` - oriented-box contact tests (what joins what, where holes go)
   - `measure.js` - distance / angle / bevel tools with snapping
   - `angles.js`, `format.js` - compound-angle math, fractions, rough stock, board feet (pure, unit-tested)
   - `settings.js` - per-browser preferences (units, allowances, parts ticked off)
@@ -40,15 +42,23 @@ Then open http://localhost:8743. three.js loads from unpkg, so the first load ne
 - **Units**: fractional inches (1/16, 1/32, 1/8), decimal inches or mm.
 - **Rough stock**: shows the lumber to mill each part from: the next standard thickness (4/4, 5/4, 8/4, 10/4…) plus length and width allowances you can set. Board feet are shown per part, and totals per species and thickness.
 - **Tick parts off** as you cut them; the progress bar and your ticks are remembered in the browser.
-- **Filter** (`/`), **hide a category** in 3D (e.g. hardware), **Export CSV**, **Print cut sheet** (or Ctrl+P). The printed sheet has checkboxes, rough sizes, an overview picture and the cutting diagrams.
-- **Cutting diagram** (`C`): lays the rough parts out on boards of your stock size (length, width, kerf), grouped by species and thickness. Shows how many boards to buy and how much of each is used. Cuts follow a real sequence: crosscut into sections, rip into strips, crosscut the parts. Click a piece to find it in 3D.
+- **Filter** (`/`), **hide a category** in 3D (e.g. hardware), **Export CSV**, **Print cut sheet** (or Ctrl+P). The printed sheet has checkboxes, rough sizes, your notes, an overview picture, a drilling list, the shopping list and the cutting diagrams.
+- **Shopping list & cutting diagram** (`C`):
+  - Lays the rough parts out on boards of your stock size (length, width, kerf), grouped by species and thickness. Shows how many boards to buy and how much of each is used, and flags when an offcut will do.
+  - Cuts follow a real sequence: crosscut into sections, rip into strips, crosscut the parts. Click a piece to find it in 3D.
+  - Hardware is totalled per size, e.g. rod pieces and the stock length to buy.
+  - Enter a price per board foot for a lumber cost estimate.
+- **Your notes**: add a note to any part from its card; it shows in the list, CSV and printout.
 - ⚠ notes flag known problems in the source model (e.g. rods whose name says 8-1/4" but are modeled 6-7/8").
 
 **3D view**
 - Click a part (on the model or in the list) to isolate it. You'll see its dimensions drawn on the part's own axes and a card with size, quantity and angles.
 - Angled parts show their lean as arcs: total lean from plumb (or level), split into front-to-back and side-to-side components. Legs also get the chairmaker's resultant/sightline angle and a bevel-gauge setting.
+- The card lists what the part **joins** (click to jump there) and its **holes**, e.g. "4 × ⌀1/2" for Threaded Rod". A rod's card is a drilling list of the parts it passes through.
+- **Print full-size template** (on a wood part's card): face and edge views at 1:1, tiled across letter pages with a 1" check square. Tape the tiles together and trace the part onto your stock.
 - **3D / Front / Side / Top** views (`1`-`4`). Straight-on views switch to **Ortho** for true-scale elevations (`O` toggles it).
-- **Explode** slider (`E`), **Section** cut along any axis, **Isolate** (`I`), **Wireframe** (`W`), **Screenshot**.
+- **Explode** slider (`E`), **Section** cut along any axis (cut faces are drawn solid and hatched, like a drawing), **Isolate** (`I`), **Wireframe** (`W`), **Screenshot**, **Light/Dark** theme (`L`).
+- Works on tablets and phones: tap to select, pinch to zoom, drag to orbit.
 - `↑`/`↓` step through parts, `F` or double-click frames the selection, `Esc` clears. The URL tracks the selected part (`#part=Leg_Rear`), so you can link straight to it.
 
 **Measuring**: select a part first to measure just that part, or measure anywhere with nothing selected.
