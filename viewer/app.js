@@ -322,6 +322,90 @@ function applyMaterials() {
   });
 }
 
+// Section caps: solid cut faces instead of hollow shells. Each part gets an
+// invisible, clipped copy that flips the stencil bit on every surface a pixel's
+// ray crosses (parity), leaving it set exactly where the cut plane is inside a
+// solid; one plane on the cut then draws only there and clears the stencil.
+// SketchUp exports every face as a back-to-back pair of triangles, which would
+// cancel out, so the copy keeps one triangle of each pair. The copies are
+// children of their part so they follow the exploded view and visibility.
+let capMesh = null;
+const stencilHelpers = [];
+
+function singleSidedGeometry(geo) {
+  const src = geo.index ? geo.toNonIndexed() : geo;
+  const pos = src.attributes.position.array;
+  const seen = new Set();
+  const keep = [];
+  const k = (i) => `${pos[i].toFixed(4)},${pos[i + 1].toFixed(4)},${pos[i + 2].toFixed(4)}`;
+  for (let t = 0; t + 8 < pos.length; t += 9) {
+    const key = [k(t), k(t + 3), k(t + 6)].sort().join('|');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    for (let j = 0; j < 9; j++) keep.push(pos[t + j]);
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.Float32BufferAttribute(keep, 3));
+  return out;
+}
+
+function ensureSectionCaps() {
+  if (capMesh) return;
+  const flip = new THREE.MeshBasicMaterial({
+    side: THREE.DoubleSide, colorWrite: false, depthWrite: false, depthTest: false,
+    stencilWrite: true, stencilFunc: THREE.AlwaysStencilFunc, stencilWriteMask: 1,
+    stencilFail: THREE.InvertStencilOp, stencilZFail: THREE.InvertStencilOp, stencilZPass: THREE.InvertStencilOp,
+    clippingPlanes: [clipPlane],
+  });
+  meshes.forEach((m) => {
+    const h = new THREE.Mesh(singleSidedGeometry(m.geometry), flip);
+    h.renderOrder = 1;
+    h.raycast = () => {}; // never pickable
+    m.add(h);
+    stencilHelpers.push(h);
+  });
+  const size = modelBox.getSize(new THREE.Vector3()).length() * 4;
+  // drafting-style diagonal hatch, one line every 3/8"
+  const hc = document.createElement('canvas');
+  hc.width = hc.height = 32;
+  const hg = hc.getContext('2d');
+  hg.fillStyle = '#f1dfbd';
+  hg.fillRect(0, 0, 32, 32);
+  hg.strokeStyle = '#a0763f';
+  hg.lineWidth = 3;
+  hg.beginPath();
+  hg.moveTo(-8, 40); hg.lineTo(40, -8);
+  hg.moveTo(-8, 8); hg.lineTo(8, -8);
+  hg.moveTo(24, 40); hg.lineTo(40, 24);
+  hg.stroke();
+  const hatch = new THREE.CanvasTexture(hc);
+  hatch.wrapS = hatch.wrapT = THREE.RepeatWrapping;
+  hatch.repeat.set(size / 0.375, size / 0.375);
+  hatch.colorSpace = THREE.SRGBColorSpace;
+  capMesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshBasicMaterial({
+    map: hatch, side: THREE.DoubleSide,
+    stencilWrite: true, stencilRef: 0, stencilFuncMask: 1, stencilFunc: THREE.NotEqualStencilFunc,
+    stencilFail: THREE.ZeroStencilOp, stencilZFail: THREE.ZeroStencilOp, stencilZPass: THREE.ZeroStencilOp,
+  }));
+  capMesh.renderOrder = 2;
+  capMesh.raycast = () => {};
+  scene.add(capMesh);
+}
+
+function showSectionCaps(on) {
+  if (on) ensureSectionCaps();
+  stencilHelpers.forEach((h) => { h.visible = on; });
+  if (capMesh) capMesh.visible = on;
+}
+
+function placeCap() {
+  if (!capMesh) return;
+  // plane: normal·p + constant = 0 -> the point on it nearest the model center
+  const p = clipPlane.projectPoint(modelCenter, new THREE.Vector3());
+  capMesh.position.copy(p);
+  capMesh.lookAt(p.clone().add(clipPlane.normal));
+}
+
 function applySection() {
   const on = section.axis !== 'off';
   if (on) {
@@ -334,9 +418,10 @@ function applySection() {
   }
   allMaterials().forEach((mat) => {
     mat.clippingPlanes = on ? [clipPlane] : [];
-    mat.side = on ? THREE.DoubleSide : THREE.FrontSide;
     mat.needsUpdate = true;
   });
+  showSectionCaps(on);
+  if (on) placeCap();
 }
 
 function setWireframe(on) {
@@ -938,6 +1023,8 @@ function captureOverview() {
   meshes.forEach((m) => { m.visible = true; m.position.set(0, 0, 0); });
   if (savedWire) allMaterials().forEach((m) => { m.wireframe = false; });
   renderer.localClippingEnabled = false; // ignore any section cut
+  const capsOn = section.axis !== 'off';
+  if (capsOn) showSectionCaps(false);
   grid.visible = false;
   scene.background = new THREE.Color(0xffffff);
   frameBox(modelBox, config.views?.iso?.dir || [0.7, 0.5, 0.7], false);
@@ -953,6 +1040,7 @@ function captureOverview() {
   applyMaterials();
   meshes.forEach((m, i) => { m.visible = savedVisible[i]; });
   renderer.localClippingEnabled = true;
+  if (capsOn) showSectionCaps(true);
   if (savedWire) setWireframe(true);
   if (savedExplode) setExplodePositions(savedExplode);
   renderer.setSize(saved.size.x, saved.size.y, false);

@@ -247,6 +247,8 @@ try {
   await page.waitForTimeout(100);
   const clipped = await page.evaluate(() => window.__viewer.scene.getObjectByName('Body_Bench').material.clippingPlanes.length);
   check(clipped === 1, 'section cut applies a clipping plane');
+  const capOn = await page.evaluate(() => window.__viewer.scene.children.some((o) => o.isMesh && o.material.stencilWrite && o.visible));
+  check(capOn, 'section cut shows hatched caps on the cut faces');
   await page.screenshot({ path: path.join(OUT, '10-section.png') });
   await page.selectOption('#sectionAxis', 'off');
   await selectPart('Seat Block');
