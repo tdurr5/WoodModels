@@ -11,6 +11,7 @@ const DEFAULTS = {
   cut: [],          // row keys ticked off as cut / done
   isolate: false,   // hide (rather than ghost) unselected parts
   stock: { length: 96, width: 8, kerf: 0.125 }, // lumber for cutting diagrams
+  theme: 'dark',    // 'dark' | 'light'
 };
 
 let storageKey = 'woodmodels:settings';

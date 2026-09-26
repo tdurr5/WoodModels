@@ -361,6 +361,14 @@ try {
   await page.screenshot({ path: path.join(OUT, '13-help.png') });
   await page.keyboard.press('Escape');
 
+  console.log('light theme');
+  await page.keyboard.press('l');
+  check(await page.evaluate(() => document.documentElement.dataset.theme) === 'light', 'L switches to the light theme');
+  await selectPart('Leg Rear');
+  await page.screenshot({ path: path.join(OUT, '18-light-theme.png') });
+  await page.keyboard.press('l');
+  check(await page.evaluate(() => document.documentElement.dataset.theme) === 'dark', 'and back to dark');
+
   console.log('mobile layout');
   await page.setViewportSize({ width: 390, height: 800 });
   await page.waitForTimeout(400);

@@ -223,6 +223,7 @@ async function init() {
   objectDims = dims;
   document.title = `${cfg.title || 'Model'} — Cut List Viewer`;
   initSettings((cfg.title || 'model').toLowerCase().replace(/[^a-z0-9]+/g, '-'));
+  applyTheme();
   rows = prepareRows(report, cfg);
   rows.forEach((r) => (r.obj_names || []).forEach((n) => rowByMeshName.set(n, r)));
 
@@ -341,7 +342,31 @@ function setExplode(f) {
   if (current) buildSelectionOverlays();
 }
 
+const THEMES = {
+  dark: { bg: 0x1b1c1f, grid: [0x444444, 0x2a2a2a] },
+  light: { bg: 0xf4f1ec, grid: [0xb5ada0, 0xddd6cb] },
+};
+function applyTheme() {
+  const name = settings().theme === 'light' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = name;
+  const t = THEMES[name];
+  scene.background = new THREE.Color(t.bg);
+  const [c1, c2] = t.grid;
+  const colors = grid.geometry.attributes.color;
+  // GridHelper bakes its two colours into vertex colours: centre lines first
+  const center = new THREE.Color(c1), other = new THREE.Color(c2);
+  const n = colors.count, divisions = 24, perLine = 4;
+  for (let i = 0; i < n; i++) {
+    const line = Math.floor(i / perLine);
+    const c = line === divisions / 2 ? center : other;
+    colors.setXYZ(i, c.r, c.g, c.b);
+  }
+  colors.needsUpdate = true;
+  $('themeBtn').textContent = name === 'light' ? 'Dark' : 'Light';
+}
+
 function applySettingsToScene() {
+  applyTheme();
   applyMaterials();
   $('isolateBtn').classList.toggle('on', settings().isolate);
   if (current) buildSelectionOverlays();
@@ -845,6 +870,7 @@ $('shotBtn').addEventListener('click', () => {
   a.click();
 });
 $('helpBtn').addEventListener('click', () => toggleHelp());
+$('themeBtn').addEventListener('click', () => updateSettings({ theme: settings().theme === 'light' ? 'dark' : 'light' }));
 $('helpClose').addEventListener('click', () => toggleHelp(false));
 $('sidebarToggle').addEventListener('click', () => document.body.classList.toggle('sidebar-collapsed'));
 
@@ -984,6 +1010,7 @@ window.addEventListener('keydown', (e) => {
   else if (/^[1-9]$/.test(k) && viewKeys[+k - 1]) setView(viewKeys[+k - 1]);
   else if (k === 'o') $('orthoBtn').click();
   else if (k === 'w') setWireframe(!wireOn);
+  else if (k === 'l') $('themeBtn').click();
   else if (k === 'i') updateSettings({ isolate: !settings().isolate });
   else if (k === 'e') setExplode(explode > 0 ? 0 : 0.6);
   else if (k === 'd') setTool('distance');
