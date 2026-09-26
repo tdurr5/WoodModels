@@ -251,10 +251,11 @@ function loadMaterials(root) {
   return info;
 }
 
+// file unit -> inches; no unit given means metres (COLLADA spec)
 function readUnitScale(root) {
   const unit = kid(kid(root, 'asset'), 'unit');
-  let meter = unit ? parseFloat(unit.getAttribute('meter')) : INCH_IN_METERS;
-  if (!Number.isFinite(meter)) meter = INCH_IN_METERS;
+  let meter = unit && unit.getAttribute('meter') ? parseFloat(unit.getAttribute('meter')) : 1;
+  if (!Number.isFinite(meter)) meter = 1;
   return meter > 0 ? meter / INCH_IN_METERS : 1;
 }
 
@@ -263,16 +264,36 @@ function readUpAxis(root) {
   return el && el.textContent.trim().toUpperCase() === 'Y_UP' ? 'Y_UP' : 'Z_UP';
 }
 
+function rotation4(axis, deg) {
+  const [x, y, z] = axis.some((v) => v) ? normalize(axis) : [1, 0, 0];
+  const a = deg * Math.PI / 180;
+  const c = Math.cos(a), s = Math.sin(a), t = 1 - Math.cos(a);
+  return [t * x * x + c, t * x * y - s * z, t * x * z + s * y, 0,
+    t * x * y + s * z, t * y * y + c, t * y * z - s * x, 0,
+    t * x * z - s * y, t * y * z + s * x, t * z * z + c, 0,
+    0, 0, 0, 1];
+}
+
+// The node's local transform: <matrix>, <translate>, <rotate>, <scale>
+// composed in document order; translations converted to inches.
 function parseMatrix(node, scale) {
-  const m = kid(node, 'matrix');
-  if (m && m.textContent.trim()) {
-    const vals = numbers(m.textContent);
-    if (vals.length === 16) {
-      vals[3] *= scale; vals[7] *= scale; vals[11] *= scale;
-      return vals;
+  let m = IDENTITY4;
+  for (const el of node.children) {
+    const tag = el.localName;
+    if (!['matrix', 'translate', 'rotate', 'scale'].includes(tag)) continue;
+    const v = numbers(el.textContent);
+    if (tag === 'matrix' && v.length === 16) {
+      v[3] *= scale; v[7] *= scale; v[11] *= scale;
+      m = matMul(m, v);
+    } else if (tag === 'translate' && v.length === 3) {
+      m = matMul(m, [1, 0, 0, v[0] * scale, 0, 1, 0, v[1] * scale, 0, 0, 1, v[2] * scale, 0, 0, 0, 1]);
+    } else if (tag === 'rotate' && v.length === 4) {
+      m = matMul(m, rotation4(v.slice(0, 3), v[3]));
+    } else if (tag === 'scale' && v.length === 3) {
+      m = matMul(m, [v[0], 0, 0, 0, 0, v[1], 0, 0, 0, 0, v[2], 0, 0, 0, 0, 1]);
     }
   }
-  return IDENTITY4;
+  return m;
 }
 
 function materialBindings(ig) {
@@ -285,8 +306,32 @@ function materialBindings(ig) {
 function resolveInstances(root, scale) {
   const libNodes = new Map();
   desc(root, 'library_nodes').forEach((lib) => desc(lib, 'node').forEach((n) => { if (n.getAttribute('id')) libNodes.set(n.getAttribute('id'), n); }));
+  // skinned meshes: <instance_controller> -> controller/skin -> source geometry, in bind pose
+  const controllers = new Map();
+  desc(root, 'library_controllers').forEach((lib) => kids(lib, 'controller').forEach((c) => {
+    const skin = kid(c, 'skin');
+    if (!skin || !skin.getAttribute('source')) return;
+    const bsm = kid(skin, 'bind_shape_matrix');
+    const v = bsm ? numbers(bsm.textContent) : [];
+    if (v.length === 16) { v[3] *= scale; v[7] *= scale; v[11] *= scale; }
+    controllers.set(c.getAttribute('id'), [skin.getAttribute('source').replace(/^#/, ''), v.length === 16 ? v : IDENTITY4]);
+  }));
+
   const instances = [];
   const depthGuard = new Set();
+
+  function addInstance(el, gid, world, namePath, topGroup) {
+    let label = namePath.length ? namePath[namePath.length - 1] : gid;
+    if (label === 'Head__2__6' && namePath.length >= 2 && namePath[namePath.length - 2] === 'Nut_3_4') label = 'Nut_3_4';
+    instances.push({
+      label,
+      path: namePath.length ? namePath.join('/') : gid,
+      top_group: topGroup || (namePath.length ? namePath[0] : gid),
+      geom_id: gid,
+      world_matrix: world,
+      material_bindings: materialBindings(el),
+    });
+  }
 
   function visit(node, parentMatrix, namePath, topGroup) {
     const world = matMul(parentMatrix, parseMatrix(node, scale));
@@ -296,18 +341,10 @@ function resolveInstances(root, scale) {
       namePath = [...namePath, name];
       if (topGroup === null) topGroup = name;
     }
-    for (const ig of kids(node, 'instance_geometry')) {
-      const gid = ig.getAttribute('url').replace(/^#/, '');
-      let label = namePath.length ? namePath[namePath.length - 1] : gid;
-      if (label === 'Head__2__6' && namePath.length >= 2 && namePath[namePath.length - 2] === 'Nut_3_4') label = 'Nut_3_4';
-      instances.push({
-        label,
-        path: namePath.length ? namePath.join('/') : gid,
-        top_group: topGroup || (namePath.length ? namePath[0] : gid),
-        geom_id: gid,
-        world_matrix: world,
-        material_bindings: materialBindings(ig),
-      });
+    for (const ig of kids(node, 'instance_geometry')) addInstance(ig, ig.getAttribute('url').replace(/^#/, ''), world, namePath, topGroup);
+    for (const ic of kids(node, 'instance_controller')) {
+      const ctrl = controllers.get(ic.getAttribute('url').replace(/^#/, ''));
+      if (ctrl) addInstance(ic, ctrl[0], matMul(world, ctrl[1]), namePath, topGroup);
     }
     for (const inode of kids(node, 'instance_node')) {
       const target = libNodes.get(inode.getAttribute('url').replace(/^#/, ''));
@@ -322,7 +359,7 @@ function resolveInstances(root, scale) {
 
   const vs = desc(kid(root, 'library_visual_scenes'), 'visual_scene')[0];
   const roots = kids(vs, 'node');
-  if (roots.length === 1 && !kid(roots[0], 'instance_geometry')) {
+  if (roots.length === 1 && !kid(roots[0], 'instance_geometry') && !kid(roots[0], 'instance_controller')) {
     for (const child of kids(roots[0], 'node')) visit(child, parseMatrix(roots[0], scale), [], null);
   } else {
     for (const node of roots) visit(node, IDENTITY4, [], null);

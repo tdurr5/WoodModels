@@ -23,7 +23,14 @@ import sys
 import xml.etree.ElementTree as ET
 from fractions import Fraction
 
+# COLLADA 1.4 namespace; use_namespace() switches to whatever a file declares
+# (1.5 is 'http://www.collada.org/2008/03/COLLADASchema', some files have none).
 NS = {'c': 'http://www.collada.org/2005/11/COLLADASchema'}
+
+
+def use_namespace(root):
+    m = re.match(r'^\{([^}]*)\}', root.tag)
+    NS['c'] = m.group(1) if m else ''
 
 # Parts under a top-level group with this prefix are the printed plan sheet
 # SketchUp embeds in the model, not something you build.
@@ -330,24 +337,46 @@ INCH_IN_METERS = 0.0254
 
 def read_unit_scale(root):
     """Factor converting the file's length unit to inches, from
-    <asset><unit meter="...">. SketchUp writes inches (meter="0.0254"); if a
-    file doesn't say, assume inches too, as this script always has."""
+    <asset><unit meter="...">. SketchUp writes inches (meter="0.0254"); a
+    file that doesn't say is in metres, per the COLLADA spec."""
     unit = root.find(f'{q("asset")}/{q("unit")}', NS)
     try:
-        meter = float(unit.get('meter')) if unit is not None else INCH_IN_METERS
+        meter = float(unit.get('meter')) if unit is not None and unit.get('meter') else 1.0
     except (TypeError, ValueError):
-        meter = INCH_IN_METERS
+        meter = 1.0
     return meter / INCH_IN_METERS if meter > 0 else 1.0
 
 
+def rotation4(axis, deg):
+    x, y, z = normalize(axis) if any(axis) else (1.0, 0.0, 0.0)
+    a = math.radians(deg)
+    c, s_, t = math.cos(a), math.sin(a), 1 - math.cos(a)
+    return (t*x*x + c, t*x*y - s_*z, t*x*z + s_*y, 0,
+            t*x*y + s_*z, t*y*y + c, t*y*z - s_*x, 0,
+            t*x*z - s_*y, t*y*z + s_*x, t*z*z + c, 0,
+            0, 0, 0, 1)
+
+
 def parse_matrix(node, scale=1.0):
-    mel = node.find(q('matrix'), NS)
-    if mel is not None and mel.text:
-        vals = [float(x) for x in mel.text.split()]
-        if len(vals) == 16:
+    """The node's local transform: its <matrix>, <translate>, <rotate> and
+    <scale> elements composed in document order. Translations are converted to
+    inches with `scale`."""
+    m = IDENTITY4
+    for el in node:
+        tag = el.tag.split('}')[-1]
+        if tag not in ('matrix', 'translate', 'rotate', 'scale'):
+            continue
+        vals = [float(x) for x in (el.text or '').split()]
+        if tag == 'matrix' and len(vals) == 16:
             vals[3] *= scale; vals[7] *= scale; vals[11] *= scale  # translation -> inches
-            return tuple(vals)
-    return IDENTITY4
+            m = mat_mul(m, tuple(vals))
+        elif tag == 'translate' and len(vals) == 3:
+            m = mat_mul(m, (1, 0, 0, vals[0]*scale, 0, 1, 0, vals[1]*scale, 0, 0, 1, vals[2]*scale, 0, 0, 0, 1))
+        elif tag == 'rotate' and len(vals) == 4:
+            m = mat_mul(m, rotation4(vals[:3], vals[3]))
+        elif tag == 'scale' and len(vals) == 3:
+            m = mat_mul(m, (vals[0], 0, 0, 0, 0, vals[1], 0, 0, 0, 0, vals[2], 0, 0, 0, 0, 1))
+    return m
 
 
 def get_material_bindings(instance_geometry_el):
@@ -365,11 +394,40 @@ def resolve_instances(root, scale=1.0):
     lib_nodes_by_id = {}
     lib_nodes_root = root.find(f'.//{q("library_nodes")}', NS)
     if lib_nodes_root is not None:
-        for n in lib_nodes_root.iter(f'{{{NS["c"]}}}node'):
-            if n.get('id'):
+        for n in lib_nodes_root.iter():
+            if n.tag.split('}')[-1] == 'node' and n.get('id'):
                 lib_nodes_by_id[n.get('id')] = n
 
+    # skinned meshes: <instance_controller> -> controller/skin -> its source
+    # geometry, placed in its bind (rest) pose
+    controllers = {}
+    for c in root.findall(f'.//{q("library_controllers")}/{q("controller")}', NS):
+        skin = c.find(q('skin'), NS)
+        if skin is not None and skin.get('source'):
+            bsm = skin.find(q('bind_shape_matrix'), NS)
+            vals = [float(x) for x in bsm.text.split()] if bsm is not None and bsm.text else []
+            if len(vals) == 16:
+                vals[3] *= scale; vals[7] *= scale; vals[11] *= scale
+            controllers[c.get('id')] = (skin.get('source').lstrip('#'), tuple(vals) if len(vals) == 16 else IDENTITY4)
+
     instances = []
+
+    def add_instance(el, gid, world, name_path, top_group):
+        label = name_path[-1] if name_path else gid
+        # Exporter quirk in the shaving horse model: the "Nut_3_4"
+        # component's geometry group kept a leftover internal name
+        # "Head__2__6" (copy-pasted from a bolt-head mesh); the meaningful
+        # authored name is the parent, so relabel this one leaf.
+        if label == 'Head__2__6' and len(name_path) >= 2 and name_path[-2] == 'Nut_3_4':
+            label = 'Nut_3_4'
+        instances.append(dict(
+            label=label,
+            path='/'.join(name_path) if name_path else gid,
+            top_group=top_group or (name_path[0] if name_path else gid),
+            geom_id=gid,
+            world_matrix=world,
+            material_bindings=get_material_bindings(el),
+        ))
 
     def visit(node, parent_matrix, name_path, top_group):
         world = mat_mul(parent_matrix, parse_matrix(node, scale))
@@ -382,22 +440,11 @@ def resolve_instances(root, scale=1.0):
                 top_group = name
 
         for ig in node.findall(q('instance_geometry'), NS):
-            gid = ig.get('url').lstrip('#')
-            label = name_path[-1] if name_path else gid
-            # Exporter quirk in the shaving horse model: the "Nut_3_4"
-            # component's geometry group kept a leftover internal name
-            # "Head__2__6" (copy-pasted from a bolt-head mesh); the meaningful
-            # authored name is the parent, so relabel this one leaf.
-            if label == 'Head__2__6' and len(name_path) >= 2 and name_path[-2] == 'Nut_3_4':
-                label = 'Nut_3_4'
-            instances.append(dict(
-                label=label,
-                path='/'.join(name_path) if name_path else gid,
-                top_group=top_group or (name_path[0] if name_path else gid),
-                geom_id=gid,
-                world_matrix=world,
-                material_bindings=get_material_bindings(ig),
-            ))
+            add_instance(ig, ig.get('url').lstrip('#'), world, name_path, top_group)
+        for ic in node.findall(q('instance_controller'), NS):
+            ctrl = controllers.get(ic.get('url').lstrip('#'))
+            if ctrl:
+                add_instance(ic, ctrl[0], mat_mul(world, ctrl[1]), name_path, top_group)
 
         for inode in node.findall(q('instance_node'), NS):
             target = lib_nodes_by_id.get(inode.get('url').lstrip('#'))
@@ -409,7 +456,7 @@ def resolve_instances(root, scale=1.0):
 
     vs = root.find(f'.//{q("library_visual_scenes")}/{q("visual_scene")}', NS)
     roots = vs.findall(q('node'), NS) if vs is not None else []
-    if len(roots) == 1 and roots[0].find(q('instance_geometry'), NS) is None:
+    if len(roots) == 1 and roots[0].find(q('instance_geometry'), NS) is None and roots[0].find(q('instance_controller'), NS) is None:
         # SketchUp wraps everything in one "SketchUp" root node: its children
         # are the model's top-level groups
         top = roots[0]
@@ -648,6 +695,7 @@ def convert(dae_path, out_dir, verbose=True):
     log = print if verbose else (lambda *a, **k: None)
     os.makedirs(out_dir, exist_ok=True)
     root = ET.parse(dae_path).getroot()
+    use_namespace(root)
     scale = read_unit_scale(root)
     if abs(scale - 1) > 1e-9:
         log(f"Model units: {scale * INCH_IN_METERS:g} m each; converting to inches (x{scale:g})")

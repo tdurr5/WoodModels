@@ -14,7 +14,8 @@ export function prepareRows(rawRows, config) {
   const mats = config.materials || {};
   const order = config.categoryOrder || ['Wood', 'Hardware', 'Leather', 'Other'];
   const rows = rawRows.map((r) => {
-    const matName = (r.materials || []).find((m) => mats[m]) || (r.materials || [])[0] || '';
+    // parts with no material use the model's "(none)" setting, if it has one
+    const matName = (r.materials || []).find((m) => mats[m]) || (r.materials || [])[0] || (mats['(none)'] ? '(none)' : '');
     const category = (mats[matName] && mats[matName].category) || 'Other';
     const [l, w, t] = r.dims;
     // parse_dae.py writes dims_str as sixteenths L x W x T; anything else is a
@@ -32,7 +33,7 @@ export function prepareRows(rawRows, config) {
       groupName: displayName(String(r.top_group), config.displayNames),
       category,
       material: matName,
-      materialLabel: (mats[matName] && mats[matName].label) || matName.replace(/^_+/, ''),
+      materialLabel: (mats[matName] && mats[matName].label) || (matName === '(none)' ? 'No material' : matName.replace(/^_+/, '')),
       color: (mats[matName] && mats[matName].color) || '#666',
       customDims: r.dims_str !== standard ? r.dims_str : null,
       notes,
@@ -109,7 +110,13 @@ export function renderCutList(container, rows, config, h) {
   handlers = h;
   container.innerHTML = `
     <div class="cl-head">
-      <h1>${escapeHtml(config.title || 'Cut List')}</h1>
+      <div class="cl-title-row">
+        <h1>${escapeHtml(config.title || 'Cut List')}</h1>
+        <div class="cl-model-btns">
+          ${h.onSetup ? '<button id="clSetup" title="Name, which materials are wood, which way is front">Set up</button>' : ''}
+          <button id="clLibrary" title="Upload a model (3D Warehouse Collada / KMZ) or switch models (M)">Models</button>
+        </div>
+      </div>
       ${config.subtitle ? `<div class="sub">${escapeHtml(config.subtitle)}</div>` : ''}
     </div>
     <div class="cl-controls">
@@ -160,6 +167,8 @@ export function renderCutList(container, rows, config, h) {
   container.querySelector('#clCsv').addEventListener('click', () => downloadCSV(allRows, config));
   container.querySelector('#clPrint').addEventListener('click', () => handlers.onPrint && handlers.onPrint());
   container.querySelector('#clDiagram').addEventListener('click', () => handlers.onDiagram && handlers.onDiagram());
+  container.querySelector('#clLibrary').addEventListener('click', () => handlers.onLibrary && handlers.onLibrary());
+  container.querySelector('#clSetup')?.addEventListener('click', () => handlers.onSetup());
   renderRows();
 }
 

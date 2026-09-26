@@ -22,7 +22,13 @@ const VARIANTS = {
   millimetres: { unit_meter: 0.001, scale: 25.4 },
   y_up: { up_axis: 'Y_UP' },
   polygons: { leg_as: 'polygons' },
+  translate_rotate: { transforms: 'trs' },
+  collada_1_5: { namespace: 'http://www.collada.org/2008/03/COLLADASchema' },
+  no_namespace: { namespace: '' },
 };
+// Optional: PARITY_SAMPLES=/path/to/folder also compares every .dae in it
+// (e.g. real 3D Warehouse / other exporters' files, which aren't in the repo).
+const SAMPLES = process.env.PARITY_SAMPLES;
 
 let failures = 0;
 function check(cond, msg) {
@@ -71,6 +77,15 @@ for (const [name, kw] of Object.entries(VARIANTS)) {
   outputs[name] = { dae: fs.readFileSync(dae, 'utf8'), py: Object.fromEntries(['scene.obj', 'scene.mtl', 'materials.json', 'object_dims.json', 'parts_report.json', 'model.json'].map((f) => [f, read(f)])) };
 }
 
+if (SAMPLES) {
+  for (const f of fs.readdirSync(SAMPLES).filter((n) => n.toLowerCase().endsWith('.dae'))) {
+    const out = path.join(tmp, `sample-${f}`);
+    execFileSync('python3', [path.join(ROOT, 'parse_dae.py'), path.join(SAMPLES, f), '-o', out, '-q']);
+    const read = (n) => fs.readFileSync(path.join(out, n), 'utf8');
+    outputs[`sample ${f}`] = { dae: fs.readFileSync(path.join(SAMPLES, f), 'utf8'), fileName: f, py: Object.fromEntries(['scene.obj', 'scene.mtl', 'materials.json', 'object_dims.json', 'parts_report.json', 'model.json'].map((n) => [n, read(n)])) };
+  }
+}
+
 // ---------- JS side (in the browser, where DOMParser lives) ----------
 const server = http.createServer((req, res) => {
   const file = path.join(VIEWER, decodeURIComponent(new URL(req.url, 'http://x').pathname));
@@ -89,7 +104,7 @@ try {
     const js = await page.evaluate(async ({ url, xml, file }) => {
       const m = await import(url);
       return m.parseCollada(xml, { fileName: file }).files;
-    }, { url: `${base}collada.js`, xml: o.dae, file: `${name}.dae` });
+    }, { url: `${base}collada.js`, xml: o.dae, file: o.fileName || `${name}.dae` });
     const j = (f, src) => JSON.parse(src[f]);
     const d1 = diff(j('parts_report.json', o.py), j('parts_report.json', js), 1e-9, 'parts_report');
     check(!d1, `parts_report.json matches${d1 ? ` (${d1})` : ''}`);
@@ -103,6 +118,11 @@ try {
     const d5 = objDiff(o.py['scene.obj'], js['scene.obj']);
     check(!d5, `scene.obj matches${d5 ? ` (${d5})` : ''}`);
   }
+  // <translate>/<rotate> placement must give the same result as the <matrix> version
+  const trsVsMatrix = diff(JSON.parse(outputs.inches.py['object_dims.json']), JSON.parse(outputs.translate_rotate.py['object_dims.json']), 2e-4, 'object_dims');
+  check(!trsVsMatrix, `translate/rotate transforms place parts exactly like the equivalent matrix${trsVsMatrix ? ` (${trsVsMatrix})` : ''}`);
+  check(outputs.no_namespace.py['parts_report.json'] === outputs.inches.py['parts_report.json'] && outputs.collada_1_5.py['parts_report.json'] === outputs.inches.py['parts_report.json'], 'namespace (1.4, 1.5 or none) does not change the result');
+
   // unit behaviour the viewer relies on, checked directly
   const units = await page.evaluate(async (url) => {
     const m = await import(url);

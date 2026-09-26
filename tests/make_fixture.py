@@ -115,14 +115,25 @@ def polygons_geometry(gid, verts, material_symbol):
     </mesh></geometry>'''
 
 
-def build(unit_meter=0.0254, scale=1.0, up_axis='Z_UP', leg_as='polylist'):
+def build(unit_meter=0.0254, scale=1.0, up_axis='Z_UP', leg_as='polylist', transforms='matrix', namespace=NS):
     """`scale` multiplies every length, for writing the same model in another
     unit (e.g. unit_meter=0.001, scale=25.4 for millimetres). `leg_as` picks
-    the primitive the leg is written with ('polylist' or 'polygons')."""
-    return _build(unit_meter, scale, up_axis, leg_as)
+    the primitive the leg is written with ('polylist' or 'polygons');
+    `transforms='trs'` places parts with <translate>/<rotate> instead of
+    <matrix>; `namespace` may be the COLLADA 1.5 one or '' (none)."""
+    xml = _build(unit_meter, scale, up_axis, leg_as, transforms)
+    if namespace != NS:
+        xml = xml.replace(f' xmlns="{NS}"', f' xmlns="{namespace}"' if namespace else '')
+    return xml
 
 
-def _build(unit_meter, scale, up_axis, leg_as):
+def _build(unit_meter, scale, up_axis, leg_as, transforms):
+    if transforms == 'trs':
+        place_board = lambda y: f'<translate>0 {6 * scale if y else 0} {20 * scale}</translate>'  # noqa: E731
+        place_leg = f'<translate>{2 * scale} 0 0</translate><rotate>1 0 0 90</rotate>'
+    else:
+        place_board = lambda y: matrix(translate(0, 6 * scale if y else 0, 20 * scale))  # noqa: E731
+        place_leg = matrix(rot_x_90(2 * scale, 0, 0))
     sc = lambda pts: [tuple(v * scale for v in p) for p in pts]  # noqa: E731
     board = sc(box_corners(10, 4, 1))
     # Leg: a 12 x 3 x 1.5 board authored already rotated 30 deg about its
@@ -158,15 +169,15 @@ def _build(unit_meter, scale, up_axis, leg_as):
     <visual_scene id="scene">
       <node name="SketchUp">
         <node name="Body">{matrix(IDENTITY)}
-          <node name="Board">{matrix(translate(0, 0, 20 * scale))}
+          <node name="Board">{place_board(False)}
             <instance_geometry url="#geom_board">{bind()}</instance_geometry>
           </node>
-          <node name="Board">{matrix(translate(0, 6 * scale, 20 * scale))}
+          <node name="Board">{place_board(True)}
             <instance_geometry url="#geom_board">{bind()}</instance_geometry>
           </node>
         </node>
         <node name="Legs">{matrix(IDENTITY)}
-          <node name="SketchUp_Instance_3">{matrix(rot_x_90(2 * scale, 0, 0))}
+          <node name="SketchUp_Instance_3">{place_leg}
             <instance_node url="#comp_leg"/>
           </node>
         </node>

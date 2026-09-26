@@ -168,10 +168,12 @@ class Units(unittest.TestCase):
             a, b = (dims[n] for n in board['obj_names'])
             self.assertAlmostEqual(a['center'][2] - b['center'][2], 6, places=3)
 
-    def test_missing_unit_means_inches(self):
+    def test_missing_unit_means_metres(self):
         import xml.etree.ElementTree as ET
-        root = ET.fromstring('<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema"/>')
-        self.assertEqual(parse_dae.read_unit_scale(root), 1.0)
+        ns = 'xmlns="http://www.collada.org/2005/11/COLLADASchema"'
+        self.assertAlmostEqual(parse_dae.read_unit_scale(ET.fromstring(f'<COLLADA {ns}/>')), 1 / 0.0254)
+        self.assertAlmostEqual(parse_dae.read_unit_scale(ET.fromstring(f'<COLLADA {ns}><asset><unit/></asset></COLLADA>')), 1 / 0.0254)
+        self.assertEqual(parse_dae.read_unit_scale(ET.fromstring(f'<COLLADA {ns}><asset><unit meter="0.0254"/></asset></COLLADA>')), 1.0)
 
 
 class OtherExporters(unittest.TestCase):

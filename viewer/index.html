@@ -84,6 +84,7 @@
       <tr><td><kbd>Backspace</kbd> / <kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>Undo last measure point</td></tr>
       <tr><td><kbd>/</kbd></td><td>Filter the cut list</td></tr>
       <tr><td><kbd>C</kbd></td><td>Shopping list &amp; cutting diagram</td></tr>
+      <tr><td><kbd>M</kbd></td><td>Models: upload / switch</td></tr>
       <tr><td><kbd>Ctrl</kbd>+<kbd>P</kbd></td><td>Print cut sheet</td></tr>
     </table>
     <p>Measuring snaps to <span class="snap-e">endpoints</span>, <span class="snap-m">midpoints</span> and <span class="snap-g">edges</span> within a few pixels, otherwise to the face you click. With a part selected, the corners of its grey outline box snap too (handy for the square corner above an angled cut), and moving along the part's length, width or thickness (or level/plumb) locks onto that line with a dashed guide. With a part selected, only that part can be measured, so joints with neighbouring parts don't get in the way.</p>
@@ -108,6 +109,30 @@
     <div class="cd-body"></div>
   </div>
 </div>
+
+<div id="library">
+  <div class="lib-box">
+    <div class="lib-head"><h2>Models</h2><button class="lib-close" title="Close (Esc)">×</button></div>
+    <div class="lib-drop" role="button" tabindex="0">
+      <b>Upload a model</b> - click, or drop a file anywhere on the page<br>
+      <span class="muted small">From <b>3D Warehouse</b>: Download → <b>Collada File</b> (.zip) or <b>KMZ</b>. Also accepts .dae files and models downloaded from this list. SketchUp .skp files can't be read in a browser.</span>
+      <input id="libFile" type="file" accept=".dae,.zip,.kmz,.skp" hidden />
+    </div>
+    <div class="lib-status"></div>
+    <div class="lib-list"></div>
+    <p class="muted small">Uploaded models are saved in this browser, with their own ticks, notes and settings. Use Download to keep a copy or move one to another computer.</p>
+  </div>
+</div>
+
+<div id="setup">
+  <div class="lib-box">
+    <div class="lib-head"><h2>Set up this model</h2></div>
+    <div class="setup-body"></div>
+    <div class="setup-actions"><button class="setup-cancel card-btn">Cancel</button> <button class="setup-save card-btn primary">Save</button></div>
+  </div>
+</div>
+
+<div id="dropHint">Drop to add this model</div>
 
 <div id="printSheet"></div>
 

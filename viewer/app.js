@@ -12,6 +12,8 @@ import {
 import { initMeasure } from './measure.js';
 import { initDiagramModal, computeLayouts, layoutsHTML } from './diagram.js';
 import { buildTemplate } from './template.js';
+import { initLibrary } from './library.js';
+import { getModelFiles, lastOpened, rememberOpened } from './modelstore.js';
 import { obbFromDims, partsTouch } from './geometry.js';
 
 const $ = (id) => document.getElementById(id);
@@ -218,58 +220,96 @@ function getWoodTexture(key, { base, streak, ring }) {
 }
 
 // ---------- loading ----------
-// ?model=models/workbench/ loads another model's data files (model.json,
-// scene.obj, ...) from that folder next to this page. Relative paths only.
+// Which model to show:
+//   ?model=local:<id>          an uploaded model saved in this browser (library.js)
+//   ?model=models/workbench/   another model's data files in a folder next to this page
+//   ?model=                    the built-in model (this folder)
+//   (no ?model)                whatever was opened last, else the built-in one
+const MODEL_REF = (() => {
+  const params = new URLSearchParams(location.search);
+  if (params.has('model')) return params.get('model') || '';
+  const last = lastOpened();
+  return last && last.startsWith('local:') ? last : '';
+})();
+const LOCAL_ID = MODEL_REF.startsWith('local:') ? MODEL_REF.slice(6) : null;
 const MODEL_BASE = (() => {
-  const m = new URLSearchParams(location.search).get('model');
+  const m = LOCAL_ID ? '' : MODEL_REF;
   if (!m || !/^[\w\-./]+$/.test(m) || m.includes('..') || m.startsWith('/')) return '';
   return m.endsWith('/') ? m : `${m}/`;
 })();
 
-const fetchJSON = (url, fallback) => fetch(url).then((r) => {
-  if (!r.ok) { if (fallback !== undefined) return fallback; throw new Error(`${url}: HTTP ${r.status}`); }
-  return r.json();
+const fetchText = (url) => fetch(url).then((r) => {
+  if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`);
+  return r.text();
 });
-const loadMTL = (url) => new Promise((res, rej) => new MTLLoader().load(url, res, undefined, rej));
-const loadOBJ = (url, materials) => new Promise((res, rej) => {
-  const loader = new OBJLoader();
-  if (materials) loader.setMaterials(materials);
-  loader.load(url, res, (e) => {
-    if (e.lengthComputable) $('loading').textContent = `Loading model… ${Math.round((e.loaded / e.total) * 100)}%`;
-  }, rej);
-});
+
+// The six data files as text, from the folder or from browser storage.
+async function readModelFiles() {
+  if (LOCAL_ID) {
+    const files = await getModelFiles(LOCAL_ID).catch(() => null);
+    if (!files) {
+      rememberOpened('');
+      const err = new Error('That uploaded model is no longer in this browser. <a href="?model=">Open the built-in model</a>.');
+      err.isHtml = true;
+      throw err;
+    }
+    return files;
+  }
+  const names = ['model.json', 'materials.json', 'object_dims.json', 'parts_report.json', 'scene.mtl', 'scene.obj'];
+  const texts = await Promise.all(names.map((n) => (n === 'model.json' ? fetchText(MODEL_BASE + n).catch(() => '{}') : fetchText(MODEL_BASE + n))));
+  return Object.fromEntries(names.map((n, i) => [n, texts[i]]));
+}
 
 async function init() {
-  const [cfg, materialNames, dims, report] = await Promise.all([
-    fetchJSON(MODEL_BASE + 'model.json', {}),
-    fetchJSON(MODEL_BASE + 'materials.json'),
-    fetchJSON(MODEL_BASE + 'object_dims.json'),
-    fetchJSON(MODEL_BASE + 'parts_report.json'),
-  ]);
+  $('loading').textContent = 'Loading model…';
+  const files = await readModelFiles();
+  const cfg = JSON.parse(files['model.json'] || '{}');
+  const materialNames = JSON.parse(files['materials.json']);
   config = cfg;
   axisNames = { ...DEFAULT_AXIS_NAMES, ...(cfg.axisNames || {}) };
-  objectDims = dims;
+  objectDims = JSON.parse(files['object_dims.json']);
   document.title = `${cfg.title || 'Model'} — Cut List Viewer`;
-  initSettings((cfg.title || 'model').toLowerCase().replace(/[^a-z0-9]+/g, '-'));
+  // preferences, ticks and notes are kept per model
+  initSettings(LOCAL_ID ? `local-${LOCAL_ID}` : (cfg.title || 'model').toLowerCase().replace(/[^a-z0-9]+/g, '-'));
   applyTheme();
-  rows = prepareRows(report, cfg);
+  rows = prepareRows(JSON.parse(files['parts_report.json']), cfg);
   rows.forEach((r) => (r.obj_names || []).forEach((n) => rowByMeshName.set(n, r)));
 
-  renderCutList($('sidebar'), rows, cfg, { onSelect: (r) => selectRow(r), onPrint: printSheet, onDiagram: () => diagram.open() });
+  renderCutList($('sidebar'), rows, cfg, {
+    onSelect: (r) => selectRow(r), onPrint: printSheet, onDiagram: () => diagram.open(),
+    onLibrary: () => library.open(), onSetup: LOCAL_ID ? () => library.openSetup(LOCAL_ID) : null,
+  });
   diagram = initDiagramModal({ rows, onSelectRow: (r) => selectRow(r), finishArea: () => (model ? woodSurfaceArea() : 0) });
   buildViewButtons();
 
-  const mtl = await loadMTL(`${MODEL_BASE}scene.mtl`);
+  $('loading').textContent = 'Building 3D model…';
+  await new Promise((r) => setTimeout(r, 0));
+  const mtl = new MTLLoader().parse(files['scene.mtl'], MODEL_BASE);
   mtl.preload();
-  model = await loadOBJ(`${MODEL_BASE}scene.obj`, mtl);
+  model = new OBJLoader().setMaterials(mtl).parse(files['scene.obj']);
   scene.add(model);
   prepareMeshes(materialNames);
   frameBox(modelBox, config.views?.iso?.dir || [0.7, 0.5, 0.7], false);
   $('loading').style.display = 'none';
+  rememberOpened(LOCAL_ID ? `local:${LOCAL_ID}` : MODEL_REF);
   applySettingsToScene();
   selectFromHash();
-  if (!settings().seenIntro) $('introTip').style.display = 'block';
+  if (new URLSearchParams(location.search).has('setup') && LOCAL_ID) library.openSetup(LOCAL_ID);
+  else if (!settings().seenIntro) $('introTip').style.display = 'block';
 }
+
+// Model library (uploads). Opening a model reloads the page on it, so every
+// model starts from a clean scene.
+const library = initLibrary({
+  current: LOCAL_ID ? `local:${LOCAL_ID}` : '',
+  builtIn: { get title() { return builtInTitle; } },
+  onOpen: (ref, { setup = false } = {}) => {
+    rememberOpened(ref);
+    location.href = `${location.pathname}?model=${encodeURIComponent(ref)}${setup ? '&setup=1' : ''}`;
+  },
+});
+let builtInTitle = 'Built-in model';
+fetchText('model.json').then((t) => { builtInTitle = JSON.parse(t).title || builtInTitle; }).catch(() => {});
 
 function dismissIntro() {
   if ($('introTip').style.display === 'none') return;
@@ -281,7 +321,9 @@ $('introClose').addEventListener('click', dismissIntro);
 function prepareMeshes(materialNames) {
   model.traverse((child) => {
     if (!child.isMesh) return;
-    const realName = materialNames[child.material && child.material.name];
+    // parts with SketchUp's default (no) material are configured as "(none)"
+    const mtlName = materialNames[child.material && child.material.name];
+    const realName = mtlName === 'default' && config.materials?.['(none)'] ? '(none)' : mtlName;
     const tex = config.materials?.[realName]?.texture;
     if (tex) {
       generateGrainUV(child.geometry, tex.tile || 5, objectDims[child.name]);
@@ -1374,6 +1416,7 @@ window.addEventListener('keydown', (e) => {
   const k = e.key;
   if (k === 'Escape') {
     if ($('help').style.display === 'flex') toggleHelp(false);
+    else if (library.isOpen()) { $('library').style.display = 'none'; $('setup').style.display = 'none'; }
     else if (diagram && diagram.isOpen()) diagram.close();
     else if (measure.cancel()) syncToolButtons();
     else clearSelection();
@@ -1394,6 +1437,7 @@ window.addEventListener('keydown', (e) => {
   else if (k === '/') { focusSearch(); e.preventDefault(); }
   else if (k === '?') toggleHelp();
   else if (k === 'c' && diagram) (diagram.isOpen() ? diagram.close() : diagram.open());
+  else if (k === 'm') library.open();
 });
 
 // ---------- per-frame ----------
@@ -1442,6 +1486,8 @@ init().catch((err) => {
   el.classList.add('load-error');
   el.innerHTML = location.protocol === 'file:'
     ? 'This page has to be served over HTTP, not opened as a file.<br>In the <code>viewer</code> folder run <code>python3 -m http.server 8743</code> and open <a href="http://localhost:8743">http://localhost:8743</a>.'
+    : err.isHtml ? err.message // our own message, with a link
+    : LOCAL_ID ? `Couldn't open this uploaded model: ${escapeHtml(err.message || String(err))}`
     : `Failed to load the model: ${escapeHtml(err.message || String(err))}<br>Is <code>scene.obj</code> next to this page? Regenerate it with <code>parse_dae.py</code>.`;
   console.error(err);
 });

@@ -301,3 +301,48 @@ test('millingPlan groups parts by machine setting, largest first', () => {
   assert.equal(millingPlan(two).thickness.length, 1);
   assert.deepEqual(millingPlan(two, (v) => formatLength(v, 'in32')).thickness.map((g) => g.label), ['1-21/32"', '1-5/8"']);
 });
+
+// ---------- zip ----------
+import { unzip, zip as makeZip, crc32, isZip } from '../viewer/zip.js';
+import { execFileSync } from 'node:child_process';
+import os from 'node:os';
+import fsNode from 'node:fs';
+import pathNode from 'node:path';
+
+test('unzip reads deflated and stored entries written by Python zipfile (like 3D Warehouse / KMZ)', async () => {
+  const dir = fsNode.mkdtempSync(pathNode.join(os.tmpdir(), 'zip-'));
+  const file = pathNode.join(dir, 'model.kmz');
+  const dae = '<COLLADA>' + 'x'.repeat(5000) + '</COLLADA>';
+  execFileSync('python3', ['-c', `
+import zipfile
+with zipfile.ZipFile(${JSON.stringify(file)}, 'w') as z:
+    z.writestr('doc.kml', '<kml/>', compress_type=zipfile.ZIP_STORED)
+    z.writestr('models/', '')
+    z.writestr('models/untitled.dae', ${JSON.stringify(dae)}, compress_type=zipfile.ZIP_DEFLATED)
+    z.writestr('models/untitled/texture.jpg', bytes(range(256)) * 4, compress_type=zipfile.ZIP_DEFLATED)
+`]);
+  const bytes = new Uint8Array(fsNode.readFileSync(file));
+  assert.equal(isZip(bytes), true);
+  const files = await unzip(bytes);
+  assert.deepEqual([...files.keys()].sort(), ['doc.kml', 'models/untitled.dae', 'models/untitled/texture.jpg']);
+  assert.equal(new TextDecoder().decode(files.get('models/untitled.dae')), dae);
+  assert.equal(files.get('models/untitled/texture.jpg').length, 1024);
+  fsNode.rmSync(dir, { recursive: true, force: true });
+});
+
+test('zip writes files that Python and unzip can read back', async () => {
+  const z = makeZip({ 'model.json': '{"title":"Bench"}', 'data/scene.obj': 'v 1 2 3\n' });
+  const back = await unzip(z);
+  assert.equal(new TextDecoder().decode(back.get('model.json')), '{"title":"Bench"}');
+  const dir = fsNode.mkdtempSync(pathNode.join(os.tmpdir(), 'zip-'));
+  const file = pathNode.join(dir, 'out.zip');
+  fsNode.writeFileSync(file, z);
+  const listed = execFileSync('python3', ['-c', `import zipfile; z = zipfile.ZipFile(${JSON.stringify(file)}); assert z.testzip() is None; print(','.join(sorted(z.namelist())))`]).toString().trim();
+  assert.equal(listed, 'data/scene.obj,model.json');
+  assert.equal(crc32(new TextEncoder().encode('123456789')), 0xcbf43926); // standard check value
+  fsNode.rmSync(dir, { recursive: true, force: true });
+});
+
+test('unzip rejects non-zip data clearly', async () => {
+  await assert.rejects(() => unzip(new TextEncoder().encode('<COLLADA/>'.padEnd(100))), /Not a zip file/);
+});
