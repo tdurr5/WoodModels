@@ -4,7 +4,7 @@ import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 import { formatLength, escapeHtml } from './format.js';
 import { compoundAngle, describeAngle, round1, DEFAULT_AXIS_NAMES } from './angles.js';
-import { initSettings, settings, updateSettings, onSettingsChange } from './settings.js';
+import { initSettings, settings, updateSettings, onSettingsChange, resetSettings } from './settings.js';
 import {
   prepareRows, renderCutList, renderRows, markActive, visibleRows, focusSearch, finishedDims, buildPrintSheet, isRod, userNote,
   millingPlanHTML,
@@ -218,6 +218,14 @@ function getWoodTexture(key, { base, streak, ring }) {
 }
 
 // ---------- loading ----------
+// ?model=models/workbench/ loads another model's data files (model.json,
+// scene.obj, ...) from that folder next to this page. Relative paths only.
+const MODEL_BASE = (() => {
+  const m = new URLSearchParams(location.search).get('model');
+  if (!m || !/^[\w\-./]+$/.test(m) || m.includes('..') || m.startsWith('/')) return '';
+  return m.endsWith('/') ? m : `${m}/`;
+})();
+
 const fetchJSON = (url, fallback) => fetch(url).then((r) => {
   if (!r.ok) { if (fallback !== undefined) return fallback; throw new Error(`${url}: HTTP ${r.status}`); }
   return r.json();
@@ -233,10 +241,10 @@ const loadOBJ = (url, materials) => new Promise((res, rej) => {
 
 async function init() {
   const [cfg, materialNames, dims, report] = await Promise.all([
-    fetchJSON('model.json', {}),
-    fetchJSON('materials.json'),
-    fetchJSON('object_dims.json'),
-    fetchJSON('parts_report.json'),
+    fetchJSON(MODEL_BASE + 'model.json', {}),
+    fetchJSON(MODEL_BASE + 'materials.json'),
+    fetchJSON(MODEL_BASE + 'object_dims.json'),
+    fetchJSON(MODEL_BASE + 'parts_report.json'),
   ]);
   config = cfg;
   axisNames = { ...DEFAULT_AXIS_NAMES, ...(cfg.axisNames || {}) };
@@ -251,16 +259,24 @@ async function init() {
   diagram = initDiagramModal({ rows, onSelectRow: (r) => selectRow(r), finishArea: () => (model ? woodSurfaceArea() : 0) });
   buildViewButtons();
 
-  const mtl = await loadMTL('scene.mtl');
+  const mtl = await loadMTL(`${MODEL_BASE}scene.mtl`);
   mtl.preload();
-  model = await loadOBJ('scene.obj', mtl);
+  model = await loadOBJ(`${MODEL_BASE}scene.obj`, mtl);
   scene.add(model);
   prepareMeshes(materialNames);
   frameBox(modelBox, config.views?.iso?.dir || [0.7, 0.5, 0.7], false);
   $('loading').style.display = 'none';
   applySettingsToScene();
   selectFromHash();
+  if (!settings().seenIntro) $('introTip').style.display = 'block';
 }
+
+function dismissIntro() {
+  if ($('introTip').style.display === 'none') return;
+  $('introTip').style.display = 'none';
+  updateSettings({ seenIntro: true });
+}
+$('introClose').addEventListener('click', dismissIntro);
 
 function prepareMeshes(materialNames) {
   model.traverse((child) => {
@@ -622,6 +638,7 @@ function selectRow(row, { frame = true } = {}) {
   if (frame && current.box) frameBox(current.box, null);
   markActive(row);
   measure.onSelectionChange();
+  dismissIntro();
   try { history.replaceState(null, '', `#part=${encodeURIComponent(row.label)}`); } catch { /* sandboxed */ }
 }
 
@@ -1013,6 +1030,11 @@ $('shotBtn').addEventListener('click', () => {
 $('helpBtn').addEventListener('click', () => toggleHelp());
 $('themeBtn').addEventListener('click', () => updateSettings({ theme: settings().theme === 'light' ? 'dark' : 'light' }));
 $('helpClose').addEventListener('click', () => toggleHelp(false));
+$('resetPrefs').addEventListener('click', () => {
+  if (!window.confirm('Reset units, allowances, prices, ticked-off parts and your notes for this model?')) return;
+  resetSettings();
+  location.reload();
+});
 $('sidebarToggle').addEventListener('click', () => document.body.classList.toggle('sidebar-collapsed'));
 
 function toggleHelp(force) {

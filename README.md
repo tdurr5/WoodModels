@@ -67,7 +67,7 @@ Then open http://localhost:8743. three.js loads from unpkg, so the first load ne
 - **Bevel** (`B`): click two faces to get the angle between them, which is the sliding-bevel setting.
 - Clicks snap to endpoints, edge midpoints and edges (like SketchUp), otherwise to the face. A marker previews the snap. `Backspace`/`Ctrl+Z` undoes.
 
-Press `?` in the viewer for all shortcuts.
+Press `?` in the viewer for all shortcuts; the same panel has a button to reset your saved preferences.
 
 ## Regenerating the data
 
@@ -76,6 +76,18 @@ python3 parse_dae.py path/to/model.dae -o viewer/
 ```
 
 (or set `WOODMODELS_DAE`). Textures are read relative to the `.dae`. Then edit `viewer/model.json` for the new model: title, friendly names, which material is wood/hardware, and which world axis is front-to-back (`axisNames`).
+
+### Adding another model
+
+Put each additional model in its own folder under `viewer/` and open it with `?model=`:
+
+```
+python3 parse_dae.py path/to/workbench.dae -o viewer/models/workbench/
+cp viewer/model.json viewer/models/workbench/model.json   # then edit it
+# open http://localhost:8743/?model=models/workbench/
+```
+
+Preferences, ticked-off parts and notes are stored separately per model (keyed by its title).
 
 ## Tests
 

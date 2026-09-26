@@ -36,6 +36,12 @@
     <div id="axisLabels"></div>
     <div id="measureLabels"></div>
     <div id="partTags" style="display:none"></div>
+    <div id="introTip" style="display:none">
+      <button id="introClose" title="Got it">×</button>
+      <b>Welcome!</b> Click any part (here or in the list) for its size, angles, joints and a full-size template.
+      Try <b>Explode</b> + <b>Labels</b>, the <b>Section</b> cut, and <b>Shopping list &amp; cutting diagram</b> in the sidebar.
+      <b>Print cut sheet</b> gives you a shop-ready checklist. Press <kbd>?</kbd> any time for shortcuts.
+    </div>
     <div id="hoverTip"></div>
     <div id="bottombar">
       <label title="Pull the assemblies apart to see hidden parts and joinery (E)">Explode
@@ -79,6 +85,7 @@
     </table>
     <p>Measuring snaps to <span class="snap-e">endpoints</span>, <span class="snap-m">midpoints</span> and <span class="snap-g">edges</span> within a few pixels, otherwise to the face you click. With a part selected, only that part can be measured, so joints with neighbouring parts don't get in the way.</p>
     <p>Link to a part: the address bar updates as you select, e.g. <code>#part=Leg_Rear</code>.</p>
+    <p><button id="resetPrefs" class="card-btn">Reset preferences for this model</button></p>
   </div>
 </div>
 

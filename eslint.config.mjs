@@ -4,7 +4,7 @@ export default [{
   languageOptions: { ecmaVersion: 2023, sourceType: 'module', globals: {
     window: 'readonly', document: 'readonly', location: 'readonly', history: 'readonly', localStorage: 'readonly',
     performance: 'readonly', requestAnimationFrame: 'readonly', ResizeObserver: 'readonly', MouseEvent: 'readonly', Event: 'readonly',
-    CSS: 'readonly', Blob: 'readonly', URL: 'readonly', setTimeout: 'readonly', console: 'readonly', structuredClone: 'readonly',
+    CSS: 'readonly', Blob: 'readonly', URL: 'readonly', URLSearchParams: 'readonly', setTimeout: 'readonly', console: 'readonly', structuredClone: 'readonly',
     fetch: 'readonly', process: 'readonly', Buffer: 'readonly' } },
   rules: { 'no-unused-vars': 'warn', 'no-undef': 'error', 'no-unreachable': 'error', 'no-dupe-keys': 'error', 'no-redeclare': 'error', 'no-const-assign': 'error', 'no-self-assign': 'warn', 'eqeqeq': ['warn', 'smart'] },
 }];

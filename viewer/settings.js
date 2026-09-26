@@ -14,6 +14,7 @@ const DEFAULTS = {
   theme: 'dark',    // 'dark' | 'light'
   prices: {},       // $ per board foot by material label, for cost estimates
   userNotes: {},    // row key -> the user's own note for that part
+  seenIntro: false, // first-visit tips dismissed
 };
 
 let storageKey = 'woodmodels:settings';
@@ -44,3 +45,8 @@ export function updateSettings(patch) {
 }
 
 export function onSettingsChange(fn) { listeners.add(fn); }
+
+export function resetSettings() {
+  try { localStorage.removeItem(storageKey); } catch { /* ignore */ }
+  state = structuredClone(DEFAULTS);
+}

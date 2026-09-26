@@ -124,7 +124,10 @@ try {
   const disabled = await page.locator('#clList .row.disabled').count();
   const expectedDisabled = report.filter((r) => !r.obj_names || !r.obj_names.length).length;
   check(disabled === expectedDisabled, `rows with no 3D geometry are disabled (${disabled}/${expectedDisabled})`);
+  check(await page.locator('#introTip').isVisible(), 'first visit shows the welcome tips');
   await page.screenshot({ path: path.join(OUT, '01-loaded.png') });
+  await page.locator('#introClose').click();
+  check(!(await page.locator('#introTip').isVisible()), 'tips can be dismissed');
 
   console.log('select from sidebar');
   const bench = page.locator('#clList .row', { hasText: 'Bench' }).first();
@@ -156,7 +159,7 @@ try {
     for (let y = 0.2; y < 0.9; y += 0.05) {
       for (let x = 0.2; x < 0.8; x += 0.05) {
         canvas.dispatchEvent(new MouseEvent('click', { clientX: rect.left + x * w, clientY: rect.top + y * h, bubbles: true }));
-        if (document.querySelector('#clList .row.active')) return document.querySelector('#clList .row.active .name').textContent.trim();
+        if (document.querySelector('#clList .row.active')) return document.querySelector('#clList .row.active .name').lastChild.textContent.trim();
       }
     }
     return null;
@@ -405,6 +408,7 @@ try {
   check(selectedAfterReload === selectedBeforeReload, `reload restores the selection from the URL hash (${selectedAfterReload})`);
   check(await page.locator('#clRough').isChecked(), 'settings persist across reload');
   check(await page.locator('#clList .note.mine', { hasText: 'walnut slab' }).count() === 1, 'user notes persist across reload');
+  check(!(await page.locator('#introTip').isVisible()), 'dismissed tips stay dismissed');
 
   console.log('help');
   await page.keyboard.press('?');
@@ -442,6 +446,36 @@ try {
   check(errors.length === 0, `no page errors${errors.length ? ':\n    ' + errors.join('\n    ') : ''}`);
 } finally {
   await browser.close();
+}
+
+// ---------- ?model= loads data from a subfolder ----------
+{
+  console.log('model folder parameter');
+  const sub = path.join(VIEWER, '_test_model');
+  fs.mkdirSync(sub, { recursive: true });
+  for (const f of ['model.json', 'materials.json', 'object_dims.json', 'parts_report.json', 'scene.obj', 'scene.mtl']) {
+    fs.copyFileSync(path.join(VIEWER, f), path.join(sub, f));
+  }
+  const cfg = JSON.parse(fs.readFileSync(path.join(sub, 'model.json'), 'utf8'));
+  cfg.title = 'Test Copy';
+  fs.writeFileSync(path.join(sub, 'model.json'), JSON.stringify(cfg));
+  const b2 = await chromium.launch(launchOpts);
+  const p2 = await b2.newPage();
+  await p2.route(/^https:\/\/unpkg\.com\/three@[^/]+\/(.*)$/, (route) => {
+    const rel = route.request().url().replace(/^https:\/\/unpkg\.com\/three@[^/]+\//, '');
+    route.fulfill({ status: 200, contentType: 'text/javascript', body: fs.readFileSync(path.join(THREE_DIR, rel)) });
+  });
+  try {
+    await p2.goto(`${base}?model=_test_model`);
+    await p2.waitForFunction(() => document.getElementById('loading').style.display === 'none', null, { timeout: 30000 });
+    check((await p2.locator('#sidebar h1').innerText()) === 'Test Copy', '?model= loads another model folder');
+    await p2.goto(`${base}?model=../../etc`);
+    await p2.waitForFunction(() => document.getElementById('loading').style.display === 'none', null, { timeout: 30000 });
+    check((await p2.locator('#sidebar h1').innerText()) === 'Shaving Horse', '?model= ignores paths that climb out of the viewer');
+  } finally {
+    await b2.close();
+    fs.rmSync(sub, { recursive: true, force: true });
+  }
 }
 
 // ---------- failure modes ----------
