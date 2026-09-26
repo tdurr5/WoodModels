@@ -118,19 +118,34 @@ try {
   await page.locator('#list .row', { hasText: 'Treadle_Foot_Peg' }).first().click();
   await page.waitForTimeout(300);
   await page.locator('#measureDistBtn').click();
-  const hitPoints = await page.evaluate(({ w, h }) => {
+  // Click two different vertices of the selected part: project its mesh
+  // vertices to screen space and click the pair farthest apart on screen.
+  await page.waitForTimeout(600);
+  const hitPoints = await page.evaluate(() => {
+    const { THREE, camera, currentSelectionMeshes } = window.__viewer;
     const canvas = document.querySelector('#viewport canvas');
     const rect = canvas.getBoundingClientRect();
+    const pts = [];
+    currentSelectionMeshes().forEach((m) => {
+      const pos = m.geometry.attributes.position;
+      for (let i = 0; i < pos.count; i += 7) {
+        const v = new THREE.Vector3().fromBufferAttribute(pos, i);
+        m.localToWorld(v).project(camera);
+        pts.push({ x: rect.left + (v.x * 0.5 + 0.5) * rect.width, y: rect.top + (0.5 - v.y * 0.5) * rect.height });
+      }
+    });
+    const cx = pts.reduce((a, p) => a + p.x, 0) / pts.length, cy = pts.reduce((a, p) => a + p.y, 0) / pts.length;
+    // aim 60% of the way from the centroid toward the two screen-extreme points
+    pts.sort((a, b) => a.x - b.x);
+    const targets = [pts[0], pts[pts.length - 1]].map((p) => ({ x: cx + (p.x - cx) * 0.6, y: cy + (p.y - cy) * 0.6 }));
     let clicks = 0;
-    for (let x = 0.3; x < 0.7 && clicks < 2; x += 0.02) {
-      const before = document.querySelectorAll('#measureLabels .measureLabel').length;
-      const hint = document.getElementById('measureHint').textContent;
-      canvas.dispatchEvent(new MouseEvent('click', { clientX: rect.left + x * w, clientY: rect.top + 0.5 * h, bubbles: true }));
-      if (document.getElementById('measureHint').textContent !== hint ||
-          document.querySelectorAll('#measureLabels .measureLabel').length !== before) clicks++;
-    }
+    targets.forEach((t) => {
+      const before = window.__viewer.measureClickCount();
+      canvas.dispatchEvent(new MouseEvent('click', { clientX: t.x, clientY: t.y, bubbles: true }));
+      if (window.__viewer.measureClickCount() !== before) clicks++;
+    });
     return clicks;
-  }, { w: vp.width, h: vp.height });
+  });
   const measureLabels = await page.locator('#measureLabels .measureLabel').count();
   check(hitPoints === 2 && measureLabels === 1, `two clicks on the part produce a distance label (${measureLabels})`);
   await page.screenshot({ path: path.join(OUT, '04-measure.png') });

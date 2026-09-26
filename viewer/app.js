@@ -1,0 +1,842 @@
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
+
+const viewport = document.getElementById('viewport');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1b1c1f);
+
+const camera = new THREE.PerspectiveCamera(45, 1, 0.05, 2000);
+const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+viewport.appendChild(renderer.domElement);
+
+function resize() {
+  const w = viewport.clientWidth, h = viewport.clientHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.15;
+controls.enableZoom = false; // replaced below with a fixed-step handler
+controls.minDistance = 1.5;   // inches - stop before clipping into a part
+controls.maxDistance = 400;   // inches - stop before flying off into space
+controls.panSpeed = 0.9;
+
+// Three's built-in wheel zoom scales the step size by the browser/OS-reported
+// scroll delta, which varies wildly across mice/trackpads and makes zoom feel
+// random (tiny steps on one device, huge jumps on another). Use a fixed
+// percentage step per wheel event instead, so it's always smooth increments.
+const ZOOM_STEP = 0.08;
+renderer.domElement.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const factor = e.deltaY > 0 ? (1 + ZOOM_STEP) : (1 - ZOOM_STEP);
+  const offset = camera.position.clone().sub(controls.target);
+  const newDist = THREE.MathUtils.clamp(offset.length() * factor, controls.minDistance, controls.maxDistance);
+  offset.setLength(newDist);
+  camera.position.copy(controls.target).add(offset);
+}, { passive: false });
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+const sun1 = new THREE.DirectionalLight(0xffffff, 1.1);
+sun1.position.set(1, 2, 1.5);
+scene.add(sun1);
+const sun2 = new THREE.DirectionalLight(0xffffff, 0.5);
+sun2.position.set(-1.2, 1, -1);
+scene.add(sun2);
+
+// ground grid (model is exported Y-up, standard three.js convention)
+const grid = new THREE.GridHelper(120, 24, 0x444444, 0x2a2a2a);
+scene.add(grid);
+
+let model = null;
+let originalMaterials = new Map(); // mesh -> material
+let highlightMat = new THREE.MeshStandardMaterial({ color: 0xff5b3d, emissive: 0x992200, emissiveIntensity: 0.6, roughness: 0.5 });
+let dimmedOpacityMat = new Map(); // mesh -> dimmed material clone
+let wireOn = false;
+let selectionBoxHelper = null;
+let currentSelection = null; // { row, box, dimGroup, axisLabelEls }
+const dimCard = document.getElementById('dimCard');
+const axisLabelsContainer = document.getElementById('axisLabels');
+const measureLabelsContainer = document.getElementById('measureLabels');
+let objectDims = null; // safe_name -> { center, axes: [{direction,length,role,label}] }
+
+const AXIS_COLORS = { Length: '#ff6b4a', Width: '#7ee08a', Thickness: '#6ab7ff' };
+
+// ---------- procedural wood grain (no external texture assets needed) ----------
+function generateBoxUV(geometry, tileSize) {
+  if (!geometry.attributes.normal) geometry.computeVertexNormals();
+  const pos = geometry.attributes.position;
+  const norm = geometry.attributes.normal;
+  const uv = new Float32Array(pos.count * 2);
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const nx = Math.abs(norm.getX(i)), ny = Math.abs(norm.getY(i)), nz = Math.abs(norm.getZ(i));
+    let u, v;
+    if (nx >= ny && nx >= nz) { u = y; v = z; }
+    else if (ny >= nx && ny >= nz) { u = x; v = z; }
+    else { u = x; v = y; }
+    uv[i * 2] = u / tileSize;
+    uv[i * 2 + 1] = v / tileSize;
+  }
+  geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+}
+
+const woodTextureCache = new Map();
+function getWoodTexture(key, baseColor, streakColor, ringColor) {
+  if (woodTextureCache.has(key)) return woodTextureCache.get(key);
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = baseColor;
+  ctx.fillRect(0, 0, size, size);
+
+  for (let i = 0; i < 90; i++) {
+    const x0 = Math.random() * size;
+    ctx.strokeStyle = Math.random() < 0.5 ? streakColor : ringColor;
+    ctx.globalAlpha = 0.06 + Math.random() * 0.16;
+    ctx.lineWidth = 0.5 + Math.random() * 2.2;
+    ctx.beginPath();
+    let x = x0;
+    ctx.moveTo(x, 0);
+    for (let y = 0; y <= size; y += 14) {
+      x += (Math.random() - 0.5) * 9;
+      ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+  for (let i = 0; i < 2; i++) {
+    if (Math.random() < 0.5) continue;
+    const kx = Math.random() * size, ky = Math.random() * size, kr = 6 + Math.random() * 10;
+    const grad = ctx.createRadialGradient(kx, ky, 1, kx, ky, kr);
+    grad.addColorStop(0, streakColor);
+    grad.addColorStop(1, baseColor);
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(kx, ky, kr, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  if (THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
+  woodTextureCache.set(key, tex);
+  return tex;
+}
+
+const WOOD_SPECIES = {
+  'Wood':          { base: '#c9975c', streak: '#a06f3b', ring: '#8a5a2c', tile: 5 },
+  'Wood_contrast': { base: '#5b3a24', streak: '#3d2515', ring: '#2c1a0e', tile: 4 },
+};
+
+function applyWoodTextures(root, materialNames) {
+  root.traverse((child) => {
+    if (!child.isMesh) return;
+    const key = child.material && child.material.name;
+    const realName = materialNames[key];
+    const species = WOOD_SPECIES[realName];
+    if (!species) return;
+    generateBoxUV(child.geometry, species.tile);
+    const tex = getWoodTexture(realName, species.base, species.streak, species.ring);
+    child.material = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, metalness: 0.0 });
+  });
+}
+
+// ---------- loading ----------
+function loadMTL(url) {
+  return new Promise((resolve, reject) => new MTLLoader().load(url, resolve, undefined, reject));
+}
+function loadOBJ(url, materials) {
+  return new Promise((resolve, reject) => {
+    const loader = new OBJLoader();
+    if (materials) loader.setMaterials(materials);
+    loader.load(url, resolve, undefined, reject);
+  });
+}
+
+async function init() {
+  const [materialNames, dimsData] = await Promise.all([
+    fetch('materials.json').then(r => r.json()),
+    fetch('object_dims.json').then(r => r.json()),
+  ]);
+  objectDims = dimsData;
+
+  const mtlMaterials = await loadMTL('scene.mtl');
+  mtlMaterials.preload();
+  model = await loadOBJ('scene.obj', mtlMaterials);
+  scene.add(model);
+
+  applyWoodTextures(model, materialNames);
+
+  model.traverse((child) => {
+    if (child.isMesh) {
+      originalMaterials.set(child, child.material);
+      const dim = child.material.clone();
+      dim.transparent = true;
+      dim.opacity = 0.25;
+      dimmedOpacityMat.set(child, dim);
+    }
+  });
+
+  frameObject(model);
+  document.getElementById('loading').style.display = 'none';
+  buildList();
+}
+init().catch((err) => {
+  document.getElementById('loading').textContent = 'Failed to load model: ' + err;
+  console.error(err);
+});
+
+function frameObject(obj) {
+  const box = new THREE.Box3().setFromObject(obj);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z);
+  const dist = maxDim * 1.6 + 5;
+  camera.position.set(center.x + dist * 0.7, center.y + dist * 0.5, center.z + dist * 0.7);
+  controls.target.copy(center);
+  controls.update();
+}
+
+function frameNamed(names) {
+  if (!model || !names.length) return;
+  const box = new THREE.Box3();
+  let found = false;
+  model.traverse((child) => {
+    if (child.isMesh && names.includes(child.name)) {
+      box.expandByObject(child);
+      found = true;
+    }
+  });
+  if (!found) return;
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z, 1);
+  const dist = maxDim * 2.5 + 3;
+  const dir = new THREE.Vector3(0.7, 0.5, 0.7).normalize();
+  camera.position.copy(center).addScaledVector(dir, dist);
+  controls.target.copy(center);
+  controls.update();
+}
+
+function highlight(names) {
+  if (!model) return;
+  const nameSet = new Set(names);
+  model.traverse((child) => {
+    if (!child.isMesh) return;
+    if (nameSet.size === 0) {
+      child.material = originalMaterials.get(child);
+    } else if (nameSet.has(child.name)) {
+      child.material = highlightMat;
+    } else {
+      child.material = dimmedOpacityMat.get(child);
+    }
+  });
+}
+
+function selectionWorldBox(names) {
+  const box = new THREE.Box3();
+  let found = false;
+  model.traverse((child) => {
+    if (child.isMesh && names.includes(child.name)) {
+      box.expandByObject(child);
+      found = true;
+    }
+  });
+  return found ? box : null;
+}
+
+const MARGIN = 0.6; // inches, how far the dimension line stands off the part's face
+const TICK_LEN = 0.5; // inches, length of the little perpendicular end-ticks
+
+function buildDimensionGizmo(names) {
+  const group = new THREE.Group();
+  const labelSpecs = []; // { pos: Vector3, text, color }
+  if (!objectDims) return { group, labelSpecs };
+
+  names.forEach((name) => {
+    const data = objectDims[name];
+    if (!data || !data.axes || data.axes.length < 3) return;
+    const center = new THREE.Vector3(...data.center);
+    const axes = data.axes.map(a => ({
+      dir: new THREE.Vector3(...a.direction),
+      length: a.length,
+      role: a.role,
+      label: a.label,
+    }));
+
+    // Each axis's dimension line is offset toward a different corner of the
+    // box (rather than all three converging on one corner), so the lines and
+    // labels spread out around the part instead of overlapping.
+    const CORNER_SIGNS = [[1, 1], [-1, 1], [1, -1]];
+    for (let i = 0; i < 3; i++) {
+      const j = (i + 1) % 3, k = (i + 2) % 3;
+      const [sj, sk] = CORNER_SIGNS[i];
+      const offset = new THREE.Vector3()
+        .addScaledVector(axes[j].dir, sj * (axes[j].length / 2 + MARGIN))
+        .addScaledVector(axes[k].dir, sk * (axes[k].length / 2 + MARGIN));
+      const lineCenter = center.clone().add(offset);
+      const half = axes[i].dir.clone().multiplyScalar(axes[i].length / 2);
+      const p1 = lineCenter.clone().sub(half);
+      const p2 = lineCenter.clone().add(half);
+      const color = new THREE.Color(AXIS_COLORS[axes[i].role] || '#ffffff');
+      const mat = new THREE.LineBasicMaterial({ color });
+
+      const mainGeo = new THREE.BufferGeometry().setFromPoints([p1, p2]);
+      group.add(new THREE.Line(mainGeo, mat));
+
+      // perpendicular end ticks (use axis j's direction for the tick)
+      [p1, p2].forEach((p) => {
+        const tickDir = axes[j].dir.clone().multiplyScalar(TICK_LEN / 2);
+        const t1 = p.clone().sub(tickDir);
+        const t2 = p.clone().add(tickDir);
+        const tickGeo = new THREE.BufferGeometry().setFromPoints([t1, t2]);
+        group.add(new THREE.Line(tickGeo, mat));
+      });
+
+      labelSpecs.push({ pos: lineCenter, text: axes[i].label, color: AXIS_COLORS[axes[i].role] });
+    }
+  });
+
+  return { group, labelSpecs };
+}
+
+function slerpVectors(v1, v2, t) {
+  const dot = THREE.MathUtils.clamp(v1.dot(v2), -1, 1);
+  const theta = Math.acos(dot) * t;
+  const relative = v2.clone().sub(v1.clone().multiplyScalar(dot));
+  if (relative.lengthSq() < 1e-10) return v1.clone();
+  relative.normalize();
+  return v1.clone().multiplyScalar(Math.cos(theta)).add(relative.multiplyScalar(Math.sin(theta)));
+}
+
+function addArc(group, pivot, v1, v2, radius, colorHex, labelSpecs, labelText) {
+  const angleBetween = Math.acos(THREE.MathUtils.clamp(v1.dot(v2), -1, 1));
+  if (angleBetween < 0.02) return; // essentially 0 deg, nothing to draw
+  const steps = 24;
+  const pts = [];
+  for (let s = 0; s <= steps; s++) {
+    pts.push(slerpVectors(v1, v2, s / steps).multiplyScalar(radius).add(pivot));
+  }
+
+  // outline
+  const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), xrayLineMaterial(colorHex));
+  line.renderOrder = 999;
+  group.add(line);
+
+  // filled wedge (protractor-style), since thin WebGL lines barely show up
+  const fanVerts = [pivot, ...pts];
+  const positions = new Float32Array(fanVerts.length * 3);
+  fanVerts.forEach((p, i) => { positions[i*3] = p.x; positions[i*3+1] = p.y; positions[i*3+2] = p.z; });
+  const indices = [];
+  for (let s = 1; s < fanVerts.length - 1; s++) indices.push(0, s, s + 1);
+  const fanGeo = new THREE.BufferGeometry();
+  fanGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  fanGeo.setIndex(indices);
+  const fanMat = new THREE.MeshBasicMaterial({
+    color: new THREE.Color(colorHex), transparent: true, opacity: 0.28,
+    side: THREE.DoubleSide, depthTest: false,
+  });
+  const fan = new THREE.Mesh(fanGeo, fanMat);
+  fan.renderOrder = 998;
+  group.add(fan);
+
+  if (labelText) labelSpecs.push({ pos: pts[Math.floor(steps / 2)], text: labelText, color: colorHex });
+}
+
+// The angle gizmo's centerline/arcs intentionally pass through the solid part
+// (e.g. straight through the middle of a leg) to show the true geometric
+// pivot, so they'd normally be hidden behind the opaque mesh. Render them
+// depth-tested-off so they act like an X-ray overlay, always visible.
+function xrayLineMaterial(colorHex) {
+  return new THREE.LineBasicMaterial({ color: new THREE.Color(colorHex), depthTest: false, transparent: true });
+}
+
+// Draws the compound lean as something you can actually SEE: a vertical
+// "plumb" reference line from the floor-end pivot, the leg's real centerline,
+// and an arc (with degree label) showing how far one swings from the other -
+// plus the two smaller component arcs (side-to-side / front-to-back) that
+// make up that total lean, each in its own plane.
+function buildAngleGizmo(names) {
+  const group = new THREE.Group();
+  const labelSpecs = [];
+  if (!objectDims) return { group, labelSpecs };
+
+  names.forEach((name) => {
+    const data = objectDims[name];
+    const lengthAxis = data && data.axes.find(a => a.role === 'Length');
+    if (!lengthAxis || !lengthAxis.angle) return;
+
+    const center = new THREE.Vector3(...data.center);
+    const dir = new THREE.Vector3(...lengthAxis.direction).normalize();
+    const half = lengthAxis.length / 2;
+    const endA = center.clone().addScaledVector(dir, half);
+    const endB = center.clone().addScaledVector(dir, -half);
+    const pivot = endA.y <= endB.y ? endA : endB;
+    const otherEnd = endA.y <= endB.y ? endB : endA;
+    const actualDir = otherEnd.clone().sub(pivot).normalize();
+    const vertical = new THREE.Vector3(0, 1, 0);
+    const radius = Math.max(3, Math.min(lengthAxis.length * 0.4, 10));
+
+    // vertical plumb reference (gray)
+    const vPts = [pivot, pivot.clone().addScaledVector(vertical, radius * 1.35)];
+    const vLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(vPts), xrayLineMaterial(0xcccccc));
+    vLine.renderOrder = 999;
+    group.add(vLine);
+
+    // actual leg centerline (yellow, through the true center - separate from
+    // the offset dimension lines drawn elsewhere)
+    const cPts = [pivot, otherEnd];
+    const cLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(cPts), xrayLineMaterial(0xffe066));
+    cLine.renderOrder = 999;
+    group.add(cLine);
+
+    // total-lean arc
+    addArc(group, pivot, vertical, actualDir, radius * 1.1, '#ffe066', labelSpecs, `${lengthAxis.angle.total_deg}°`);
+
+    // side-to-side component (in the vertical/X plane)
+    const sideProj = new THREE.Vector3(actualDir.x, actualDir.y, 0);
+    if (sideProj.length() > 0.02) {
+      addArc(group, pivot, vertical, sideProj.normalize(), radius * 0.7, '#ff6bd6', labelSpecs, `${Math.abs(lengthAxis.angle.components[0].deg)}°`);
+    }
+    // front-to-back component (in the vertical/Z plane)
+    const fbProj = new THREE.Vector3(0, actualDir.y, actualDir.z);
+    if (fbProj.length() > 0.02) {
+      addArc(group, pivot, vertical, fbProj.normalize(), radius * 0.5, '#63d9ff', labelSpecs, `${Math.abs(lengthAxis.angle.components[1].deg)}°`);
+    }
+  });
+
+  return { group, labelSpecs };
+}
+
+function setSelection(row) {
+  clearSelection();
+  currentSelection = { row };
+  highlight(row.obj_names);
+  frameNamed(row.obj_names);
+
+  // switching parts mid-measurement would mix points from two different
+  // pieces, so start that measurement over on the newly selected part
+  if (typeof measurePoints !== 'undefined' && measurePoints.length) {
+    measurePoints = [];
+    clearPointMarkers();
+  }
+  if (typeof updateMeasureHint === 'function') updateMeasureHint();
+
+  const box = selectionWorldBox(row.obj_names);
+  if (box) {
+    selectionBoxHelper = new THREE.Box3Helper(box, new THREE.Color(0x555555));
+    scene.add(selectionBoxHelper);
+    currentSelection.box = box;
+  }
+
+  const { group, labelSpecs } = buildDimensionGizmo(row.obj_names);
+  const { group: angleGroup, labelSpecs: angleLabelSpecs } = buildAngleGizmo(row.obj_names);
+  scene.add(group);
+  scene.add(angleGroup);
+  currentSelection.dimGroup = group;
+  currentSelection.angleGroup = angleGroup;
+  currentSelection.axisLabelData = [...labelSpecs, ...angleLabelSpecs].map((spec) => {
+    const el = document.createElement('div');
+    el.className = 'axisLabel';
+    el.textContent = spec.text;
+    el.style.background = spec.color;
+    axisLabelsContainer.appendChild(el);
+    return { pos: spec.pos, el };
+  });
+
+  let angleHtml = '';
+  const dimsForFirst = objectDims && objectDims[row.obj_names[0]];
+  const lengthAxis = dimsForFirst && dimsForFirst.axes.find(a => a.role === 'Length');
+  if (lengthAxis && lengthAxis.angle) {
+    const ang = lengthAxis.angle;
+    const refPlain = ang.reference.includes('Y') ? 'plumb (vertical)' : 'square (horizontal)';
+    const comps = ang.components.map(c => `${Math.abs(c.deg)}&deg; ${c.label}`).join(', ');
+    angleHtml = `<div class="angle-line">&#9651; ${ang.total_deg}&deg; off ${refPlain} total &mdash; ${comps}</div>`;
+  }
+
+  dimCard.innerHTML = `
+    <div class="arrow"></div>
+    <div class="part-name">${row.label}</div>
+    <div class="dim-big">${row.dims_str}</div>
+    <div class="dim-axes">Length &times; Width &times; Thickness</div>
+    ${angleHtml}
+    <div class="meta">qty ${row.count} &middot; ${(row.materials && row.materials[0]) || ''}${row.note ? '<br><em>' + row.note + '</em>' : ''}</div>
+  `;
+  dimCard.style.display = 'block';
+}
+
+function clearSelection() {
+  highlight([]);
+  if (selectionBoxHelper) { scene.remove(selectionBoxHelper); selectionBoxHelper = null; }
+  if (currentSelection && currentSelection.dimGroup) scene.remove(currentSelection.dimGroup);
+  if (currentSelection && currentSelection.angleGroup) scene.remove(currentSelection.angleGroup);
+  currentSelection = null;
+  axisLabelsContainer.innerHTML = '';
+  dimCard.style.display = 'none';
+  document.querySelectorAll('.row').forEach(r => r.classList.remove('active'));
+}
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  clearSelection();
+  if (model) frameObject(model);
+});
+
+// ---------- click-to-select directly on the 3D model ----------
+const raycaster = new THREE.Raycaster();
+
+// ---------- manual measure tool ----------
+// The automatic per-part dimension gizmo assumes a roughly box-shaped part
+// and breaks down on irregular/curved parts (no single obvious length axis).
+// This lets you click the exact points/vertices you actually care about.
+let measureMode = null; // null | 'distance' | 'angle'
+let measurePoints = []; // world-space Vector3, snapped to nearest mesh vertex
+let measurePointMarkers = [];
+const measurements = []; // { group, labelEls: [{pos, el}] }
+const measureHint = document.getElementById('measureHint');
+
+function gcdInt(a, b) { return b === 0 ? a : gcdInt(b, a % b); }
+function toFracJS(x) {
+  const sign = x < 0 ? '-' : '';
+  x = Math.abs(x);
+  const sixteenths = Math.round(x * 16);
+  const whole = Math.floor(sixteenths / 16);
+  const rem = sixteenths % 16;
+  if (rem === 0) return `${sign}${whole}"`;
+  const g = gcdInt(rem, 16);
+  const num = rem / g, den = 16 / g;
+  return whole ? `${sign}${whole}-${num}/${den}"` : `${sign}${num}/${den}"`;
+}
+
+function snapToNearestVertex(hit) {
+  const mesh = hit.object;
+  const face = hit.face;
+  if (!face) return hit.point.clone();
+  const pos = mesh.geometry.attributes.position;
+  const candidates = [face.a, face.b, face.c].map((idx) => {
+    const v = new THREE.Vector3().fromBufferAttribute(pos, idx);
+    return mesh.localToWorld(v);
+  });
+  candidates.sort((a, b) => a.distanceTo(hit.point) - b.distanceTo(hit.point));
+  return candidates[0];
+}
+
+function addPointMarker(p) {
+  const sphere = new THREE.Mesh(
+    new THREE.SphereGeometry(0.22, 12, 12),
+    new THREE.MeshBasicMaterial({ color: 0xffb454, depthTest: false })
+  );
+  sphere.position.copy(p);
+  sphere.renderOrder = 1000;
+  scene.add(sphere);
+  measurePointMarkers.push(sphere);
+}
+function clearPointMarkers() {
+  measurePointMarkers.forEach(m => scene.remove(m));
+  measurePointMarkers = [];
+}
+
+function finishDistanceMeasurement() {
+  const [p1, p2] = measurePoints;
+  const dist = p1.distanceTo(p2);
+  const group = new THREE.Group();
+  const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([p1, p2]), xrayLineMaterial('#ffb454'));
+  line.renderOrder = 999;
+  group.add(line);
+  scene.add(group);
+  const el = document.createElement('div');
+  el.className = 'measureLabel';
+  el.textContent = toFracJS(dist);
+  measureLabelsContainer.appendChild(el);
+  measurements.push({ group, labelEls: [{ pos: p1.clone().lerp(p2, 0.5), el }] });
+}
+
+function finishAngleMeasurement() {
+  const [vertex, p1, p2] = measurePoints; // click order: pivot, then the two rays
+  const dir1 = p1.clone().sub(vertex).normalize();
+  const dir2 = p2.clone().sub(vertex).normalize();
+  const angleDeg = THREE.MathUtils.radToDeg(Math.acos(THREE.MathUtils.clamp(dir1.dot(dir2), -1, 1)));
+  const group = new THREE.Group();
+  [p1, p2].forEach((p) => {
+    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([vertex, p]), xrayLineMaterial('#ffb454'));
+    line.renderOrder = 999;
+    group.add(line);
+  });
+  const radius = Math.min(vertex.distanceTo(p1), vertex.distanceTo(p2)) * 0.5;
+  const labelSpecs = [];
+  addArc(group, vertex, dir1, dir2, radius, '#ffb454', labelSpecs, `${angleDeg.toFixed(1)}°`);
+  scene.add(group);
+  const labelEls = labelSpecs.map((spec) => {
+    const el = document.createElement('div');
+    el.className = 'measureLabel';
+    el.textContent = spec.text;
+    measureLabelsContainer.appendChild(el);
+    return { pos: spec.pos, el };
+  });
+  measurements.push({ group, labelEls });
+}
+
+function updateMeasureHint() {
+  if (!measureMode) { measureHint.style.display = 'none'; return; }
+  measureHint.style.display = 'block';
+  if (!currentSelection) {
+    measureHint.textContent = 'Select a part first (sidebar or click it on the model), then measure on it.';
+    return;
+  }
+  if (measureMode === 'distance') {
+    measureHint.textContent = measurePoints.length === 0
+      ? `Click a point on ${currentSelection.row.label}, then a second point, to measure the distance.`
+      : 'Now click the second point.';
+  } else {
+    const steps = [
+      `Click the vertex (corner) on ${currentSelection.row.label} the angle pivots around.`,
+      'Click a point to define one side of the angle.',
+      'Click a point to define the other side of the angle.',
+    ];
+    measureHint.textContent = steps[measurePoints.length] || '';
+  }
+}
+
+// Only the meshes belonging to the currently-selected part - measuring
+// against the whole model lets the ray snag overlapping/interior geometry
+// from other parts (common at joints in this hand-modeled source file).
+function currentSelectionMeshes() {
+  if (!currentSelection || !model) return [];
+  const names = new Set(currentSelection.row.obj_names);
+  const meshes = [];
+  model.traverse((child) => { if (child.isMesh && names.has(child.name)) meshes.push(child); });
+  return meshes;
+}
+
+document.getElementById('measureDistBtn').addEventListener('click', () => {
+  measureMode = measureMode === 'distance' ? null : 'distance';
+  measurePoints = [];
+  clearPointMarkers();
+  document.getElementById('measureDistBtn').classList.toggle('on', measureMode === 'distance');
+  document.getElementById('measureAngleBtn').classList.remove('on');
+  updateMeasureHint();
+});
+document.getElementById('measureAngleBtn').addEventListener('click', () => {
+  measureMode = measureMode === 'angle' ? null : 'angle';
+  measurePoints = [];
+  clearPointMarkers();
+  document.getElementById('measureAngleBtn').classList.toggle('on', measureMode === 'angle');
+  document.getElementById('measureDistBtn').classList.remove('on');
+  updateMeasureHint();
+});
+document.getElementById('clearMeasureBtn').addEventListener('click', () => {
+  measurements.forEach(({ group, labelEls }) => {
+    scene.remove(group);
+    labelEls.forEach(({ el }) => el.remove());
+  });
+  measurements.length = 0;
+  measurePoints = [];
+  clearPointMarkers();
+});
+
+// A native "click" event already ignores drags (browsers don't fire it if the
+// pointer moved between down/up), so this avoids fighting with OrbitControls'
+// own pointerdown/pointerup handling (which does pointer-capture bookkeeping
+// on the same element and can otherwise leave clicks in an inconsistent state).
+renderer.domElement.addEventListener('click', (e) => {
+  if (!model) return;
+  const rect = renderer.domElement.getBoundingClientRect();
+  const pointer = new THREE.Vector2(
+    ((e.clientX - rect.left) / rect.width) * 2 - 1,
+    -((e.clientY - rect.top) / rect.height) * 2 + 1
+  );
+  raycaster.setFromCamera(pointer, camera);
+
+  if (measureMode) {
+    if (!currentSelection) { updateMeasureHint(); return; } // must select a part first
+    const hits = raycaster.intersectObjects(currentSelectionMeshes(), true);
+    if (!hits.length) return;
+    const snapped = snapToNearestVertex(hits[0]);
+    measurePoints.push(snapped);
+    addPointMarker(snapped);
+    const needed = measureMode === 'distance' ? 2 : 3;
+    if (measurePoints.length >= needed) {
+      if (measureMode === 'distance') finishDistanceMeasurement();
+      else finishAngleMeasurement();
+      measurePoints = [];
+      clearPointMarkers();
+    }
+    updateMeasureHint();
+    return;
+  }
+
+  const hits = raycaster.intersectObject(model, true);
+  if (!hits.length) return;
+  const row = nameToRow[hits[0].object.name];
+  if (row) selectRow(row);
+});
+
+document.getElementById('wireBtn').addEventListener('click', () => {
+  wireOn = !wireOn;
+  model.traverse((child) => {
+    if (child.isMesh) {
+      [originalMaterials.get(child), dimmedOpacityMat.get(child), highlightMat].forEach(m => {
+        if (m) m.wireframe = wireOn;
+      });
+    }
+  });
+});
+
+function projectToScreen(worldPos) {
+  const p = worldPos.clone().project(camera);
+  const w = viewport.clientWidth, h = viewport.clientHeight;
+  return {
+    x: (p.x * 0.5 + 0.5) * w,
+    y: (1 - (p.y * 0.5 + 0.5)) * h,
+    behind: p.z > 1,
+  };
+}
+
+function updateOverlays() {
+  if (currentSelection) {
+    if (currentSelection.box) {
+      const box = currentSelection.box;
+      const anchor = new THREE.Vector3((box.min.x + box.max.x) / 2, box.max.y + 3, (box.min.z + box.max.z) / 2);
+      const s = projectToScreen(anchor);
+      dimCard.style.display = s.behind ? 'none' : 'block';
+      dimCard.style.left = s.x + 'px';
+      dimCard.style.top = (s.y - 20) + 'px';
+    }
+    (currentSelection.axisLabelData || []).forEach(({ pos, el }) => {
+      const s = projectToScreen(pos);
+      el.style.display = s.behind ? 'none' : 'block';
+      el.style.left = s.x + 'px';
+      el.style.top = s.y + 'px';
+    });
+  }
+
+  measurements.forEach(({ labelEls }) => {
+    labelEls.forEach(({ pos, el }) => {
+      const s = projectToScreen(pos);
+      el.style.display = s.behind ? 'none' : 'block';
+      el.style.left = s.x + 'px';
+      el.style.top = s.y + 'px';
+    });
+  });
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  updateOverlays();
+  renderer.render(scene, camera);
+}
+resize();
+animate();
+
+// Handle for tests/debugging in the console; not used by the app itself.
+window.__viewer = {
+  THREE, scene, camera, controls, currentSelectionMeshes,
+  get model() { return model; },
+  // total points clicked so far, including ones already turned into a finished measurement
+  measureClickCount: () => measurePoints.length + measurements.length * 2,
+};
+
+// ---------- sidebar cut list ----------
+const MAT_COLORS = {
+  'Wood': '#d9b26a',
+  'Wood_contrast': '#f2e8d5',
+  '_____Metal': '#9aa0a6',
+  'Leather': '#8b4a2b',
+};
+
+const nameToRow = {};     // obj_name (3D mesh name) -> row
+const rowElements = {};   // row.__id -> sidebar DOM element
+
+function categoryFor(row) {
+  const mats = row.materials || [];
+  if (mats.includes('Wood') || mats.includes('Wood_contrast')) return 'Wood Cut List';
+  if (mats.includes('Leather')) return 'Leather';
+  if (mats.includes('_____Metal')) return 'Hardware';
+  return 'Other';
+}
+const CATEGORY_ORDER = ['Wood Cut List', 'Hardware', 'Leather', 'Other'];
+
+fetch('parts_report.json').then(r => r.json()).then((rows) => {
+  rows.forEach((r, i) => {
+    r.__id = i;
+    (r.obj_names || []).forEach(n => { nameToRow[n] = r; });
+  });
+  window.__rows = rows;
+  if (model) buildList();
+});
+
+function selectRow(row) {
+  // setSelection() calls clearSelection() internally, which wipes every
+  // .row's active class - so the active class must be applied AFTER
+  // setSelection runs, not before, or it gets immediately erased.
+  setSelection(row);
+  const el = rowElements[row.__id];
+  if (el) {
+    el.classList.add('active');
+    el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+}
+
+function buildList() {
+  const rows = window.__rows;
+  if (!rows) return;
+  const list = document.getElementById('list');
+  list.innerHTML = '';
+
+  const categories = {};
+  rows.forEach(r => {
+    const cat = categoryFor(r);
+    (categories[cat] = categories[cat] || []).push(r);
+  });
+
+  CATEGORY_ORDER.filter(c => categories[c]).forEach((catName) => {
+    const catHeader = document.createElement('div');
+    catHeader.className = 'group-title';
+    catHeader.style.fontSize = '13px';
+    catHeader.style.color = '#ffb454';
+    catHeader.style.borderBottom = '2px solid #ffb454';
+    catHeader.style.marginTop = '18px';
+    catHeader.textContent = catName;
+    list.appendChild(catHeader);
+
+    const groups = {};
+    categories[catName].forEach(r => {
+      (groups[r.top_group] = groups[r.top_group] || []).push(r);
+    });
+
+    Object.keys(groups).sort().forEach(groupName => {
+      const title = document.createElement('div');
+      title.className = 'group-title';
+      title.textContent = groupName;
+      list.appendChild(title);
+      groups[groupName].forEach(r => {
+        const row = document.createElement('div');
+        const clickable = r.obj_names && r.obj_names.length > 0;
+        row.className = 'row' + (clickable ? '' : ' disabled');
+        const mat = (r.materials && r.materials[0]) || '';
+        const swatch = `<span class="mat-swatch" style="background:${MAT_COLORS[mat] || '#666'}"></span>`;
+        row.innerHTML = `
+          <div>
+            <div class="name">${swatch}${r.label}</div>
+            <div class="dims">${r.dims_str}${r.note ? ' · <em>' + r.note + '</em>' : ''}</div>
+          </div>
+          <div class="qty">x${r.count}</div>
+        `;
+        rowElements[r.__id] = row;
+        if (clickable) {
+          row.addEventListener('click', () => selectRow(r));
+        }
+        list.appendChild(row);
+      });
+    });
+  });
+}

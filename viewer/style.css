@@ -1,0 +1,50 @@
+html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; font-family: -apple-system, Segoe UI, Arial, sans-serif; background: #1b1c1f; color: #eee; }
+#app { display: flex; height: 100%; }
+#viewport { flex: 1; position: relative; }
+#viewport canvas { display: block; }
+#sidebar { width: 380px; overflow-y: auto; background: #232428; border-left: 1px solid #333; padding: 12px; box-sizing: border-box; }
+h1 { font-size: 15px; margin: 0 0 4px; }
+.sub { font-size: 11px; color: #999; margin-bottom: 12px; }
+.group { margin-bottom: 14px; }
+.group-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #7fb0ff; margin: 10px 0 4px; border-bottom: 1px solid #333; padding-bottom: 2px; }
+.row { padding: 7px 8px; border-radius: 6px; cursor: pointer; font-size: 12.5px; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.row:hover { background: #2f3238; }
+.row.active { background: #3a5a8c; }
+.row.disabled { cursor: default; opacity: 0.55; }
+.row .name { font-weight: 600; }
+.row .dims { color: #bbb; font-size: 11px; }
+.row .qty { color: #ffd479; font-size: 11px; white-space: nowrap; }
+.mat-swatch { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+#toolbar { position: absolute; top: 10px; left: 10px; display: flex; gap: 8px; z-index: 5; }
+#toolbar button { background: #2f3238; color: #eee; border: 1px solid #444; border-radius: 6px; padding: 6px 10px; font-size: 12px; cursor: pointer; }
+#toolbar button:hover { background: #3a3d44; }
+#toolbar button.on { background: #ffb454; color: #1b1c1f; border-color: #ffb454; }
+#measureHint {
+  position: absolute; top: 46px; left: 10px; z-index: 5; display: none;
+  background: rgba(255,180,84,0.15); border: 1px solid #ffb454; color: #ffd479;
+  padding: 6px 10px; border-radius: 6px; font-size: 12px;
+}
+.measureLabel {
+  position: absolute; transform: translate(-50%, -50%); pointer-events: none;
+  background: #ffb454; color: #1b1c1f; font-size: 12px; font-weight: 700;
+  padding: 3px 8px; border-radius: 5px; white-space: nowrap;
+}
+#note { font-size: 11px; color: #ffb454; margin-top: 4px; }
+#loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 13px; }
+#dimCard {
+  position: absolute; transform: translate(-50%, -100%); pointer-events: none;
+  background: rgba(20, 21, 24, 0.95); border: 1px solid #ff5b3d; border-radius: 8px;
+  padding: 8px 12px; font-size: 12px; white-space: normal; max-width: 260px; display: none;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+}
+#dimCard .part-name { font-size: 13px; font-weight: 700; color: #ff9d7a; margin-bottom: 3px; }
+#dimCard .dim-big { font-size: 20px; font-weight: 700; color: #fff; letter-spacing: 0.02em; }
+#dimCard .dim-axes { font-size: 10px; color: #999; margin-top: 1px; }
+#dimCard .meta { font-size: 11px; color: #ccc; margin-top: 4px; }
+#dimCard .angle-line { font-size: 12px; color: #ffd479; margin-top: 5px; font-weight: 600; }
+#dimCard .arrow { position: absolute; left: 50%; bottom: -6px; transform: translateX(-50%); width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 6px solid #ff5b3d; }
+.axisLabel {
+  position: absolute; transform: translate(-50%, -50%); pointer-events: none;
+  font-size: 12px; font-weight: 700; padding: 2px 7px; border-radius: 5px;
+  white-space: nowrap; color: #111; box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+}
