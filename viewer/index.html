@@ -71,7 +71,7 @@
       <tr><td><kbd>D</kbd> <kbd>A</kbd> <kbd>B</kbd></td><td>Distance / Angle / Bevel tool</td></tr>
       <tr><td><kbd>Backspace</kbd> / <kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>Undo last measure point</td></tr>
       <tr><td><kbd>/</kbd></td><td>Filter the cut list</td></tr>
-      <tr><td><kbd>C</kbd></td><td>Cutting diagram / lumber to buy</td></tr>
+      <tr><td><kbd>C</kbd></td><td>Shopping list &amp; cutting diagram</td></tr>
       <tr><td><kbd>Ctrl</kbd>+<kbd>P</kbd></td><td>Print cut sheet</td></tr>
     </table>
     <p>Measuring snaps to <span class="snap-e">endpoints</span>, <span class="snap-m">midpoints</span> and <span class="snap-g">edges</span> within a few pixels, otherwise to the face you click. With a part selected, only that part can be measured, so joints with neighbouring parts don't get in the way.</p>
@@ -82,7 +82,7 @@
 <div id="diagram">
   <div class="cd-box">
     <div class="cd-head">
-      <h2>Cutting diagram</h2>
+      <h2>Shopping list &amp; cutting diagram</h2>
       <label>Board length <select id="cdLength">
         <option value="72">6'</option><option value="96">8'</option><option value="120">10'</option>
         <option value="144">12'</option><option value="168">14'</option><option value="192">16'</option>
@@ -90,6 +90,7 @@
       <label>Board width <input id="cdWidth" type="number" min="2" step="0.25" /> in</label>
       <label>Kerf <input id="cdKerf" type="number" min="0" step="0.0625" /> in</label>
       <button class="cd-close" title="Close (Esc)">×</button>
+      <div class="cd-prices" title="Price per board foot, for a cost estimate (optional)"></div>
     </div>
     <div class="cd-body"></div>
   </div>

@@ -6,7 +6,7 @@ import { formatLength, escapeHtml } from './format.js';
 import { compoundAngle, describeAngle, round1, DEFAULT_AXIS_NAMES } from './angles.js';
 import { initSettings, settings, updateSettings, onSettingsChange } from './settings.js';
 import {
-  prepareRows, renderCutList, renderRows, markActive, visibleRows, focusSearch, finishedDims, buildPrintSheet,
+  prepareRows, renderCutList, renderRows, markActive, visibleRows, focusSearch, finishedDims, buildPrintSheet, isRod,
 } from './cutlist.js';
 import { initMeasure } from './measure.js';
 import { initDiagramModal, computeLayouts, layoutsHTML } from './diagram.js';
@@ -724,10 +724,6 @@ function contactsOf(mesh) {
   return out;
 }
 
-// A long round hardware part: a rod/bolt that needs a hole.
-const isRod = (row) => row.category === 'Hardware' && !row.customDims
-  && Math.abs(row.dims[1] - row.dims[2]) < 0.02 && row.dims[0] > 3 * row.dims[1];
-
 // Contacts of one piece of the selected row, grouped by the row they belong to.
 function pieceContacts(mesh, row) {
   const byRow = new Map();
@@ -1007,7 +1003,7 @@ window.addEventListener('beforeprint', () => {
   const layouts = computeLayouts(rows);
   const longest = Math.max(...layouts.flatMap((g) => g.boards.map((b) => b.length)), 1);
   const diagrams = layouts.length
-    ? `<div class="ps-diagrams"><h2>Cutting diagrams</h2>${layoutsHTML(layouts, { pxPerInch: 700 / longest, units: settings().units, colorFor: diagram.colorFor })}</div>`
+    ? `<div class="ps-diagrams"><h2>Shopping list &amp; cutting diagrams</h2>${layoutsHTML(layouts, { pxPerInch: 700 / longest, units: settings().units, colorFor: diagram.colorFor, hardware: rows })}</div>`
     : '';
   buildPrintSheet($('printSheet'), rows, config, img, drillingHtml() + diagrams);
 });

@@ -341,6 +341,11 @@ try {
   check(boards >= 5 && /8\/4 Wood/.test(shop), `diagram lays parts out on boards (${boards} boards)`);
   const partsInDiagram = await page.locator('#diagram .part').count();
   check(partsInDiagram === 26, `every wood piece appears once in the diagram (${partsInDiagram}/26)`);
+  check(/Threaded Rod 1\/2"-13: 4 pieces \(6-7\/8" ×2, 5-1\/16" ×2\), 23-7\/8" total — buy 3'/.test(shop), 'hardware list totals rod by size with a stock length to buy');
+  await page.fill('.cd-prices input[data-mat="Wood"]', '8');
+  await page.locator('.cd-prices input[data-mat="Wood"]').dispatchEvent('change');
+  const priced = await page.locator('#diagram .cd-shop').innerText();
+  check(/Lumber estimate: \$\d+\.\d\d/.test(priced), `price per board foot gives a cost estimate (${(priced.match(/Lumber estimate: [^\n]*/) || [''])[0]})`);
   await page.screenshot({ path: path.join(OUT, '16-cutting-diagram.png') });
   await page.fill('#cdWidth', '12');
   await page.locator('#cdWidth').dispatchEvent('change');

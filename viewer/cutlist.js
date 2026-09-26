@@ -51,6 +51,10 @@ export function finishedDims(row, units = settings().units) {
   return `${formatLength(t, units)} × ${formatLength(w, units)} × ${formatLength(l, units)}`;
 }
 
+// A long round hardware part: a rod/bolt that needs a hole.
+export const isRod = (row) => row.category === 'Hardware' && !row.customDims
+  && Math.abs(row.dims[1] - row.dims[2]) < 0.02 && row.dims[0] > 3 * row.dims[1];
+
 export function roughFor(row) {
   if (row.category !== 'Wood') return null;
   return roughStock(row.dims, settings().allowance);
@@ -115,7 +119,7 @@ export function renderCutList(container, rows, config, h) {
         <button id="clPrint" title="Print a shop cut sheet with checkboxes">Print cut sheet</button>
       </div>
       <div class="cl-row">
-        <button id="clDiagram" title="Lay the parts out on boards: what lumber to buy and how to cut it (C)">Cutting diagram &amp; lumber to buy</button>
+        <button id="clDiagram" title="Lay the parts out on boards: what lumber to buy and how to cut it (C)">Shopping list &amp; cutting diagram</button>
       </div>
     </div>
     <div id="clSummary" class="cl-summary"></div>

@@ -5,7 +5,7 @@
 import { packBoards, boardParts, boardYield, piecesByStock } from './nesting.js';
 import { formatLength, boardFeet, escapeHtml } from './format.js';
 import { settings, updateSettings } from './settings.js';
-import { roughFor } from './cutlist.js';
+import { roughFor, isRod, finishedDims } from './cutlist.js';
 
 export const STOCK_DEFAULTS = { length: 96, width: 8, kerf: 0.125 };
 
@@ -27,8 +27,20 @@ function feetInches(inches) {
   return inch ? `${ft}' ${inch}"` : `${ft}'`;
 }
 
-// Shopping list line per group, e.g. "8/4 Wood: 2 boards 8' × 8" (21.3 bf)".
+// Board feet you actually have to buy: whole boards, except a mostly-empty
+// last board, which is counted only as far as it's used (to the next 6"),
+// since a short board or an offcut will do.
+function buyInfo(g) {
+  const last = g.boards[g.boards.length - 1];
+  const used = Math.max(0, ...boardParts(last).map((p) => p.x + p.length));
+  const partial = used < last.length * 0.5 ? Math.min(last.length, Math.ceil(used / 6) * 6) : null;
+  const bf = g.boards.reduce((a, b) => a + boardFeet(b === last && partial ? partial : b.length, b.width, g.thickness), 0);
+  return { partial, bf };
+}
+
+// Shopping list line per group, e.g. "8/4 Wood: 2 × 8' × 8" (21.3 bf)".
 export function shoppingList(layouts) {
+  const prices = settings().prices || {};
   return layouts.map((g) => {
     const sizes = new Map();
     g.boards.forEach((b) => {
@@ -36,14 +48,40 @@ export function shoppingList(layouts) {
       sizes.set(k, (sizes.get(k) || 0) + 1);
     });
     let list = [...sizes].map(([k, n]) => `${n} × ${k}`).join(', ');
-    // A mostly-empty last board usually means a short board or an offcut will do.
-    const last = g.boards[g.boards.length - 1];
-    const used = Math.max(0, ...boardParts(last).map((p) => p.x + p.length));
-    if (used < last.length * 0.5) {
-      list += ` — only ${feetInches(Math.ceil(used / 6) * 6)} of ${g.boards.length > 1 ? 'the last one' : 'it'} is used; a shorter board or an offcut will do`;
+    const { partial, bf } = buyInfo(g);
+    if (partial) {
+      list += ` — only ${feetInches(partial)} of ${g.boards.length > 1 ? 'the last one' : 'it'} is used; a shorter board or an offcut will do`;
     }
-    return { label: `${g.thicknessLabel} ${g.material}`, list, bf: g.bf, yield: g.partsBf / g.bf };
+    const price = prices[g.material];
+    return { label: `${g.thicknessLabel} ${g.material}`, material: g.material, list, bf, yield: g.partsBf / g.bf, cost: price > 0 ? bf * price : null };
   });
+}
+
+// Hardware and other non-wood parts to buy. Rods are totalled per size so you
+// can buy stock lengths and cut them: 1/8" per saw cut, rounded up to the
+// next foot.
+export function hardwareList(rows, units) {
+  const rods = new Map();
+  const other = [];
+  rows.filter((r) => r.category !== 'Wood').forEach((r) => {
+    if (isRod(r)) {
+      const k = `${r.name}|${r.dims[1].toFixed(3)}`;
+      const e = rods.get(k) || { name: r.name, dia: r.dims[1], pieces: [] };
+      for (let i = 0; i < r.count; i++) e.pieces.push(r.dims[0]);
+      rods.set(k, e);
+    } else {
+      other.push({ name: r.name, count: r.count, size: finishedDims(r, units), category: r.category });
+    }
+  });
+  const rodLines = [...rods.values()].map((e) => {
+    const total = e.pieces.reduce((a, b) => a + b, 0);
+    const buy = Math.ceil((total + 0.125 * e.pieces.length) / 12) * 12;
+    const counts = new Map();
+    e.pieces.forEach((l) => counts.set(l, (counts.get(l) || 0) + 1));
+    const cut = [...counts].map(([l, n]) => `${formatLength(l, units)}${n > 1 ? ` ×${n}` : ''}`).join(', ');
+    return { name: e.name, text: `${e.pieces.length} piece${e.pieces.length > 1 ? 's' : ''} (${cut}), ${formatLength(total, units)} total — buy ${feetInches(buy)}` };
+  });
+  return { rods: rodLines, other };
 }
 
 export function boardSVG(board, g, { pxPerInch = 9, units = 'in16', colorFor = () => PART_COLORS[0] } = {}) {
@@ -76,11 +114,18 @@ export function boardSVG(board, g, { pxPerInch = 9, units = 'in16', colorFor = (
   </svg>`;
 }
 
-export function layoutsHTML(layouts, { pxPerInch, units, colorFor }) {
+export function layoutsHTML(layouts, { pxPerInch, units, colorFor, hardware = null }) {
   const shop = shoppingList(layouts);
+  const totalCost = shop.reduce((a, s) => a + (s.cost || 0), 0);
+  const money = (v) => `$${v.toFixed(2)}`;
+  const hw = hardware ? hardwareList(hardware, units) : { rods: [], other: [] };
   return `
     <div class="cd-shop"><b>Lumber to buy</b> (rough, before the ~20% defect allowance):
-      <ul>${shop.map((s) => `<li><b>${escapeHtml(s.label)}</b>: ${escapeHtml(s.list)} — ${s.bf.toFixed(1)} bf, ${Math.round(s.yield * 100)}% used</li>`).join('')}</ul>
+      <ul>${shop.map((s) => `<li><b>${escapeHtml(s.label)}</b>: ${escapeHtml(s.list)} — ${s.bf.toFixed(1)} bf${s.cost != null ? ` ≈ ${money(s.cost)}` : ''}, ${Math.round(s.yield * 100)}% used</li>`).join('')}</ul>
+      ${totalCost ? `<div>Lumber estimate: <b>${money(totalCost)}</b> (${money(totalCost * 1.2)} with 20% extra)</div>` : ''}
+      ${hw.rods.length || hw.other.length ? `<b>Hardware &amp; other</b>:
+        <ul>${hw.rods.map((r) => `<li><b>${escapeHtml(r.name)}</b>: ${escapeHtml(r.text)}</li>`).join('')}
+        ${hw.other.map((o) => `<li><b>${escapeHtml(o.name)}</b> ×${o.count}: ${escapeHtml(o.size)}${o.category !== 'Hardware' ? ` <span class="muted">(${escapeHtml(o.category.toLowerCase())})</span>` : ''}</li>`).join('')}</ul>` : ''}
     </div>
     ${layouts.map((g) => `
       <div class="cd-group">
@@ -119,12 +164,30 @@ export function initDiagramModal({ rows, onSelectRow }) {
     const layouts = computeLayouts(rows);
     const avail = Math.max(320, body.clientWidth - 24);
     const longest = Math.max(...layouts.flatMap((g) => g.boards.map((b) => b.length)), stock.length);
-    body.innerHTML = layoutsHTML(layouts, { pxPerInch: avail / longest, units: s.units, colorFor });
+    renderPrices(layouts);
+    body.innerHTML = layoutsHTML(layouts, { pxPerInch: avail / longest, units: s.units, colorFor, hardware: rows });
     body.querySelectorAll('.part').forEach((el) => el.addEventListener('click', () => {
       const row = rows.find((r) => r.key === el.dataset.row);
       if (row) { close(); onSelectRow(row); }
     }));
   }
+
+  // $/bf per species; blank = no cost estimate
+  const pricesEl = modal.querySelector('.cd-prices');
+  function renderPrices(layouts) {
+    const prices = settings().prices || {};
+    const materials = [...new Set(layouts.map((g) => g.material))];
+    pricesEl.innerHTML = materials.map((m) => `<label>${escapeHtml(m)} $/bf <input type="number" min="0" step="0.25" data-mat="${escapeHtml(m)}" value="${prices[m] ?? ''}" placeholder="–" /></label>`).join('');
+  }
+  pricesEl.addEventListener('change', (e) => {
+    const m = e.target.dataset.mat;
+    if (!m) return;
+    const v = parseFloat(e.target.value);
+    const prices = { ...(settings().prices || {}) };
+    if (v > 0) prices[m] = v; else delete prices[m];
+    updateSettings({ prices });
+    render();
+  });
 
   function open() { modal.style.display = 'flex'; render(); }
   function close() { modal.style.display = 'none'; }
