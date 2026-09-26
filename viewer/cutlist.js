@@ -329,6 +329,7 @@ function downloadCSV(rows, config) {
 // ---------- printable cut sheet ----------
 
 // extraHtml: drilling list and cutting diagrams, appended after the totals
+// imageDataUrl: one picture or several (assembled + exploded with letters)
 export function buildPrintSheet(target, rows, config, imageDataUrl, extraHtml = '') {
   const s = settings();
   const t = totals(rows);
@@ -342,7 +343,7 @@ export function buildPrintSheet(target, rows, config, imageDataUrl, extraHtml = 
   target.innerHTML = `
     <h1>${escapeHtml(config.title || 'Cut List')} — Cut Sheet</h1>
     <div class="ps-sub">${escapeHtml(config.subtitle || '')} · printed ${escapeHtml(date)} · finished sizes T × W × L</div>
-    ${imageDataUrl ? `<img class="ps-img" src="${imageDataUrl}" alt="" />` : ''}
+    ${imageDataUrl ? `<div class="ps-imgs">${[].concat(imageDataUrl).filter(Boolean).map((u) => `<img class="ps-img" src="${u}" alt="" />`).join('')}</div>` : ''}
     ${sections.map((sec) => `
       <h2>${escapeHtml(sec.cat === 'Wood' ? 'Wood' : sec.cat)}</h2>
       <table>

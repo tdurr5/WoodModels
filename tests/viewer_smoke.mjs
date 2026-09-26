@@ -312,8 +312,11 @@ try {
   await page.locator('#explodeRange').fill('1');
   await page.selectOption('#sectionAxis', 'x');
   await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
-  const overviewSrc = await page.locator('#printSheet .ps-img').getAttribute('src');
+  const overviewSrc = await page.locator('#printSheet .ps-img').first().getAttribute('src');
   fs.writeFileSync(path.join(OUT, 'print-overview.png'), Buffer.from(overviewSrc.split(',')[1], 'base64'));
+  const explodedSrc = await page.locator('#printSheet .ps-img').nth(1).getAttribute('src');
+  fs.writeFileSync(path.join(OUT, 'print-exploded.png'), Buffer.from(explodedSrc.split(',')[1], 'base64'));
+  check(await page.locator('#printSheet .ps-img').count() === 2, 'print sheet has assembled and exploded pictures');
   check(await page.evaluate(() => window.__viewer.scene.getObjectByName('Legs_Leg_Front').position.length() > 1), 'explode state restored after the print capture');
   await page.selectOption('#sectionAxis', 'off');
   await page.locator('#resetBtn').click();

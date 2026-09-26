@@ -1023,7 +1023,9 @@ function printTemplate() { if (prepareTemplate()) window.print(); }
 window.addEventListener('afterprint', () => { printingTemplate = false; });
 // A clean overview for the printed sheet: whole model from the 3D preset,
 // no highlight/ghosting/labels, on white - independent of the current view.
-function captureOverview() {
+// With `exploded`, parts are pulled apart and tagged with their cut-list
+// letters, like a plan's exploded assembly drawing.
+function captureOverview({ exploded = 0 } = {}) {
   const saved = {
     camera, pos: camera.position.clone(), target: controls.target.clone(), zoom: camera.zoom,
     bg: scene.background, current, gizmoVisible: current?.gizmo?.visible,
@@ -1040,18 +1042,20 @@ function captureOverview() {
   if (current?.gizmo) current.gizmo.visible = false;
   current = null;
   applyMaterials();
-  meshes.forEach((m) => { m.visible = true; m.position.set(0, 0, 0); });
+  meshes.forEach((m) => { m.visible = true; });
+  setExplodePositions(exploded);
   if (savedWire) allMaterials().forEach((m) => { m.wireframe = false; });
   renderer.localClippingEnabled = false; // ignore any section cut
   const capsOn = section.axis !== 'off';
   if (capsOn) showSectionCaps(false);
   grid.visible = false;
   scene.background = new THREE.Color(0xffffff);
-  frameBox(modelBox, config.views?.iso?.dir || [0.7, 0.5, 0.7], false);
+  const box = exploded ? new THREE.Box3().setFromObject(model) : modelBox;
+  frameBox(box, config.views?.iso?.dir || [0.7, 0.5, 0.7], false);
   let url = null;
   try {
     renderer.render(scene, camera);
-    url = cropToContent(renderer.domElement, 24);
+    url = cropToContent(renderer.domElement, 24, exploded ? drawCallouts : null);
   } catch { /* tainted canvas etc. */ }
   scene.background = saved.bg;
   grid.visible = true;
@@ -1062,7 +1066,7 @@ function captureOverview() {
   renderer.localClippingEnabled = true;
   if (capsOn) showSectionCaps(true);
   if (savedWire) setWireframe(true);
-  if (savedExplode) setExplodePositions(savedExplode);
+  setExplodePositions(savedExplode);
   renderer.setSize(saved.size.x, saved.size.y, false);
   perspCamera.aspect = saved.aspect;
   perspCamera.updateProjectionMatrix();
@@ -1076,14 +1080,75 @@ function captureOverview() {
   return url;
 }
 
+// Letter callouts drawn straight onto a captured image (HTML tags aren't part
+// of the WebGL canvas): one per part type, like a plan's exploded drawing,
+// nudged apart so they don't overlap, with a leader line back to the part.
+function drawCallouts(g, w, h) {
+  const r = Math.round(w / 150);
+  const toPx = (v) => {
+    const p = v.clone().project(camera);
+    return { x: (p.x * 0.5 + 0.5) * w, y: (0.5 - p.y * 0.5) * h };
+  };
+  const seen = new Set();
+  const marks = [];
+  meshes.forEach((m) => {
+    const row = rowByMeshName.get(m.name);
+    const d = objectDims[m.name];
+    if (!row || !d || row.customDims || seen.has(row.key)) return;
+    seen.add(row.key);
+    const a = toPx(new THREE.Vector3(...d.center).add(m.position));
+    marks.push({ letter: row.letter, ax: a.x, ay: a.y, x: a.x, y: a.y });
+  });
+  // relax overlapping circles apart
+  const minD = r * 2.3;
+  for (let it = 0; it < 60; it++) {
+    let moved = false;
+    for (let i = 0; i < marks.length; i++) {
+      for (let j = i + 1; j < marks.length; j++) {
+        const A = marks[i], B = marks[j];
+        let dx = B.x - A.x, dy = B.y - A.y;
+        let dist = Math.hypot(dx, dy);
+        if (dist >= minD) continue;
+        if (dist < 1e-3) { dx = 1; dy = 0; dist = 1; }
+        const push = (minD - dist) / 2;
+        A.x -= (dx / dist) * push; A.y -= (dy / dist) * push;
+        B.x += (dx / dist) * push; B.y += (dy / dist) * push;
+        moved = true;
+      }
+    }
+    if (!moved) break;
+  }
+  g.lineWidth = Math.max(1.5, r / 8);
+  g.strokeStyle = '#1b1c1f';
+  marks.forEach((mk) => {
+    if (Math.hypot(mk.x - mk.ax, mk.y - mk.ay) > r) {
+      g.beginPath(); g.moveTo(mk.ax, mk.ay); g.lineTo(mk.x, mk.y); g.stroke();
+      g.beginPath(); g.arc(mk.ax, mk.ay, g.lineWidth * 1.4, 0, Math.PI * 2); g.fillStyle = '#1b1c1f'; g.fill();
+    }
+  });
+  g.font = `bold ${Math.round(r * 1.2)}px -apple-system, Segoe UI, Arial, sans-serif`;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  marks.forEach((mk) => {
+    g.beginPath();
+    g.arc(mk.x, mk.y, r, 0, Math.PI * 2);
+    g.fillStyle = '#ffffff';
+    g.fill();
+    g.stroke();
+    g.fillStyle = '#1b1c1f';
+    g.fillText(mk.letter, mk.x, mk.y + 1);
+  });
+}
+
 // Copy the just-rendered WebGL canvas and trim the white border around the
 // model. Must run in the same task as the render (no preserveDrawingBuffer).
-function cropToContent(glCanvas, pad) {
+function cropToContent(glCanvas, pad, overlay = null) {
   const w = glCanvas.width, h = glCanvas.height;
   const full = document.createElement('canvas');
   full.width = w; full.height = h;
   const g = full.getContext('2d', { willReadFrequently: true });
   g.drawImage(glCanvas, 0, 0);
+  if (overlay) overlay(g, w, h);
   const px = g.getImageData(0, 0, w, h).data;
   let x0 = w, y0 = h, x1 = -1, y1 = -1;
   for (let y = 0; y < h; y += 2) {
@@ -1106,7 +1171,7 @@ function cropToContent(glCanvas, pad) {
 
 window.addEventListener('beforeprint', () => {
   if (printingTemplate) return;
-  const img = model ? captureOverview() : null;
+  const img = model ? [captureOverview(), captureOverview({ exploded: 1 })] : null;
   // print-sized diagrams: 7.5" printable width at 96 css px per inch
   const layouts = computeLayouts(rows);
   const longest = Math.max(...layouts.flatMap((g) => g.boards.map((b) => b.length)), 1);
