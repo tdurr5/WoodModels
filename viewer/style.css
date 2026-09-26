@@ -53,7 +53,10 @@ body.sidebar-collapsed #sidebar { display: none; }
   background: rgba(20,21,24,0.92); border: 1px solid #555; border-radius: 5px; padding: 3px 8px; font-size: 12px; white-space: nowrap;
 }
 #hoverTip span { color: #bbb; margin-left: 6px; }
-#loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 13px; padding: 20px; text-align: center; }
+#loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 13px; padding: 20px; text-align: center; line-height: 1.7; }
+#loading.load-error { color: #ffcf5c; }
+#loading code { background: #2f3238; padding: 1px 5px; border-radius: 4px; }
+#loading a { color: var(--blue); }
 
 #dimCard {
   position: absolute; right: 10px; bottom: 10px; z-index: 4;

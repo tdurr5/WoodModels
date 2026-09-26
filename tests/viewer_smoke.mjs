@@ -341,8 +341,31 @@ try {
   check(errors.length === 0, `no page errors${errors.length ? ':\n    ' + errors.join('\n    ') : ''}`);
 } finally {
   await browser.close();
-  server.close();
 }
+
+// ---------- failure modes ----------
+{
+  console.log('load failures explain themselves');
+  const b2 = await chromium.launch(launchOpts);
+  const p2 = await b2.newPage();
+  await p2.route(/unpkg\.com/, (route) => route.abort());
+  await p2.clock.install();
+  await p2.goto(base);
+  await p2.clock.fastForward(13000);
+  const msg = await p2.locator('#loading').innerText();
+  check(/Couldn't load the 3D library/.test(msg), 'blocked CDN shows a helpful message');
+  const p3 = await b2.newPage();
+  await p3.route(/^https:\/\/unpkg\.com\/three@[^/]+\/(.*)$/, (route) => {
+    const rel = route.request().url().replace(/^https:\/\/unpkg\.com\/three@[^/]+\//, '');
+    route.fulfill({ status: 200, contentType: 'text/javascript', body: fs.readFileSync(path.join(THREE_DIR, rel)) });
+  });
+  await p3.route(/scene\.obj$/, (route) => route.fulfill({ status: 404 }));
+  await p3.goto(base);
+  await p3.waitForFunction(() => document.getElementById('loading').classList.contains('load-error'), null, { timeout: 30000 });
+  check(/Failed to load the model/.test(await p3.locator('#loading').innerText()), 'missing model file shows a helpful message');
+  await b2.close();
+}
+server.close();
 
 console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed');
 process.exit(failures ? 1 : 0);

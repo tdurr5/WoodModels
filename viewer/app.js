@@ -922,7 +922,11 @@ resize();
 requestAnimationFrame(animate);
 
 init().catch((err) => {
-  $('loading').textContent = `Failed to load model: ${err.message || err}`;
+  const el = $('loading');
+  el.classList.add('load-error');
+  el.innerHTML = location.protocol === 'file:'
+    ? 'This page has to be served over HTTP, not opened as a file.<br>In the <code>viewer</code> folder run <code>python3 -m http.server 8743</code> and open <a href="http://localhost:8743">http://localhost:8743</a>.'
+    : `Failed to load the model: ${escapeHtml(err.message || String(err))}<br>Is <code>scene.obj</code> next to this page? Regenerate it with <code>parse_dae.py</code>.`;
   console.error(err);
 });
 

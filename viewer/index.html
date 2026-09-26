@@ -102,5 +102,17 @@
 } }
 </script>
 <script type="module" src="app.js"></script>
+<script>
+  // If the module never starts (three.js couldn't be fetched, or the page was
+  // opened straight from disk), say why instead of spinning forever.
+  setTimeout(function () {
+    if (window.__viewer) return;
+    var el = document.getElementById('loading');
+    el.innerHTML = location.protocol === 'file:'
+      ? 'This page has to be served over HTTP, not opened as a file.<br>In the <code>viewer</code> folder run <code>python3 -m http.server 8743</code> and open <a href="http://localhost:8743">http://localhost:8743</a>.'
+      : 'Couldn\'t load the 3D library (three.js from unpkg.com). Check your internet connection and reload.';
+    el.classList.add('load-error');
+  }, 12000);
+</script>
 </body>
 </html>
