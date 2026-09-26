@@ -20,9 +20,11 @@ export function prepareRows(rawRows, config) {
     // parse_dae.py writes dims_str as sixteenths L x W x T; anything else is a
     // hand-written override (e.g. hex hardware) that should be shown as-is.
     const standard = `${toFraction(l)} x ${toFraction(w)} x ${toFraction(t)}`;
-    // r.warning: parse_dae.py found the part's name disagrees with its geometry
-    const warning = r.warning || (config.notes || {})[r.label];
-    const notes = [r.note, warning].filter(Boolean);
+    // r.warning: parse_dae.py found the part's name disagrees with its geometry;
+    // model.json notes are extra warnings the plan author adds by hand
+    const configNote = (config.notes || {})[r.label];
+    const warning = r.warning || configNote;
+    const notes = [r.note, r.warning, configNote].filter(Boolean);
     return {
       ...r,
       key: `${r.label}|${r.dims.join('x')}`,

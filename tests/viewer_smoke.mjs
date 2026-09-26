@@ -488,6 +488,7 @@ try {
   }
   const cfg = JSON.parse(fs.readFileSync(path.join(sub, 'model.json'), 'utf8'));
   cfg.title = 'Test Copy';
+  cfg.notes = { 'Shaft_1_2_-13_8_1_4': 'Author note: use stainless rod' };
   fs.writeFileSync(path.join(sub, 'model.json'), JSON.stringify(cfg));
   // two rows sharing a label at different sizes: move Filler Front's mesh to a second "Bench" row
   const report = JSON.parse(fs.readFileSync(path.join(sub, 'parts_report.json'), 'utf8'));
@@ -501,6 +502,8 @@ try {
     await p2.goto(`${base}?model=_test_model`);
     await p2.waitForFunction(() => document.getElementById('loading').style.display === 'none', null, { timeout: 30000 });
     check((await p2.locator('#sidebar h1').innerText()) === 'Test Copy', '?model= loads another model folder');
+    const rodNotes = (await p2.locator('#clList .row', { hasText: 'Author note' }).locator('.note').allInnerTexts()).join(' | ');
+    check(/Named 8-1\/4"/.test(rodNotes) && /stainless/.test(rodNotes), `a model.json note shows alongside the parser warning (${rodNotes})`);
     await p2.locator('#clList .row', { hasText: '2" × 2-7/8" × 7-7/8"' }).first().click();
     const ref = decodeURIComponent(new URL(p2.url()).hash);
     check(/^#part=Bench@\d$/.test(ref), `duplicate labels get a distinct link (${ref})`);
