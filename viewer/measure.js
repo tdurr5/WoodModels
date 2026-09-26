@@ -7,8 +7,8 @@ import * as THREE from 'three';
 import { formatLength } from './format.js';
 import { dihedralFromNormals, slopeAngles } from './angles.js';
 
-const SNAP_PX = { endpoint: 14, corner: 14, boxmid: 11, axis: 10, midpoint: 11, edge: 8 };
-const SNAP_COLORS = { endpoint: 0x7ee08a, corner: 0xffe066, boxmid: 0xffe066, midpoint: 0x6ab7ff, edge: 0xff6bd6, face: 0xffb454, axis: 0xffffff };
+const SNAP_PX = { endpoint: 14, corner: 14, boxmid: 11, cross: 16, axis: 10, midpoint: 11, edge: 8 };
+const SNAP_COLORS = { endpoint: 0x7ee08a, corner: 0xffe066, boxmid: 0xffe066, cross: 0x7ee08a, midpoint: 0x6ab7ff, edge: 0xff6bd6, face: 0xffb454, axis: 0xffffff };
 const SNAP_NAMES = {
   endpoint: 'Endpoint', corner: 'Corner of outline box', boxmid: 'Midpoint of outline box edge',
   midpoint: 'Midpoint', edge: 'On edge', face: 'On face',
@@ -21,7 +21,8 @@ const ACCENT = '#ffb454';
 export function initMeasure(ctx) {
   // ctx: { scene, getCamera, canvas, pickMeshes, selectionName, labelsEl, hintEl, units,
   //        guidePoints: () => [{ p, kind: 'corner'|'boxmid' }]  (off-mesh snap targets),
-  //        guideAxes: () => [{ dir, name, color }] }            (axis-lock directions)
+  //        guideAxes: () => [{ dir, name, color }],             (axis-lock directions)
+  //        guideEdges: () => [[a, b]] }                         (outline-box edges)
   let mode = null; // null | 'distance' | 'angle' | 'bevel'
   let points = []; // { p: Vector3, normal?: Vector3 }
   let markers = [];
@@ -91,11 +92,21 @@ export function initMeasure(ctx) {
         edges.get(ek).push(n);
       }
     }
+    // A crease has two face normals that aren't parallel; a boundary edge has
+    // one face. Normals are compared up to sign because SketchUp exports every
+    // face twice, back to back - so a diagonal splitting a flat face (n, n, -n,
+    // -n) is not an edge, while a real corner (n1, n2, -n1, -n2) is.
     const feature = new Set();
+    const segments = []; // world-space endpoints of the feature edges, for intersections
     edges.forEach((normals, ek) => {
-      if (normals.length !== 2 || normals[0].dot(normals[1]) < 0.9998) feature.add(ek);
+      const crease = normals.some((n1, i) => normals.some((n2, j) => j > i && Math.abs(n1.dot(n2)) < 0.9998));
+      if (normals.length === 1 || crease) {
+        feature.add(ek);
+        const [k1, k2] = ek.split('|');
+        segments.push([new THREE.Vector3(...k1.split(',').map(Number)), new THREE.Vector3(...k2.split(',').map(Number))]);
+      }
     });
-    featureEdgeCache.set(mesh, { feature, key });
+    featureEdgeCache.set(mesh, { feature, key, segments });
     return featureEdgeCache.get(mesh);
   }
 
@@ -171,8 +182,13 @@ export function initMeasure(ctx) {
     (ctx.guidePoints ? ctx.guidePoints() : []).forEach((g) => consider({ p: g.p.clone(), type: g.kind }, SNAP_PX[g.kind]));
     if (best) return withAxisNote(best);
 
-    // axis lock from the start point: nearest point on each axis line to the cursor ray
+    // axis lock from the start point: first where a locked line crosses the
+    // part (edge / outline box / surface), then anywhere along the line
     const origin = points.length ? points[0].p : null;
+    if (origin && ctx.guideAxes) {
+      axisCrossings(origin, ctx.guideAxes()).forEach((x) => consider({ p: x.p.clone(), type: 'cross', axis: x.axis, what: x.what }, SNAP_PX.cross));
+      if (best) return best;
+    }
     if (origin) {
       (ctx.guideAxes ? ctx.guideAxes() : []).forEach((ax) => {
         const onLine = new THREE.Vector3();
@@ -183,6 +199,67 @@ export function initMeasure(ctx) {
       if (best) return best;
     }
     return meshSnap ? withAxisNote(meshSnap) : null;
+  }
+
+  // Where each axis-lock line from the start point meets the part: crossings
+  // with its real edges, the outline box's edges, and its surface. Lets the
+  // second/third click land exactly where a locked line hits e.g. an angled
+  // cut, instead of wherever the cursor happens to be along the line.
+  let crossCache = { key: null, list: [] };
+  function axisCrossings(origin, axes) {
+    const key = `${origin.toArray().map((v) => v.toFixed(5)).join(',')}|${axes.map((a) => a.name).join(',')}`;
+    if (crossCache.key === key) return crossCache.list;
+    const list = [];
+    const TOL = 0.02; // inches between lines to call it an intersection
+    const segLine = new THREE.Vector3(), segPt = new THREE.Vector3();
+    const meshes = ctx.pickMeshes();
+    const segments = [];
+    meshes.forEach((m) => featureEdges(m).segments.forEach(([a, b]) => segments.push([a.clone().add(m.position), b.clone().add(m.position), 'edge'])));
+    (ctx.guideEdges ? ctx.guideEdges() : []).forEach(([a, b]) => segments.push([a, b, 'box edge']));
+    const rc = new THREE.Raycaster();
+    axes.forEach((ax) => {
+      const far = 1e4;
+      const l0 = origin.clone().addScaledVector(ax.dir, -far), l1 = origin.clone().addScaledVector(ax.dir, far);
+      segments.forEach(([a, b, what]) => {
+        // closest points between the axis line and the segment
+        const d = closestBetweenSegments(l0, l1, a, b, segLine, segPt);
+        if (d > TOL || segLine.distanceTo(origin) < 1e-3) return;
+        list.push({ p: segPt.clone(), axis: ax, what });
+      });
+      // entering/leaving the surface, both directions along the axis
+      [1, -1].forEach((sgn) => {
+        rc.set(origin.clone().addScaledVector(ax.dir, sgn * 1e-3), ax.dir.clone().multiplyScalar(sgn));
+        rc.intersectObjects(meshes, false).forEach((h) => {
+          if (h.point.distanceTo(origin) > 1e-3) list.push({ p: h.point.clone(), axis: ax, what: 'surface' });
+        });
+      });
+    });
+    crossCache = { key, list };
+    return list;
+  }
+
+  // Shortest distance between segments p1-q1 and p2-q2; writes the closest
+  // points into c1/c2. (Real-Time Collision Detection, 5.1.9)
+  function closestBetweenSegments(p1, q1, p2, q2, c1, c2) {
+    const d1 = q1.clone().sub(p1), d2 = q2.clone().sub(p2), r = p1.clone().sub(p2);
+    const a = d1.dot(d1), e = d2.dot(d2), f = d2.dot(r);
+    let s = 0, t = 0;
+    if (a <= 1e-12 && e <= 1e-12) { s = t = 0; }
+    else if (a <= 1e-12) { s = 0; t = THREE.MathUtils.clamp(f / e, 0, 1); }
+    else {
+      const c = d1.dot(r);
+      if (e <= 1e-12) { t = 0; s = THREE.MathUtils.clamp(-c / a, 0, 1); }
+      else {
+        const b = d1.dot(d2), denom = a * e - b * b;
+        s = denom > 1e-12 ? THREE.MathUtils.clamp((b * f - c * e) / denom, 0, 1) : 0;
+        t = (b * s + f) / e;
+        if (t < 0) { t = 0; s = THREE.MathUtils.clamp(-c / a, 0, 1); }
+        else if (t > 1) { t = 1; s = THREE.MathUtils.clamp((b - c) / a, 0, 1); }
+      }
+    }
+    c1.copy(p1).addScaledVector(d1, s);
+    c2.copy(p2).addScaledVector(d2, t);
+    return c1.distanceTo(c2);
   }
 
   // Tag a snapped point that also happens to line up with an axis from the start.
@@ -198,6 +275,7 @@ export function initMeasure(ctx) {
 
   function snapLabel(sn) {
     if (sn.type === 'axis') return `On ${sn.axis.name} axis`;
+    if (sn.type === 'cross') return `Where ${sn.axis.name} meets ${sn.what === 'surface' ? 'the surface' : sn.what === 'box edge' ? 'the outline box' : 'an edge'}`;
     return SNAP_NAMES[sn.type] + (sn.alignedAxis ? ` · on ${sn.alignedAxis.name} axis` : '');
   }
 
@@ -326,12 +404,14 @@ export function initMeasure(ctx) {
     measurements.push({ group, kind: 'bevel', value: deg, labels: [makeLabel(f1.p.clone().lerp(f2.p, 0.5), text)] });
   }
 
-  function reset() { points = []; clearMarkers(); guideLine.visible = false; }
+  function reset() { points = []; clearMarkers(); guideLine.visible = false; crossCache = { key: null, list: [] }; }
 
   const api = {
     get mode() { return mode; },
     get measurements() { return measurements; },
     get points() { return points; },
+    // where the axis-lock lines from the first point cross the part (tests/debugging)
+    crossings: () => (points.length && ctx.guideAxes ? axisCrossings(points[0].p, ctx.guideAxes()) : []),
     setMode(m) {
       mode = mode === m ? null : m;
       reset();
@@ -393,8 +473,8 @@ export function initMeasure(ctx) {
       previewSnap = resolve(e.clientX, e.clientY);
       if (!previewSnap) { preview.visible = false; guideLine.visible = false; previewTag.style.display = 'none'; return; }
       preview.position.copy(previewSnap.p);
-      const lockAxis = previewSnap.type === 'axis' ? previewSnap.axis : previewSnap.alignedAxis;
-      preview.material.color.set(lockAxis ? lockAxis.color : SNAP_COLORS[previewSnap.type]);
+      const lockAxis = (previewSnap.type === 'axis' || previewSnap.type === 'cross') ? previewSnap.axis : previewSnap.alignedAxis;
+      preview.material.color.set(previewSnap.type === 'cross' ? SNAP_COLORS.cross : lockAxis ? lockAxis.color : SNAP_COLORS[previewSnap.type]);
       preview.visible = true;
       // dashed guide from the start point along the locked axis
       if (lockAxis && points.length) {

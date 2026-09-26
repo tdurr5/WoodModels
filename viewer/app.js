@@ -992,6 +992,7 @@ const measure = initMeasure({
   units: () => settings().units,
   guidePoints: selectionGuidePoints,
   guideAxes: selectionGuideAxes,
+  guideEdges: selectionGuideEdges,
 });
 
 // Off-mesh snap targets for measuring: corners and edge midpoints of the
@@ -1001,24 +1002,38 @@ function selectionGuidePoints() {
   if (!current) return [];
   const out = [];
   current.meshes.forEach((m) => {
-    const d = objectDims[m.name];
-    if (!d) return;
-    const b = obbFromDims(d, m.position.toArray());
-    const corner = (sx, sy, sz) => new THREE.Vector3(...b.center)
-      .addScaledVector(new THREE.Vector3(...b.axes[0]), sx * b.half[0])
-      .addScaledVector(new THREE.Vector3(...b.axes[1]), sy * b.half[1])
-      .addScaledVector(new THREE.Vector3(...b.axes[2]), sz * b.half[2]);
-    const cs = [];
-    for (let i = 0; i < 8; i++) cs.push(corner(i & 1 ? 1 : -1, i & 2 ? 1 : -1, i & 4 ? 1 : -1));
+    const cs = selectionBoxCorners(m);
+    if (!cs) return;
     cs.forEach((p) => out.push({ p, kind: 'corner' }));
-    // box edges join corners differing in exactly one sign bit
-    for (let i = 0; i < 8; i++) {
-      for (const bit of [1, 2, 4]) {
-        if (!(i & bit)) out.push({ p: cs[i].clone().lerp(cs[i | bit], 0.5), kind: 'boxmid' });
-      }
-    }
+    boxEdges(cs).forEach(([a, b]) => out.push({ p: a.clone().lerp(b, 0.5), kind: 'boxmid' }));
   });
   return out;
+}
+
+function selectionBoxCorners(m) {
+  const d = objectDims[m.name];
+  if (!d) return null;
+  const b = obbFromDims(d, m.position.toArray());
+  const cs = [];
+  for (let i = 0; i < 8; i++) {
+    const sgn = [i & 1 ? 1 : -1, i & 2 ? 1 : -1, i & 4 ? 1 : -1];
+    const p = new THREE.Vector3(...b.center);
+    for (let k = 0; k < 3; k++) p.addScaledVector(new THREE.Vector3(...b.axes[k]), sgn[k] * b.half[k]);
+    cs.push(p);
+  }
+  return cs;
+}
+
+// the 12 edges of a box given its 8 corners (indexed by sign bits)
+function boxEdges(cs) {
+  const out = [];
+  for (let i = 0; i < 8; i++) for (const bit of [1, 2, 4]) if (!(i & bit)) out.push([cs[i], cs[i | bit]]);
+  return out;
+}
+
+function selectionGuideEdges() {
+  if (!current) return [];
+  return current.meshes.flatMap((m) => { const cs = selectionBoxCorners(m); return cs ? boxEdges(cs) : []; });
 }
 
 // Axis-lock directions: the selected part's own length/width/thickness, then

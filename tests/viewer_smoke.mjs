@@ -252,6 +252,26 @@ try {
   const lockTag = await page.locator('.snapTag').innerText();
   check(/On length/.test(lockTag), `moving roughly along the length locks onto that axis (${lockTag})`);
   await page.screenshot({ path: path.join(OUT, '20-angle-axis-lock.png') });
+  // where a locked line crosses a real edge of the part: hover near it and click
+  const crossings = await page.evaluate(() => window.__viewer.measure.crossings()
+    .filter((x) => x.what === 'edge').map((x) => ({ p: x.p.toArray(), axis: x.axis.name })));
+  check(crossings.length > 0, `locked lines from the first point cross the part's edges (${crossings.length} crossings)`);
+  let crossHit = null;
+  for (const x of crossings) {
+    const sp = await toScreen(x.p);
+    if (sp.x < vpBox.x + 30 || sp.x > vpBox.x + vpBox.width - 30 || sp.y < vpBox.y + 70 || sp.y > vpBox.y + vpBox.height - 70) continue;
+    await page.mouse.move(sp.x + 5, sp.y + 4);
+    await page.waitForTimeout(60);
+    const tag = await page.locator('.snapTag').innerText();
+    if (/^Where .* meets an edge/.test(tag)) { crossHit = { x, sp, tag }; break; }
+  }
+  check(!!crossHit, `hovering near a crossing snaps to it (${crossHit && crossHit.tag})`);
+  if (crossHit) {
+    await page.screenshot({ path: path.join(OUT, '21-angle-crossing.png') });
+    await page.mouse.click(crossHit.sp.x + 5, crossHit.sp.y + 4);
+    const second = await page.evaluate(() => window.__viewer.measure.points[1]?.p.toArray());
+    check(second && second.every((v, k) => Math.abs(v - crossHit.x.p[k]) < 1e-6), 'clicking lands exactly on the crossing');
+  }
   await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
 
