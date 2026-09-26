@@ -353,36 +353,41 @@ onSettingsChange((s, patch) => {
 let tween = null;
 function cancelCameraTween() { tween = null; }
 
-// Distance at which `box`, seen from direction `dir`, fills the view with a
-// small margin: project the box corners onto the view plane and fit whichever
-// of width/height is the tighter constraint.
+// How far back to put the camera so `box`, seen from direction `dir`, fills
+// the view with a small margin. Each corner must fit inside the frustum at its
+// own depth, so check them individually. `lateral` is the same fit ignoring
+// depth - what an orthographic camera needs.
+const FIT_MARGIN = 1.2;
 function fitDistance(box, dir) {
   const up = Math.abs(dir.y) > 0.99 ? new THREE.Vector3(0, 0, -1) : new THREE.Vector3(0, 1, 0);
   const right = new THREE.Vector3().crossVectors(up, dir).normalize();
   const trueUp = new THREE.Vector3().crossVectors(dir, right).normalize();
   const center = box.getCenter(new THREE.Vector3());
-  let halfW = 0.5, halfH = 0.5, depth = 0;
-  for (let i = 0; i < 8; i++) {
-    const c = new THREE.Vector3(i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : box.min.y, i & 4 ? box.max.z : box.min.z).sub(center);
-    halfW = Math.max(halfW, Math.abs(c.dot(right)));
-    halfH = Math.max(halfH, Math.abs(c.dot(trueUp)));
-    depth = Math.max(depth, c.dot(dir));
-  }
   const tanV = Math.tan(THREE.MathUtils.degToRad(perspCamera.fov / 2));
   const tanH = tanV * (perspCamera.aspect || 1);
-  return Math.max(halfW / tanH, halfH / tanV) * 1.15 + depth;
+  let persp = 1, lateral = 1;
+  for (let i = 0; i < 8; i++) {
+    const c = new THREE.Vector3(i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : box.min.y, i & 4 ? box.max.z : box.min.z).sub(center);
+    const need = Math.max(Math.abs(c.dot(right)) / tanH, Math.abs(c.dot(trueUp)) / tanV) * FIT_MARGIN;
+    lateral = Math.max(lateral, need);
+    persp = Math.max(persp, need + c.dot(dir));
+  }
+  return { persp, lateral };
 }
 
 function frameBox(box, dirArr, animate = true) {
   const center = box.getCenter(new THREE.Vector3());
   const dir = dirArr ? new THREE.Vector3(...dirArr).normalize()
     : camera.position.clone().sub(controls.target).normalize();
-  const dist = fitDistance(box, dir);
+  const { persp: dist, lateral } = fitDistance(box, dir);
   const toPos = center.clone().addScaledVector(dir, dist);
+  // ortho frustum height is derived from the camera distance; zoom corrects
+  // it to the depth-independent fit
+  const toZoom = dist / lateral;
   if (!animate) {
     camera.position.copy(toPos);
     controls.target.copy(center);
-    if (camera.isOrthographicCamera) { camera.zoom = 1; updateOrthoFrustum(); }
+    if (camera.isOrthographicCamera) { camera.zoom = toZoom; updateOrthoFrustum(); }
     controls.update();
     return;
   }
@@ -390,7 +395,7 @@ function frameBox(box, dirArr, animate = true) {
     t0: performance.now(), dur: 380,
     fromPos: camera.position.clone(), toPos,
     fromTarget: controls.target.clone(), toTarget: center,
-    fromZoom: camera.zoom, toZoom: 1,
+    fromZoom: camera.zoom, toZoom,
   };
 }
 
@@ -760,9 +765,82 @@ function captureImage() {
 }
 
 function printSheet() { window.print(); }
+// A clean overview for the printed sheet: whole model from the 3D preset,
+// no highlight/ghosting/labels, on white - independent of the current view.
+function captureOverview() {
+  const saved = {
+    camera, pos: camera.position.clone(), target: controls.target.clone(), zoom: camera.zoom,
+    bg: scene.background, current, gizmoVisible: current?.gizmo?.visible,
+    size: renderer.getSize(new THREE.Vector2()), aspect: perspCamera.aspect,
+  };
+  const W = 1800, H = 1200;
+  camera = perspCamera;
+  controls.object = camera;
+  renderer.setSize(W, H, false);
+  perspCamera.aspect = W / H;
+  perspCamera.updateProjectionMatrix();
+  const savedVisible = meshes.map((m) => m.visible);
+  if (current?.gizmo) current.gizmo.visible = false;
+  current = null;
+  applyMaterials();
+  meshes.forEach((m) => { m.visible = true; });
+  grid.visible = false;
+  scene.background = new THREE.Color(0xffffff);
+  frameBox(modelBox, config.views?.iso?.dir || [0.7, 0.5, 0.7], false);
+  let url = null;
+  try {
+    renderer.render(scene, camera);
+    url = cropToContent(renderer.domElement, 24);
+  } catch { /* tainted canvas etc. */ }
+  scene.background = saved.bg;
+  grid.visible = true;
+  current = saved.current;
+  if (current?.gizmo) current.gizmo.visible = saved.gizmoVisible;
+  applyMaterials();
+  meshes.forEach((m, i) => { m.visible = savedVisible[i]; });
+  renderer.setSize(saved.size.x, saved.size.y, false);
+  perspCamera.aspect = saved.aspect;
+  perspCamera.updateProjectionMatrix();
+  camera = saved.camera;
+  controls.object = camera;
+  camera.position.copy(saved.pos);
+  controls.target.copy(saved.target);
+  camera.zoom = saved.zoom;
+  camera.updateProjectionMatrix();
+  controls.update();
+  return url;
+}
+
+// Copy the just-rendered WebGL canvas and trim the white border around the
+// model. Must run in the same task as the render (no preserveDrawingBuffer).
+function cropToContent(glCanvas, pad) {
+  const w = glCanvas.width, h = glCanvas.height;
+  const full = document.createElement('canvas');
+  full.width = w; full.height = h;
+  const g = full.getContext('2d', { willReadFrequently: true });
+  g.drawImage(glCanvas, 0, 0);
+  const px = g.getImageData(0, 0, w, h).data;
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for (let y = 0; y < h; y += 2) {
+    for (let x = 0; x < w; x += 2) {
+      const i = (y * w + x) * 4;
+      if (px[i] < 245 || px[i + 1] < 245 || px[i + 2] < 245) {
+        if (x < x0) x0 = x; if (x > x1) x1 = x;
+        if (y < y0) y0 = y; if (y > y1) y1 = y;
+      }
+    }
+  }
+  if (x1 < 0) return full.toDataURL('image/png');
+  x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad);
+  x1 = Math.min(w, x1 + pad); y1 = Math.min(h, y1 + pad);
+  const out = document.createElement('canvas');
+  out.width = x1 - x0; out.height = y1 - y0;
+  out.getContext('2d').drawImage(full, x0, y0, out.width, out.height, 0, 0, out.width, out.height);
+  return out.toDataURL('image/png');
+}
+
 window.addEventListener('beforeprint', () => {
-  let img = null;
-  try { img = model ? captureImage() : null; } catch { /* tainted canvas etc. */ }
+  const img = model ? captureOverview() : null;
   buildPrintSheet($('printSheet'), rows, config, img);
 });
 

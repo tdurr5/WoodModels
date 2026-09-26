@@ -148,7 +148,7 @@ h1 { font-size: 16px; margin: 0 0 2px; }
   #printSheet h1 { font-size: 18px; margin: 0; }
   #printSheet h2 { font-size: 13px; margin: 14px 0 4px; border-bottom: 1.5px solid #000; }
   .ps-sub { color: #444; margin-bottom: 8px; }
-  .ps-img { display: block; max-width: 100%; max-height: 220px; margin: 6px auto; border: 1px solid #ccc; }
+  .ps-img { display: block; max-width: 100%; max-height: 260px; margin: 6px auto; }
   #printSheet table { width: 100%; border-collapse: collapse; page-break-inside: auto; }
   #printSheet tr { page-break-inside: avoid; }
   #printSheet th { text-align: left; border-bottom: 1px solid #000; padding: 3px 4px; font-size: 10px; }

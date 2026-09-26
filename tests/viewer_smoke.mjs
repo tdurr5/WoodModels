@@ -293,6 +293,7 @@ try {
   check(printRows === 24, `print sheet lists every part (${printRows})`);
   await page.emulateMedia({ media: 'print' });
   await page.pdf({ path: path.join(OUT, 'cut-sheet.pdf'), format: 'Letter', margin: { top: '0.5in', bottom: '0.5in', left: '0.5in', right: '0.5in' } });
+  await page.screenshot({ path: path.join(OUT, '15-print.png'), clip: { x: 0, y: 0, width: 1400, height: 900 } });
   await page.emulateMedia({ media: 'screen' });
 
   console.log('cut tracking persists');
