@@ -7,6 +7,7 @@ import { compoundAngle, describeAngle, round1, DEFAULT_AXIS_NAMES } from './angl
 import { initSettings, settings, updateSettings, onSettingsChange } from './settings.js';
 import {
   prepareRows, renderCutList, renderRows, markActive, visibleRows, focusSearch, finishedDims, buildPrintSheet, isRod, userNote,
+  millingPlanHTML,
 } from './cutlist.js';
 import { initMeasure } from './measure.js';
 import { initDiagramModal, computeLayouts, layoutsHTML } from './diagram.js';
@@ -1112,7 +1113,8 @@ window.addEventListener('beforeprint', () => {
   const diagrams = layouts.length
     ? `<div class="ps-diagrams"><h2>Shopping list &amp; cutting diagrams</h2>${layoutsHTML(layouts, { pxPerInch: 700 / longest, units: settings().units, colorFor: diagram.colorFor, hardware: rows })}</div>`
     : '';
-  buildPrintSheet($('printSheet'), rows, config, img, drillingHtml() + diagrams);
+  const mill = millingPlanHTML(rows);
+  buildPrintSheet($('printSheet'), rows, config, img, drillingHtml() + (mill ? `<h2>Milling plan</h2>${mill}` : '') + diagrams);
 });
 
 // ---------- keyboard shortcuts ----------

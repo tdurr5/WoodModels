@@ -1,7 +1,7 @@
 // Sidebar cut list, totals, CSV export and the printable cut sheet.
 
 import {
-  formatLength, roughStock, displayName, toFraction, toCSV, escapeHtml, UNIT_OPTIONS,
+  formatLength, roughStock, displayName, toFraction, toCSV, escapeHtml, UNIT_OPTIONS, millingPlan,
 } from './format.js';
 import { settings, updateSettings } from './settings.js';
 
@@ -361,4 +361,23 @@ export function buildPrintSheet(target, rows, config, imageDataUrl, extraHtml = 
       (allowance +${formatLength(s.allowance.length, s.units)} L, +${formatLength(s.allowance.width, s.units)} W) — buy ~20% extra for defects.</div>
     ${extraHtml ? `<div class="ps-extra">${extraHtml}</div>` : ''}
   `;
+}
+
+// ---------- milling plan ----------
+
+// Wood parts grouped by planer / rip / crosscut setting (finished sizes).
+export function millingPlanHTML(rows, units = settings().units) {
+  const wood = rows.filter((r) => r.category === 'Wood' && !r.customDims);
+  if (!wood.length) return '';
+  const plan = millingPlan(wood, (v) => formatLength(v, units));
+  const col = (title, groups) => `
+    <div class="mp-col"><h4>${title}</h4>
+      ${groups.map((g) => `<div class="mp-g"><b>${escapeHtml(g.label)}</b> <span class="muted">${g.pieces} pc</span>
+        <div class="mp-parts">${g.parts.map((p) => `${escapeHtml(p.name)}${p.count > 1 ? ` ×${p.count}` : ''}`).join(', ')}</div></div>`).join('')}
+    </div>`;
+  return `<div class="mp">
+    ${col('1. Plane to thickness', plan.thickness)}
+    ${col('2. Rip to width', plan.width)}
+    ${col('3. Crosscut to length', plan.length)}
+  </div>`;
 }

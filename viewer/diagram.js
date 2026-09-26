@@ -5,7 +5,7 @@
 import { packBoards, boardParts, boardYield, piecesByStock } from './nesting.js';
 import { formatLength, boardFeet, escapeHtml } from './format.js';
 import { settings, updateSettings } from './settings.js';
-import { roughFor, isRod, finishedDims } from './cutlist.js';
+import { roughFor, isRod, finishedDims, millingPlanHTML } from './cutlist.js';
 
 export const STOCK_DEFAULTS = { length: 96, width: 8, kerf: 0.125 };
 
@@ -165,7 +165,8 @@ export function initDiagramModal({ rows, onSelectRow }) {
     const avail = Math.max(320, body.clientWidth - 24);
     const longest = Math.max(...layouts.flatMap((g) => g.boards.map((b) => b.length)), stock.length);
     renderPrices(layouts);
-    body.innerHTML = layoutsHTML(layouts, { pxPerInch: avail / longest, units: s.units, colorFor, hardware: rows });
+    body.innerHTML = layoutsHTML(layouts, { pxPerInch: avail / longest, units: s.units, colorFor, hardware: rows })
+      + `<details class="cd-mill" open><summary>Milling plan: parts that share a machine setting</summary>${millingPlanHTML(rows, s.units)}</details>`;
     body.querySelectorAll('.part').forEach((el) => el.addEventListener('click', () => {
       const row = rows.find((r) => r.key === el.dataset.row);
       if (row) { close(); onSelectRow(row); }

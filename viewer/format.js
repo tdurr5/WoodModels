@@ -109,3 +109,26 @@ export function toCSV(rows) {
 export function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
+
+// Machine set-up groups for milling: parts that share a planer thickness, a
+// rip width or a crosscut length, so each setting is dialed in once. Parts
+// group together when their size displays the same (`keyOf`, e.g. to the
+// nearest 1/16"), so the plan never shows the same setting twice. Largest
+// first, since you plane and rip from thick/wide down.
+// rows: [{ name, count, dims: [L, W, T] }]
+export function millingPlan(rows, keyOf = (v) => formatLength(v)) {
+  const group = (idx) => {
+    const m = new Map();
+    rows.forEach((r) => {
+      const k = keyOf(r.dims[idx]);
+      if (!m.has(k)) m.set(k, { label: k, value: r.dims[idx], parts: [] });
+      const g = m.get(k);
+      g.value = Math.max(g.value, r.dims[idx]);
+      g.parts.push({ name: r.name, count: r.count });
+    });
+    return [...m.values()].sort((a, b) => b.value - a.value).map((g) => ({
+      ...g, pieces: g.parts.reduce((n, p) => n + p.count, 0),
+    }));
+  };
+  return { thickness: group(2), width: group(1), length: group(0) };
+}

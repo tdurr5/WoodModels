@@ -364,6 +364,8 @@ try {
   const priced = await page.locator('#diagram .cd-shop').innerText();
   check(/Lumber estimate: \$\d+\.\d\d/.test(priced), `price per board foot gives a cost estimate (${(priced.match(/Lumber estimate: [^\n]*/) || [''])[0]})`);
   await page.screenshot({ path: path.join(OUT, '16-cutting-diagram.png') });
+  const mill = await page.locator('#diagram .cd-mill').innerText();
+  check(/Plane to thickness[\s\S]*1-5\/8"\s*6 pc[\s\S]*Bench ×2, Leg Rear ×2, Treadle Beam ×2/.test(mill), 'milling plan groups parts by planer setting');
   await page.fill('#cdWidth', '12');
   await page.locator('#cdWidth').dispatchEvent('change');
   const boardsWide = await page.locator('#diagram .cd-board').count();

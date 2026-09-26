@@ -281,3 +281,23 @@ test('obbFromDims and partsTouch', () => {
   assert.equal(flat.axes.length, 3);
   assert.deepEqual(flat.axes[2].map(Math.abs), [0, 0, 1]);
 });
+
+import { millingPlan } from '../viewer/format.js';
+
+test('millingPlan groups parts by machine setting, largest first', () => {
+  const plan = millingPlan([
+    { name: 'Bench', count: 2, dims: [46.344, 7.902, 1.625] },
+    { name: 'Leg Rear', count: 2, dims: [20.87, 3.38, 1.64] }, // also shows as 1-5/8": same planer setting
+    { name: 'Peg', count: 1, dims: [16.75, 3, 1] },
+    { name: 'Beam', count: 2, dims: [29.5, 3, 1.625] },
+  ]);
+  assert.deepEqual(plan.thickness.map((g) => [g.label, g.pieces]), [['1-5/8"', 6], ['1"', 1]]);
+  assert.deepEqual(plan.thickness[0].parts.map((p) => p.name), ['Bench', 'Leg Rear', 'Beam']);
+  assert.deepEqual(plan.width.map((g) => g.label), ['7-7/8"', '3-3/8"', '3"']);
+  assert.equal(plan.width[2].pieces, 3); // Peg + 2 Beams rip at 3"
+  assert.equal(plan.length[0].parts[0].name, 'Bench');
+  // 1.645" is 1-5/8" to the nearest 1/16 but 1-21/32" to the nearest 1/32
+  const two = [{ name: 'a', count: 1, dims: [1, 1, 1.625] }, { name: 'b', count: 1, dims: [1, 1, 1.645] }];
+  assert.equal(millingPlan(two).thickness.length, 1);
+  assert.deepEqual(millingPlan(two, (v) => formatLength(v, 'in32')).thickness.map((g) => g.label), ['1-21/32"', '1-5/8"']);
+});
