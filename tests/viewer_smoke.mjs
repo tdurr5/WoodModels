@@ -206,6 +206,55 @@ try {
   check(await page.locator('#measureLabels .measureLabel').count() === 0, 'Clear measurements removes labels');
   await page.locator('#measureDistBtn').click();
 
+  console.log('drag keeps the selection');
+  await selectPart('Bench');
+  const cam0 = await page.evaluate(() => window.__viewer.camera.position.toArray());
+  const vpBox = await page.locator('#viewport canvas').boundingBox();
+  // drag from an empty corner of the view across to another empty spot
+  await page.mouse.move(vpBox.x + 40, vpBox.y + vpBox.height - 120);
+  await page.mouse.down();
+  await page.mouse.move(vpBox.x + 200, vpBox.y + vpBox.height - 160, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForTimeout(200);
+  const cam1 = await page.evaluate(() => window.__viewer.camera.position.toArray());
+  check(cam0.some((v, i) => Math.abs(v - cam1[i]) > 0.5), 'dragging orbits the view');
+  check((await activeRowName()) === 'Bench', 'dragging the view keeps the part selected');
+  await page.mouse.click(vpBox.x + 40, vpBox.y + vpBox.height - 120);
+  check(await page.locator('#clList .row.active').count() === 0, 'a plain click on empty space still deselects');
+
+  console.log('angle tool: outline-box corners and axis lock');
+  await selectPart('Bench');
+  await page.keyboard.press('a');
+  const toScreen = (p) => page.evaluate((pt) => {
+    const { THREE, camera } = window.__viewer;
+    const r = document.querySelector('#viewport canvas').getBoundingClientRect();
+    const v = new THREE.Vector3(...pt).project(camera);
+    return { x: r.left + (v.x * 0.5 + 0.5) * r.width, y: r.top + (0.5 - v.y * 0.5) * r.height };
+  }, p);
+  // an outline-box corner of the first bench half
+  const corners = await page.evaluate(() => window.__viewer.guidePoints().filter((g) => g.kind === 'corner').map((g) => g.p.toArray()));
+  const cs = await Promise.all(corners.map(toScreen));
+  const onScreen = cs.map((c, i) => ({ c, i })).filter(({ c }) => c.x > vpBox.x + 20 && c.x < vpBox.x + vpBox.width - 20 && c.y > vpBox.y + 60 && c.y < vpBox.y + vpBox.height - 60);
+  const target = onScreen[0];
+  await page.mouse.move(target.c.x + 3, target.c.y + 2);
+  await page.waitForTimeout(100);
+  check(/Corner of outline box/.test(await page.locator('.snapTag').innerText()), 'hovering near an outline-box corner shows the corner snap');
+  await page.mouse.click(target.c.x + 3, target.c.y + 2);
+  const firstPt = await page.evaluate(() => window.__viewer.measure.points[0].p.toArray());
+  check(firstPt.every((v, k) => Math.abs(v - corners[target.i][k]) < 1e-6), 'clicking snaps exactly onto the invisible box corner');
+  // axis lock: aim along the part's length from that corner, a bit off the line
+  const len = await page.evaluate(() => window.__viewer.guideAxes()[0].dir.toArray());
+  const along = await toScreen(corners[target.i].map((v, k) => v + len[k] * 10));
+  const back = await toScreen(corners[target.i].map((v, k) => v - len[k] * 10));
+  const aim = (along.x > vpBox.x + 20 && along.x < vpBox.x + vpBox.width - 20) ? along : back;
+  await page.mouse.move(aim.x + 4, aim.y + 3);
+  await page.waitForTimeout(100);
+  const lockTag = await page.locator('.snapTag').innerText();
+  check(/On length/.test(lockTag), `moving roughly along the length locks onto that axis (${lockTag})`);
+  await page.screenshot({ path: path.join(OUT, '20-angle-axis-lock.png') });
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+
   console.log('zoom');
   const d0 = await page.evaluate(() => window.__viewer.camera.position.distanceTo(window.__viewer.controls.target));
   await page.mouse.move(400, 400);

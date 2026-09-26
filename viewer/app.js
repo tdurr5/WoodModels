@@ -990,20 +990,75 @@ const measure = initMeasure({
   labelsEl: $('measureLabels'),
   hintEl: $('measureHint'),
   units: () => settings().units,
+  guidePoints: selectionGuidePoints,
+  guideAxes: selectionGuideAxes,
 });
 
-// A native "click" event already ignores drags (browsers don't fire it if the
-// pointer moved between down/up), so this avoids fighting with OrbitControls'
-// own pointerdown/pointerup handling.
+// Off-mesh snap targets for measuring: corners and edge midpoints of the
+// selected part's outline box (the "invisible corner" where a cut-off or
+// shaped end would square up).
+function selectionGuidePoints() {
+  if (!current) return [];
+  const out = [];
+  current.meshes.forEach((m) => {
+    const d = objectDims[m.name];
+    if (!d) return;
+    const b = obbFromDims(d, m.position.toArray());
+    const corner = (sx, sy, sz) => new THREE.Vector3(...b.center)
+      .addScaledVector(new THREE.Vector3(...b.axes[0]), sx * b.half[0])
+      .addScaledVector(new THREE.Vector3(...b.axes[1]), sy * b.half[1])
+      .addScaledVector(new THREE.Vector3(...b.axes[2]), sz * b.half[2]);
+    const cs = [];
+    for (let i = 0; i < 8; i++) cs.push(corner(i & 1 ? 1 : -1, i & 2 ? 1 : -1, i & 4 ? 1 : -1));
+    cs.forEach((p) => out.push({ p, kind: 'corner' }));
+    // box edges join corners differing in exactly one sign bit
+    for (let i = 0; i < 8; i++) {
+      for (const bit of [1, 2, 4]) {
+        if (!(i & bit)) out.push({ p: cs[i].clone().lerp(cs[i | bit], 0.5), kind: 'boxmid' });
+      }
+    }
+  });
+  return out;
+}
+
+// Axis-lock directions: the selected part's own length/width/thickness, then
+// level and plumb (skipped where they coincide with a part axis).
+function selectionGuideAxes() {
+  const axes = [];
+  const d = current && objectDims[current.meshes[0]?.name];
+  if (d) d.axes.forEach((a) => axes.push({ dir: new THREE.Vector3(...a.direction).normalize(), name: a.role.toLowerCase(), color: AXIS_COLORS[a.role] || '#ffffff' }));
+  [
+    { dir: new THREE.Vector3(1, 0, 0), name: `level ${axisNames.x}`, color: '#dddddd' },
+    { dir: new THREE.Vector3(0, 1, 0), name: 'plumb', color: '#dddddd' },
+    { dir: new THREE.Vector3(0, 0, 1), name: `level ${axisNames.z}`, color: '#dddddd' },
+  ].forEach((w) => {
+    const same = axes.find((a) => Math.abs(a.dir.dot(w.dir)) > 0.9995);
+    if (same) same.name += ` (${w.name})`; else axes.push(w);
+  });
+  return axes;
+}
+
+// Browsers still fire "click" after a drag that starts and ends on the canvas,
+// so orbiting/panning would deselect the part (or drop a measure point).
+// Ignore clicks where the pointer travelled more than a few pixels.
+const DRAG_PX = 5;
+let downAt = null;
+renderer.domElement.addEventListener('pointerdown', (e) => { downAt = { x: e.clientX, y: e.clientY }; }, true);
+function wasDrag(e) {
+  const drag = !!downAt && Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > DRAG_PX;
+  if (e.type === 'click') downAt = null; // one pointerdown per click
+  return drag;
+}
+
 renderer.domElement.addEventListener('click', (e) => {
-  if (!model) return;
+  if (!model || wasDrag(e)) return;
   if (measure.handleClick(e)) return;
   const hit = raycastAt(e.clientX, e.clientY, meshes.filter((m) => m.visible));
   if (!hit) { if (current) clearSelection(); return; }
   const row = rowByMeshName.get(hit.object.name);
   if (row && (!current || row.key !== current.row.key)) selectRow(row, { frame: false });
 });
-renderer.domElement.addEventListener('dblclick', () => { if (current?.box) frameBox(current.box, null); });
+renderer.domElement.addEventListener('dblclick', (e) => { if (current?.box && !wasDrag(e)) frameBox(current.box, null); });
 
 let pendingMove = null;
 renderer.domElement.addEventListener('pointermove', (e) => { if (e.buttons === 0) pendingMove = e; });
@@ -1386,6 +1441,8 @@ window.__viewer = {
   measureClickCount: () => measure.points.length + measure.measurements.length * 2,
   setExplode, setView, selectRow, rows: () => rows,
   prepareTemplate,
+  guidePoints: () => selectionGuidePoints(),
+  guideAxes: () => selectionGuideAxes(),
   contactsOf: (name) => [...contactsOf(meshByName.get(name))].map((m) => m.name),
   endTemplate: () => { printingTemplate = false; },
 };

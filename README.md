@@ -75,7 +75,9 @@ It only publishes when you run it by hand. Open the published page once while on
 - **Distance** (`D`): two points. Shows length, slope from level and the X/Y/Z components.
 - **Angle** (`A`): pivot then two points.
 - **Bevel** (`B`): click two faces to get the angle between them, which is the sliding-bevel setting.
-- Clicks snap to endpoints, edge midpoints and edges (like SketchUp), otherwise to the face. A marker previews the snap. `Backspace`/`Ctrl+Z` undoes.
+- Clicks snap to endpoints, edge midpoints and edges (like SketchUp), otherwise to the face. With a part selected, the corners and edge midpoints of its outline box snap too, even though they're not on the part. That's handy for measuring an angled cut against the square corner it was cut from.
+- Moving along the part's length, width or thickness (or level/plumb) locks the point onto that line and shows a dashed guide, SketchUp-style. A marker previews the snap. `Backspace`/`Ctrl+Z` undoes.
+- Dragging to orbit or pan never changes the selection. Only a plain click does.
 
 Press `?` in the viewer for all shortcuts; the same panel has a button to reset your saved preferences.
 

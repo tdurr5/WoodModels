@@ -7,13 +7,21 @@ import * as THREE from 'three';
 import { formatLength } from './format.js';
 import { dihedralFromNormals, slopeAngles } from './angles.js';
 
-const SNAP_PX = { endpoint: 14, midpoint: 11, edge: 8 };
-const SNAP_COLORS = { endpoint: 0x7ee08a, midpoint: 0x6ab7ff, edge: 0xff6bd6, face: 0xffb454 };
-const SNAP_NAMES = { endpoint: 'Endpoint', midpoint: 'Midpoint', edge: 'On edge', face: 'On face' };
+const SNAP_PX = { endpoint: 14, corner: 14, boxmid: 11, axis: 10, midpoint: 11, edge: 8 };
+const SNAP_COLORS = { endpoint: 0x7ee08a, corner: 0xffe066, boxmid: 0xffe066, midpoint: 0x6ab7ff, edge: 0xff6bd6, face: 0xffb454, axis: 0xffffff };
+const SNAP_NAMES = {
+  endpoint: 'Endpoint', corner: 'Corner of outline box', boxmid: 'Midpoint of outline box edge',
+  midpoint: 'Midpoint', edge: 'On edge', face: 'On face',
+};
+// Axis lock: a point this close to parallel with an axis (from the tool's
+// start point) is pulled onto it, SketchUp-style.
+const AXIS_LOCK_DEG = 2.5;
 const ACCENT = '#ffb454';
 
 export function initMeasure(ctx) {
-  // ctx: { scene, getCamera, canvas, pickMeshes, selectionName, labelsEl, hintEl, units }
+  // ctx: { scene, getCamera, canvas, pickMeshes, selectionName, labelsEl, hintEl, units,
+  //        guidePoints: () => [{ p, kind: 'corner'|'boxmid' }]  (off-mesh snap targets),
+  //        guideAxes: () => [{ dir, name, color }] }            (axis-lock directions)
   let mode = null; // null | 'distance' | 'angle' | 'bevel'
   let points = []; // { p: Vector3, normal?: Vector3 }
   let markers = [];
@@ -32,6 +40,11 @@ export function initMeasure(ctx) {
   previewTag.className = 'snapTag';
   ctx.labelsEl.appendChild(previewTag);
   let previewSnap = null;
+  const guideLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]),
+    new THREE.LineDashedMaterial({ color: 0xffffff, dashSize: 0.4, gapSize: 0.25, depthTest: false, transparent: true }));
+  guideLine.renderOrder = 1001;
+  guideLine.visible = false;
+  ctx.scene.add(guideLine);
 
   const needed = () => ({ distance: 2, angle: 3, bevel: 2 }[mode]);
 
@@ -131,6 +144,63 @@ export function initMeasure(ctx) {
     return hits.length ? hits[0] : null;
   }
 
+  function cursorRay(clientX, clientY) {
+    const r = ctx.canvas.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
+    raycaster.setFromCamera(ndc, ctx.getCamera());
+    return { ray: raycaster.ray.clone(), px: new THREE.Vector2(clientX - r.left, clientY - r.top) };
+  }
+
+  // Where the next click lands, or null. In priority order: a real corner or
+  // a corner of the part's outline box (whichever is nearer on screen), then an
+  // axis lock from the start point (works in empty space too), then the mesh
+  // snaps (midpoint, edge, face). Bevel measures faces, so it only uses the face.
+  function resolve(clientX, clientY) {
+    const hit = pick(clientX, clientY);
+    if (mode === 'bevel') return hit ? { p: hit.point.clone(), type: 'face', normal: snap(hit).normal } : null;
+    const { ray, px } = cursorRay(clientX, clientY);
+    const meshSnap = hit ? snap(hit) : null;
+    const screenDist = (p) => toScreen(p).distanceTo(px);
+
+    let best = null;
+    const consider = (cand, limit) => {
+      const d = screenDist(cand.p);
+      if (d <= limit && (!best || d < best.d)) best = { ...cand, d };
+    };
+    if (meshSnap && meshSnap.type === 'endpoint') consider(meshSnap, SNAP_PX.endpoint);
+    (ctx.guidePoints ? ctx.guidePoints() : []).forEach((g) => consider({ p: g.p.clone(), type: g.kind }, SNAP_PX[g.kind]));
+    if (best) return withAxisNote(best);
+
+    // axis lock from the start point: nearest point on each axis line to the cursor ray
+    const origin = points.length ? points[0].p : null;
+    if (origin) {
+      (ctx.guideAxes ? ctx.guideAxes() : []).forEach((ax) => {
+        const onLine = new THREE.Vector3();
+        ray.distanceSqToSegment(origin.clone().addScaledVector(ax.dir, -1e4), origin.clone().addScaledVector(ax.dir, 1e4), undefined, onLine);
+        if (onLine.distanceTo(origin) < 1e-6) return;
+        consider({ p: onLine, type: 'axis', axis: ax }, SNAP_PX.axis);
+      });
+      if (best) return best;
+    }
+    return meshSnap ? withAxisNote(meshSnap) : null;
+  }
+
+  // Tag a snapped point that also happens to line up with an axis from the start.
+  function withAxisNote(s) {
+    const origin = points.length ? points[0].p : null;
+    if (!origin || !ctx.guideAxes) return s;
+    const v = s.p.clone().sub(origin);
+    if (v.lengthSq() < 1e-8) return s;
+    v.normalize();
+    const ax = ctx.guideAxes().find((a) => THREE.MathUtils.radToDeg(Math.acos(Math.min(1, Math.abs(v.dot(a.dir))))) < AXIS_LOCK_DEG / 2);
+    return ax ? { ...s, alignedAxis: ax } : s;
+  }
+
+  function snapLabel(sn) {
+    if (sn.type === 'axis') return `On ${sn.axis.name} axis`;
+    return SNAP_NAMES[sn.type] + (sn.alignedAxis ? ` · on ${sn.alignedAxis.name} axis` : '');
+  }
+
   function hint() {
     if (!mode) { ctx.hintEl.style.display = 'none'; return; }
     ctx.hintEl.style.display = 'block';
@@ -142,7 +212,7 @@ export function initMeasure(ctx) {
     } else if (mode === 'angle') {
       text = [`Click the corner the angle pivots around${on}${scope}.`,
         'Click a point along one side of the angle.',
-        'Click a point along the other side.'][points.length];
+        'Click a point along the other side. Corners of the grey outline box snap too, and lines along the part lock on.'][points.length];
     } else {
       if (points.length === 0) text = `Click the first face${on}${scope}.`;
       else {
@@ -256,7 +326,7 @@ export function initMeasure(ctx) {
     measurements.push({ group, kind: 'bevel', value: deg, labels: [makeLabel(f1.p.clone().lerp(f2.p, 0.5), text)] });
   }
 
-  function reset() { points = []; clearMarkers(); }
+  function reset() { points = []; clearMarkers(); guideLine.visible = false; }
 
   const api = {
     get mode() { return mode; },
@@ -298,18 +368,17 @@ export function initMeasure(ctx) {
     setVisible(on) {
       measurements.forEach((m) => { m.group.visible = on; });
       markers.forEach((m) => { m.visible = on; });
-      if (!on) preview.visible = false;
+      if (!on) { preview.visible = false; guideLine.visible = false; }
     },
     refreshLabels() { measurements.forEach((m) => m.labels.forEach((l) => { l.el.textContent = l.text(); })); },
     // returns true if the click was consumed by a measuring tool
     handleClick(e) {
       if (!mode) return false;
-      const hit = pick(e.clientX, e.clientY);
-      if (!hit) return true;
-      const s = snap(hit);
-      if (mode === 'bevel') s.p = hit.point.clone(); // faces: exact click point, not a snapped corner
-      points.push(s);
-      addMarker(s.p, SNAP_COLORS[mode === 'bevel' ? 'face' : s.type]);
+      const sn = resolve(e.clientX, e.clientY);
+      if (!sn) return true;
+      points.push(sn);
+      addMarker(sn.p, sn.type === 'axis' ? new THREE.Color(sn.axis.color).getHex() : SNAP_COLORS[sn.type]);
+      guideLine.visible = false;
       if (points.length >= needed()) {
         if (mode === 'distance') finishDistance();
         else if (mode === 'angle') finishAngle();
@@ -320,19 +389,32 @@ export function initMeasure(ctx) {
       return true;
     },
     handleMove(e) {
-      if (!mode) { previewSnap = null; return; }
-      const hit = pick(e.clientX, e.clientY);
-      if (!hit) { previewSnap = null; preview.visible = false; previewTag.style.display = 'none'; return; }
-      previewSnap = snap(hit);
-      if (mode === 'bevel') { previewSnap.type = 'face'; previewSnap.p = hit.point.clone(); }
+      if (!mode) { previewSnap = null; guideLine.visible = false; return; }
+      previewSnap = resolve(e.clientX, e.clientY);
+      if (!previewSnap) { preview.visible = false; guideLine.visible = false; previewTag.style.display = 'none'; return; }
       preview.position.copy(previewSnap.p);
-      preview.material.color.setHex(SNAP_COLORS[previewSnap.type]);
+      const lockAxis = previewSnap.type === 'axis' ? previewSnap.axis : previewSnap.alignedAxis;
+      preview.material.color.set(lockAxis ? lockAxis.color : SNAP_COLORS[previewSnap.type]);
       preview.visible = true;
-      previewTag.textContent = mode === 'bevel' ? slopeOfFace(previewSnap.normal) : SNAP_NAMES[previewSnap.type];
+      // dashed guide from the start point along the locked axis
+      if (lockAxis && points.length) {
+        // run the guide a bit past the cursor so the lock is easy to see
+        const end = previewSnap.p.clone().lerp(points[0].p, -0.35);
+        guideLine.geometry.setFromPoints([points[0].p, end]);
+        guideLine.computeLineDistances();
+        guideLine.material.color.set(lockAxis.color);
+        guideLine.visible = true;
+      } else guideLine.visible = false;
+      previewTag.textContent = mode === 'bevel' ? slopeOfFace(previewSnap.normal) : snapLabel(previewSnap);
       previewTag.style.display = 'block';
       if (points.length && mode !== 'bevel') {
-        const d = points[points.length - 1].p.distanceTo(previewSnap.p);
-        if (mode === 'distance') previewTag.textContent += ` · ${formatLength(d, ctx.units())}`;
+        const from = points[points.length - 1].p;
+        if (mode === 'distance') previewTag.textContent += ` · ${formatLength(from.distanceTo(previewSnap.p), ctx.units())}`;
+        if (mode === 'angle' && points.length === 2) {
+          const v = points[0].p;
+          const deg = THREE.MathUtils.radToDeg(points[1].p.clone().sub(v).angleTo(previewSnap.p.clone().sub(v)));
+          previewTag.textContent += ` · ${deg.toFixed(1)}°`;
+        }
       }
     },
     // per-frame: keep markers a constant screen size and labels glued to 3D points
