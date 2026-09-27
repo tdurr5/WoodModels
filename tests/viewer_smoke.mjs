@@ -1128,6 +1128,36 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     await p2.waitForTimeout(300);
     check(await p2.evaluate(() => window.__viewer.rows().filter((r) => r.name === 'Bench')[0]?.count) === 2, 'and Undo puts the pieces back');
     await p2.keyboard.press('Escape');
+    // laying out the exploded view: Move a part along an arrow
+    await p2.locator('#explodeRange').fill('0.6');
+    await p2.locator('#clList .row', { hasText: 'Leg Front' }).first().click();
+    await p2.waitForTimeout(300);
+    await p2.locator('#dimCard [data-act="move"]').click();
+    await p2.waitForTimeout(300);
+    const legAt = () => p2.evaluate(() => window.__viewer.meshesOf('Leg Front')[0].position.x);
+    const x0 = await legAt();
+    const arrow = await p2.evaluate(() => {
+      const v = window.__viewer, r = document.querySelector('#viewport canvas').getBoundingClientRect();
+      const m = v.meshesOf('Leg Front')[0];
+      const c = m.geometry.boundingBox.getCenter(new v.THREE.Vector3()).add(m.position);
+      const d = c.distanceTo(v.camera.position);
+      const p = (q) => { const s = q.clone().project(v.camera); return { x: r.left + (s.x + 1) / 2 * r.width, y: r.top + (1 - s.y) / 2 * r.height }; };
+      return [p(c.clone().add(new v.THREE.Vector3(d * 0.06, 0, 0))), p(c.clone().add(new v.THREE.Vector3(d * 0.2, 0, 0)))];
+    });
+    await p2.mouse.move(arrow[0].x, arrow[0].y);
+    await p2.waitForTimeout(150);
+    await p2.mouse.down();
+    await p2.mouse.move(arrow[1].x, arrow[1].y, { steps: 8 });
+    await p2.mouse.up();
+    await p2.waitForTimeout(300);
+    const x1 = await legAt();
+    const saved = await p2.evaluate(() => JSON.parse(localStorage.getItem('woodmodels:shaving-horse:edits') || '{}').explode || {});
+    check(x1 - x0 > 1 && Object.keys(saved).length === 1, `Move drags a part to a new place in the exploded view, and it's kept (${x0.toFixed(1)} -> ${x1.toFixed(1)}, ${JSON.stringify(saved)})`);
+    await p2.locator('#dimCard [data-act="move-reset"]').click();
+    await p2.waitForTimeout(300);
+    check(Math.abs((await legAt()) - x0) < 0.01, 'Reset position puts it back');
+    await p2.locator('#explodeRange').fill('0');
+    await p2.keyboard.press('Escape');
     await p2.locator('#clList .row', { hasText: 'Seat Handle' }).first().click();
     await p2.keyboard.press('Delete');
     check(!(await names()).includes('Seat Handle'), 'a built-in model part can be deleted');

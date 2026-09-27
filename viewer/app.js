@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
@@ -14,7 +15,7 @@ import {
 } from './cutlist.js';
 import { buildOrder, withAssemblySteps } from './build.js';
 import {
-  normalizeEdits, withStatus, withName, withGroupName, withPieceStatus, withJoin, withSplit, withAutoFixes, joinKey,
+  normalizeEdits, withStatus, withName, withGroupName, withPieceStatus, withJoin, withSplit, withAutoFixes, joinKey, withExplodeOffset,
 } from './edits.js';
 import { initMeasure } from './measure.js';
 import { initDiagramModal, computeLayouts, layoutsHTML, STOCK_DEFAULTS, shoppingText, setSpeciesLookup } from './diagram.js';
@@ -124,6 +125,7 @@ function setOrtho(on) {
   camera = next;
   controls.object = camera;
   controls.update();
+  mover.camera = camera; // (only switched by you, long after startup)
   $('orthoBtn').classList.toggle('on', on);
 }
 
@@ -733,7 +735,8 @@ function explodeUnits() {
         if (vol > best) { best = vol; anchor = o; }
       });
     }
-    list.forEach((m) => { const info = meshInfo.get(m); info.unitCenter = center; info.anchor = anchor; });
+    const unitKey = list.map((m) => m.name).sort()[0]; // what a move in the exploded view is stored under
+    list.forEach((m) => { const info = meshInfo.get(m); info.unitCenter = center; info.anchor = anchor; info.unitKey = unitKey; });
   });
 }
 
@@ -934,17 +937,24 @@ function setWireframe(on) {
 function setExplodePositions(f) {
   requestRender();
   const reach = new THREE.Box3();
+  // where you moved a piece yourself (Move on its card), at full explode
+  const moved = (info) => {
+    const v = moving?.key === info.unitKey ? moving.live : edits.explode?.[info.unitKey];
+    return v ? new THREE.Vector3(...v).multiplyScalar(f) : new THREE.Vector3();
+  };
   const offset = (info) => info.groupCenter.clone().sub(modelCenter).multiplyScalar(f)
-    .add(info.unitCenter.clone().sub(info.groupCenter).multiplyScalar(f * 0.6));
+    .add(info.unitCenter.clone().sub(info.groupCenter).multiplyScalar(f * 0.6)).add(moved(info));
   meshes.forEach((m) => {
     const info = meshInfo.get(m);
     m.position.copy(offset(info.anchor ? meshInfo.get(info.anchor) : info)); // hardware moves with its wood
+    if (info.anchor) m.position.add(moved(info));
     if (isShownPart(m)) reach.union(m.geometry.boundingBox.clone().translate(m.position));
   });
   fitStage(reach); // the floor drops with parts pulled below it, and shadows follow them out
 }
 
 function setExplode(f) {
+  stopMove(); // its arrows sit where the piece was
   explode = f;
   setExplodePositions(f);
   $('explodeRange').value = String(f);
@@ -1106,6 +1116,7 @@ function selectRow(row, { frame = true } = {}) {
 }
 
 function clearSelection({ keepHash = false } = {}) {
+  stopMove();
   disposeOverlays();
   current = null;
   groupSel = null;
@@ -2144,6 +2155,8 @@ function renderDimCard() {
     : `<button class="card-btn" data-act="aside" title="Keep it with its sizes, but leave it out of the build: totals, shopping list, prints (e.g. a tool drawn on the bench)">Set aside${row.count > 1 ? ` all ×${row.count}` : ''}</button>`}
       <button class="card-btn danger" data-act="delete" title="Delete from this model: a mistake or junk in the model (Del). You can restore it.">Delete${row.count > 1 ? ` all ×${row.count}` : ''}</button>
       ${row.status ? '' : '<button class="card-btn" data-act="merge" title="One solid piece the model drew in several (a glued-up slab, a board drawn in two): click the other pieces in 3D, then Merge">Merge…</button>'}
+      ${canMove() && !row.status ? `<button class="card-btn${moving ? ' on' : ''}" data-act="move" title="Lay out the exploded view: drag the arrows to move this piece (saved with the model, so your phone shows it too)">${moving ? 'Done moving' : '✥ Move'}</button>` : ''}
+      ${canMove() && edits.explode?.[meshInfo.get(current.piece || current.meshes[0])?.unitKey] ? '<button class="card-btn" data-act="move-reset" title="Back to where exploding puts it">Reset position</button>' : ''}
     </div>
   `;
   dimCard.style.display = 'block';
@@ -2185,9 +2198,65 @@ function renderDimCard() {
     selectRow(allPartRows.find((r) => r.obj_names.includes(o.a)), { frame: false });
   });
   dimCard.querySelector('[data-act="merge"]')?.addEventListener('click', () => startMerge());
+  dimCard.querySelector('[data-act="move"]')?.addEventListener('click', () => (moving ? stopMove() : startMove()));
+  dimCard.querySelector('[data-act="move-reset"]')?.addEventListener('click', () => {
+    const key = meshInfo.get(current.piece || current.meshes[0])?.unitKey;
+    stopMove();
+    commitEdits(withExplodeOffset(edits, key, null), 'Back where exploding puts it');
+  });
   dimCard.querySelector('[data-act="split"]')?.addEventListener('click', () => {
     commitEdits(withSplit(edits, row.pieces), 'Split back into the pieces in the model');
   });
+}
+
+// ---------- laying out the exploded view ----------
+// On a computer (the phone just shows the result): with the model exploded,
+// Move on a part's card puts arrows on it; drag them to move the piece -
+// and whatever moves with it (its other pieces, the bolts through it) -
+// somewhere clearer. Stored in your edits as an offset at full explode, so
+// it scales with the slider, undoes, and travels with the model to a phone.
+const mover = new TransformControls(camera, renderer.domElement);
+mover.setSize(0.9);
+scene.add(mover);
+const moverTarget = new THREE.Object3D();
+scene.add(moverTarget);
+let moving = null; // { key, base, live, start }
+const finePointer = window.matchMedia?.('(pointer: fine)').matches ?? true;
+const canMove = () => finePointer && explode > 0.15 && !build;
+mover.addEventListener('change', () => requestRender());
+mover.addEventListener('dragging-changed', (e) => {
+  controls.enabled = !e.value;
+  if (!e.value && moving) {
+    const { key, live } = moving;
+    commitEdits(withExplodeOffset(edits, key, live), 'Moved in the exploded view');
+    if (moving) { moving.base = [...live]; moving.start = moverTarget.position.clone(); }
+  }
+});
+mover.addEventListener('objectChange', () => {
+  if (!moving) return;
+  const d = moverTarget.position.clone().sub(moving.start).divideScalar(explode);
+  moving.live = moving.base.map((v, i) => v + d.getComponent(i));
+  setExplodePositions(explode);
+});
+function startMove() {
+  if (!current || !canMove()) return;
+  const m = current.piece || current.meshes[0];
+  const info = meshInfo.get(m);
+  const base = edits.explode?.[info.unitKey] || [0, 0, 0];
+  moverTarget.position.copy(info.unitCenter).add(m.position);
+  moving = { key: info.unitKey, base: [...base], live: [...base], start: moverTarget.position.clone() };
+  mover.camera = camera;
+  mover.attach(moverTarget);
+  renderDimCard();
+  requestRender();
+}
+function stopMove() {
+  if (!moving) return;
+  moving = null;
+  mover.detach();
+  controls.enabled = true;
+  if (current) renderDimCard();
+  requestRender();
 }
 
 // ---------- merging pieces into one part ----------
@@ -2373,6 +2442,7 @@ function processHover() {
   if (!e || !model) return;
   measure.handleMove(e);
   if (measure.mode) { hoverTip.style.display = 'none'; renderer.domElement.style.cursor = 'crosshair'; setHoverRow(null); return; }
+  if (moving) { hoverTip.style.display = 'none'; setHoverRow(null); return; } // nothing over the arrows
   const hit = raycastAt(e.clientX, e.clientY, meshes.filter((m) => m.visible));
   const row = hit && rowByMeshName.get(hit.object.name);
   renderer.domElement.style.cursor = row ? 'pointer' : '';
