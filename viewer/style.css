@@ -369,6 +369,12 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
   .tpl-overlap { position: absolute; }
   .tpl-overlap.v { top: 0; bottom: 0; border-right: 1px dashed #666; }
   .tpl-overlap.h { left: 0; right: 0; border-bottom: 1px dashed #666; }
+  .tpl-trim { position: absolute; }
+  .tpl-trim.v { top: 0; bottom: 0; right: 0; border-right: 1px dashed #000; }
+  .tpl-trim.h { left: 0; right: 0; bottom: 0; border-bottom: 1px dashed #000; }
+  .tpl-trim span { position: absolute; font-size: 8px; color: #000; background: #fff; padding: 0 2px; white-space: nowrap; }
+  .tpl-trim.v span { right: 2px; top: 2px; }
+  .tpl-trim.h span { left: 2px; bottom: 2px; }
   .tpl-id { position: absolute; right: 4px; bottom: 2px; font-size: 9px; color: #666; }
   .ps-diagrams { page-break-before: always; }
   .ps-diagrams h3 { font-size: 12px; margin: 10px 0 4px; }
