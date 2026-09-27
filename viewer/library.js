@@ -330,6 +330,15 @@ export function initLibrary({ current, onOpen, builtIn }) {
         <td><select data-species="${escapeHtml(m)}"><option value="">${escapeHtml(cfg.materials[m].texture?.image ? 'The model\'s own photo' : SPECIES[speciesFor(cfg.materials[m].label, m)]?.name ? `Auto (${SPECIES[speciesFor(cfg.materials[m].label, m)].name})` : 'Auto (wide grain)')}</option><optgroup label="In the model's colour">${Object.entries(GRAINS).map(([k, g]) => `<option value="${k}"${cfg.materials[m].species === k ? ' selected' : ''}>${escapeHtml(g.name)}</option>`).join('')}</optgroup><optgroup label="Species">${Object.entries(SPECIES).map(([k, sp]) => `<option value="${k}"${cfg.materials[m].species === k ? ' selected' : ''}>${escapeHtml(sp.name)}</option>`).join('')}</optgroup></select></td></tr>`).join('')}
       </tbody></table>
       <p class="muted small">Only <b>Wood</b> parts go into rough stock, board feet, the cutting diagram and templates. Give materials the same name (e.g. all the oak textures "Red oak") to total them as one species.</p>`;
+    // "Looks like" is how wood looks: only wood (and sheet goods) have a choice
+    const syncLooks = (sel) => {
+      const look = setup.querySelector(`select[data-species="${CSS.escape(sel.dataset.mat)}"]`);
+      if (look) look.disabled = sel.value !== 'Wood' && sel.value !== SHEET;
+    };
+    setup.querySelectorAll('select[data-mat]').forEach((sel) => {
+      syncLooks(sel);
+      sel.addEventListener('change', () => syncLooks(sel));
+    });
     setup.dataset.id = id;
     setup.style.display = 'flex';
   }
