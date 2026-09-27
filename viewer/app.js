@@ -24,6 +24,7 @@ import { initLibrary, modelZip } from './library.js';
 import { getModelFiles, lastOpened, rememberOpened, putModelFile, addPhoto, listPhotos, deletePhoto } from './modelstore.js';
 import { obbFromDims, partsTouch, findOverlaps, applyJoins, endJoints } from './geometry.js';
 import { glueUpStrips } from './nesting.js';
+import { createStage, smoothNormals, materialKind, surfaceMaterial } from './look.js';
 
 const $ = (id) => document.getElementById(id);
 const viewport = $('viewport');
@@ -143,17 +144,9 @@ renderer.domElement.addEventListener('wheel', (e) => {
 
 // soft studio light for reflections, so finished wood has some life to it
 scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(renderer), 0.04).texture;
-scene.add(new THREE.AmbientLight(0xffffff, 0.45));
-const sun1 = new THREE.DirectionalLight(0xffffff, 1.1);
-sun1.position.set(1, 2, 1.5);
-scene.add(sun1);
-const sun2 = new THREE.DirectionalLight(0xffffff, 0.5);
-sun2.position.set(-1.2, 1, -1);
-scene.add(sun2);
-
-// ground grid (model is exported Y-up, standard three.js convention); 5" squares
-const grid = new THREE.GridHelper(120, 24, 0x444444, 0x2a2a2a);
-scene.add(grid);
+// lights, ground grid and soft shadows, laid out around whatever model is
+// loaded (look.js; the model is exported Y-up, standard three.js convention)
+const stage = createStage(scene, renderer);
 
 // ---------- state ----------
 let config = {};
@@ -508,7 +501,20 @@ function updateModelBox() {
   meshes.forEach((m) => { if (isShownPart(m)) b.expandByPoint(m.geometry.boundingBox.min).expandByPoint(m.geometry.boundingBox.max); });
   modelBox = b.isEmpty() ? new THREE.Box3().setFromObject(model) : b;
   modelCenter = modelBox.getCenter(new THREE.Vector3());
+  fitStage();
   if (explode) setExplodePositions(explode);
+}
+// The ground, lights and camera limits follow the model's size: a 6" box
+// and a 20' shed both get a grid to scale and room to orbit.
+function fitStage() {
+  stage.fit(modelBox, config.views?.iso?.dir);
+  const R = stage.size;
+  controls.maxDistance = Math.max(400, R * 12);
+  perspCamera.far = Math.max(2000, R * 40);
+  perspCamera.updateProjectionMatrix();
+  orthoCamera.near = -Math.max(2000, R * 20);
+  orthoCamera.far = Math.max(4000, R * 40);
+  orthoCamera.updateProjectionMatrix();
 }
 
 let toastTimer = null;
@@ -531,14 +537,20 @@ function prepareMeshes(materialNames) {
     if (mc?.texture || mc?.species) {
       // wood: the species set in Set up, else guessed from the material's names
       const seed = [...child.name].reduce((h, ch) => (Math.imul(h, 31) + ch.charCodeAt(0)) | 0, 17);
-      generateGrainUV(child.geometry, 6, objectDims[child.name], seed);
+      generateGrainUV(child.geometry, 6, objectDims[child.name], seed); // on the flat normals: one grain direction per face
       // the model's own photo of the wood, unless you picked how it looks in Set up
       const photo = !mc.species && woodPhotos.get(mc.texture?.image);
       child.material = woodMaterial(mc.species || speciesFor(mc.label, realName), mc.texture, photo || null);
       child.material.color.multiplyScalar(0.9 + 0.14 * (((seed >>> 0) % 97) / 97)); // no two boards quite the same shade
     } else {
-      child.material = child.material.clone(); // own copy so clipping/wireframe flags are per mesh
+      // steel, brass, paint, leather... lit the same way as the wood (look.js)
+      const kind = materialKind(mc?.category, mc?.label, realName, rowByMeshName.get(child.name)?.name);
+      const name = child.material.name;
+      child.material = surfaceMaterial(kind, child.material.color);
+      child.material.name = name;
     }
+    smoothNormals(child.geometry); // round parts shade round, square edges stay crisp
+    child.castShadow = child.receiveShadow = true;
     const orig = child.material;
     const endMap = endMapOf(orig);
     const dim = addEndGrain(orig.clone(), endMap);
@@ -552,6 +564,7 @@ function prepareMeshes(materialNames) {
     const hlPiece = addEndGrain(hl.clone(), endMap); // the one piece clicked of a part with several
     hlPiece.emissive = new THREE.Color(0xffb020);
     if (!hlPiece.map) hlPiece.color = new THREE.Color(0xffc266);
+    if (orig.metalness) hl.metalness = hlPiece.metalness = 0.2; // a highlighted bolt reads orange, not dark bronze
     const row = rowByMeshName.get(child.name);
     meshes.push(child);
     meshByName.set(child.name, child);
@@ -597,12 +610,14 @@ function applyMaterials() {
       const now = selected.has(m) || (!current && groupSel !== null && info.row?.top_group === groupSel);
       m.visible = now || (isShownPart(m) && !catHidden);
       m.material = now ? info.hl : done ? info.orig : info.dim;
+      m.castShadow = !m.material.transparent; // ghosts and glass throw no shadow
       return;
     }
     const inGroup = !current && groupSel !== null && info.row?.top_group === groupSel;
     const isSel = selected.has(m) || inGroup;
     m.visible = isSel || (isShownPart(m) && !catHidden && !(s.isolate && (current || groupSel !== null) && !isSel));
     m.material = !current && groupSel === null ? info.orig : isSel ? (current?.piece === m && current.meshes.length > 1 ? info.hlPiece : info.hl) : info.dim;
+    m.castShadow = !m.material.transparent;
   });
 }
 
@@ -703,6 +718,7 @@ function applySection() {
   }
   allMaterials().forEach((mat) => {
     mat.clippingPlanes = on ? [clipPlane] : [];
+    mat.clipShadows = on; // the part cut away throws no shadow either
     mat.needsUpdate = true;
   });
   showSectionCaps(on);
@@ -734,25 +750,15 @@ function setExplode(f) {
 }
 
 const THEMES = {
-  dark: { bg: 0x1b1c1f, grid: [0x444444, 0x2a2a2a] },
-  light: { bg: 0xf4f1ec, grid: [0xb5ada0, 0xddd6cb] },
+  dark: { bg: 0x1b1c1f },
+  light: { bg: 0xf4f1ec },
 };
 function applyTheme() {
   const name = settings().theme === 'light' ? 'light' : 'dark';
   document.documentElement.dataset.theme = name;
   const t = THEMES[name];
   scene.background = new THREE.Color(t.bg);
-  const [c1, c2] = t.grid;
-  const colors = grid.geometry.attributes.color;
-  // GridHelper bakes its two colours into vertex colours: centre lines first
-  const center = new THREE.Color(c1), other = new THREE.Color(c2);
-  const n = colors.count, divisions = 24, perLine = 4;
-  for (let i = 0; i < n; i++) {
-    const line = Math.floor(i / perLine);
-    const c = line === divisions / 2 ? center : other;
-    colors.setXYZ(i, c.r, c.g, c.b);
-  }
-  colors.needsUpdate = true;
+  stage.setTheme(name);
   $('themeBtn').textContent = name === 'light' ? 'Dark' : 'Light';
 }
 
@@ -2092,7 +2098,7 @@ function captureOverview({ exploded = 0 } = {}) {
   renderer.localClippingEnabled = false; // ignore any section cut
   const capsOn = section.axis !== 'off';
   if (capsOn) showSectionCaps(false);
-  grid.visible = false;
+  stage.ground.visible = false;
   scene.background = new THREE.Color(0xffffff);
   const box = exploded ? meshes.reduce((b, m) => (m.visible ? b.expandByObject(m) : b), new THREE.Box3()) : modelBox;
   frameBox(box, config.views?.iso?.dir || [0.7, 0.5, 0.7], false);
@@ -2102,7 +2108,7 @@ function captureOverview({ exploded = 0 } = {}) {
     url = cropToContent(renderer.domElement, 24, exploded ? drawCallouts : null);
   } catch { /* tainted canvas etc. */ }
   scene.background = saved.bg;
-  grid.visible = true;
+  stage.ground.visible = true;
   current = saved.current;
   if (current?.gizmo) current.gizmo.visible = saved.gizmoVisible;
   applyMaterials();

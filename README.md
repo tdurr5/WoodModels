@@ -19,6 +19,7 @@ A 3D cut-list viewer for woodworking plans, starting with the Lie-Nielsen/Brian 
   - `angles.js`, `format.js` - compound-angle math, fractions, rough stock, board feet (pure, unit-tested)
   - `library.js`, `collada.js`, `zip.js`, `modelstore.js` - uploading models in the browser: COLLADA parser (a port of `parse_dae.py`), zip/KMZ reading, saved models (IndexedDB)
   - `edits.js` - your renames, deleted parts and parts set aside, per model
+  - `look.js` - the stage each model stands on (ground grid, shadows, lights fitted to its size), smooth shading, non-wood materials
   - `woodtex.js` - species wood textures (side and end grain) generated in the browser
   - `build.js` - build mode's step order (assembly or cutting)
   - `share.js` - Share: QR code of the page, sending a model file or the shopping list (QR encoder vendored in `vendor/qrcode/`, MIT)
@@ -88,6 +89,7 @@ On a phone the layout follows how you hold it (model above the list upright, sid
 
 **3D view**
 - **Realistic wood**: each species has its own look - colour, growth rings with cathedral grain along the board, open pores in oak and ash, oak's ray fleck, knots in pine - with end grain on the ends of boards. The species is guessed from the material's name (in several languages); pick it yourself under **Looks like** in Set up. Wood that isn't a known species keeps the model's own colour, light or dark, with either **tight grain** (hardwood: fine rings) or **wide grain** (softwood: bold bands) - also under Looks like. When a model comes with its own photos of the wood (3D Warehouse models usually do), those are shown instead - laid along each board's length, with matching end grain - and kept with the upload (and in its Download/Share zip); pick a species or grain style under Looks like to use the generated look instead.
+- **Any model looks right on arrival**: it stands on a ground grid sized to it (quarter inches under a small box, inches and feet under furniture, 4' squares under a shed) with a soft shadow beneath it, wherever it was drawn in SketchUp, and the lights, shadows and camera range follow its size. Round parts (dowels, turned legs, rods) are shaded smooth while square edges stay crisp, and parts that aren't wood look like what their material is called: steel and brass shine, glass is see-through, paint, leather, rubber and fabric each have their own finish.
 - A part painted with more than one material (SketchUp leaves unpainted faces as an unnamed "material") is shown and listed as the material covering most of it. Textures are generated in the browser, so they work offline.
 - Click a part (on the model or in the list) to isolate it. You'll see its dimensions drawn on the part's own axes and a card with size, quantity and angles.
 - Angled parts can show their lean: click **∠ Show angles** on the part's card (it's off until you ask, so only your own measurements are drawn). You get the total lean from plumb (or level) as arcs, split into front-to-back and side-to-side components. Legs also get the chairmaker's resultant/sightline angle and a bevel-gauge setting.

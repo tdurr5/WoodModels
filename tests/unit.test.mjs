@@ -693,3 +693,85 @@ test('a part much wider than your boards is laid out as glue-up strips', () => {
   const packed = packBoards(grp.pieces, { length: 96, width: 8 });
   assert.ok(packed.boards.every((b) => !b.oversize), 'strips fit ordinary boards');
 });
+
+import * as THREE3 from 'three';
+import { smoothNormals, gridSpacing, materialKind } from '../viewer/look.js';
+
+// a cylinder's side and caps as separate flat triangles, the way OBJLoader
+// hands them over (no shared vertices)
+function flatCylinder(n = 24, backToBack = false) {
+  const pts = [];
+  const ring = (k, y) => [Math.cos((2 * Math.PI * k) / n), y, Math.sin((2 * Math.PI * k) / n)];
+  for (let k = 0; k < n; k++) {
+    const a0 = ring(k, 0), a1 = ring(k + 1, 0), b0 = ring(k, 1), b1 = ring(k + 1, 1);
+    pts.push(a0, b0, a1, a1, b0, b1); // side, outward
+    pts.push([0, 1, 0], b1, b0); // top cap
+  }
+  if (backToBack) for (let i = pts.length - 3; i >= 0; i -= 3) pts.push(pts[i], pts[i + 2], pts[i + 1]);
+  const g = new THREE3.BufferGeometry();
+  g.setAttribute('position', new THREE3.Float32BufferAttribute(pts.flat(), 3));
+  return g;
+}
+
+test('round parts shade smooth, square edges stay crisp', () => {
+  const g = smoothNormals(flatCylinder(24));
+  const pos = g.attributes.position, nrm = g.attributes.normal;
+  const p = new THREE3.Vector3(), nv = new THREE3.Vector3();
+  let sideChecked = 0, capChecked = 0;
+  for (let i = 0; i < pos.count; i++) {
+    p.fromBufferAttribute(pos, i); nv.fromBufferAttribute(nrm, i);
+    const onSide = i % 9 < 6;
+    if (onSide) {
+      // side corners point straight out from the axis, like a real cylinder
+      const radial = new THREE3.Vector3(p.x, 0, p.z).normalize();
+      near(nv.dot(radial), 1, 1e-3);
+      sideChecked++;
+    } else {
+      near(nv.y, 1, 1e-6); // the cap stays flat: 90° from the side is a crease
+      capChecked++;
+    }
+  }
+  assert.ok(sideChecked > 0 && capChecked > 0);
+});
+
+test('smooth shading never mixes the two sides of a back-to-back face', () => {
+  const g = smoothNormals(flatCylinder(24, true));
+  const nrm = g.attributes.normal;
+  // the reversed copies are added last-first: triangle 0's twin is the last
+  // one, starting at the same corner
+  const front = new THREE3.Vector3().fromBufferAttribute(nrm, 0);
+  const back = new THREE3.Vector3().fromBufferAttribute(nrm, nrm.count - 3);
+  assert.equal(g.attributes.position.getX(0), g.attributes.position.getX(nrm.count - 3));
+  assert.ok(front.dot(back) < -0.99, `front ${front.toArray()} vs back ${back.toArray()}`);
+});
+
+test('a box keeps its flat faces', () => {
+  const g = new THREE3.BoxGeometry(3, 1, 10).toNonIndexed();
+  g.deleteAttribute('normal');
+  smoothNormals(g);
+  const nrm = g.attributes.normal;
+  for (let i = 0; i < nrm.count; i++) {
+    const v = new THREE3.Vector3().fromBufferAttribute(nrm, i);
+    near(Math.max(Math.abs(v.x), Math.abs(v.y), Math.abs(v.z)), 1, 1e-6);
+  }
+});
+
+test('the ground grid is scaled to the model', () => {
+  assert.deepEqual(gridSpacing(6), [0.25, 4]); // a keepsake box: quarter inches
+  assert.deepEqual(gridSpacing(40), [1, 12]); // a table: inches and feet
+  assert.deepEqual(gridSpacing(240), [6, 8]); // a shed: 6" and 4'
+  assert.ok(gridSpacing(5000)[0] >= 12);
+});
+
+test('non-wood materials are recognised from their names', () => {
+  assert.equal(materialKind('Hardware', 'Steel'), 'metal');
+  assert.equal(materialKind('Other', 'Brass'), 'brass');
+  assert.equal(materialKind('Other', 'Paint_Green'), 'paint');
+  assert.equal(materialKind('Other', 'Verre'), 'glass');
+  assert.equal(materialKind('Leather', 'Strap'), 'leather');
+  assert.equal(materialKind('Hardware', '_____Metal'), 'metal');
+  assert.equal(materialKind('Hardware', 'Thing'), 'metal'); // hardware defaults to steel
+  assert.equal(materialKind('Other', 'Material12'), 'plain');
+  assert.equal(materialKind('Other', 'Or'), 'brass'); // French gold
+  assert.equal(materialKind('Other', 'Coral'), 'plain'); // not "or" inside a word
+});

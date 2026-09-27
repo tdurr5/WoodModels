@@ -1,0 +1,299 @@
+// How a model looks on screen, whatever model it is: the stage it stands on
+// (a ground grid and soft shadow sized to it, wherever it was drawn), lights
+// that follow its size, smooth shading on round parts, and real-looking
+// materials for the parts that aren't wood (steel, brass, paint, leather...).
+//
+// Models come from anywhere - a SketchUp export drawn a long way from the
+// origin, a 6" box or a 20' shed, in any units - so nothing here assumes a
+// size or position: fitStage() measures the model and lays everything out
+// around it.
+
+import * as THREE from 'three';
+
+// ---------- smooth shading ----------
+// The OBJ has no normals, so every triangle is shaded flat and a dowel shows
+// its 24 facets. Average each corner's normal with the neighbouring faces
+// that meet it at less than `creaseDeg` - round things go smooth, while a
+// board's square edges (90°) and a chamfer (45°) stay crisp. SketchUp's
+// back-to-back face pairs point opposite ways and never mix.
+export function smoothNormals(geometry, creaseDeg = 35) {
+  const pos = geometry.attributes.position;
+  if (geometry.index || !pos || pos.count < 3) return geometry;
+  const n = pos.count;
+  const tris = n / 3 | 0;
+  const fn = new Float32Array(tris * 3); // per triangle: its normal, scaled by its area
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  for (let t = 0; t < tris; t++) {
+    a.fromBufferAttribute(pos, t * 3); b.fromBufferAttribute(pos, t * 3 + 1); c.fromBufferAttribute(pos, t * 3 + 2);
+    c.sub(b); a.sub(b); c.cross(a); // |c| = 2 x area
+    fn[t * 3] = c.x; fn[t * 3 + 1] = c.y; fn[t * 3 + 2] = c.z;
+  }
+  // corners by position (quantised, so corners that are "the same point" in
+  // the model meet even after float rounding)
+  const q = 1e4;
+  const key = (i) => `${Math.round(pos.getX(i) * q)},${Math.round(pos.getY(i) * q)},${Math.round(pos.getZ(i) * q)}`;
+  const byPoint = new Map();
+  for (let i = 0; i < tris * 3; i++) {
+    const k = key(i);
+    let list = byPoint.get(k);
+    if (!list) byPoint.set(k, (list = []));
+    list.push(i);
+  }
+  const cosCrease = Math.cos(THREE.MathUtils.degToRad(creaseDeg));
+  const out = new Float32Array(n * 3);
+  const units = new Array(tris);
+  for (let t = 0; t < tris; t++) {
+    const x = fn[t * 3], y = fn[t * 3 + 1], z = fn[t * 3 + 2];
+    const l = Math.hypot(x, y, z) || 1;
+    units[t] = [x / l, y / l, z / l];
+  }
+  byPoint.forEach((list) => {
+    list.forEach((i) => {
+      const ti = i / 3 | 0, ni = units[ti];
+      let x = 0, y = 0, z = 0;
+      list.forEach((j) => {
+        const tj = j / 3 | 0, nj = units[tj];
+        if (ni[0] * nj[0] + ni[1] * nj[1] + ni[2] * nj[2] < cosCrease) return;
+        x += fn[tj * 3]; y += fn[tj * 3 + 1]; z += fn[tj * 3 + 2];
+      });
+      const l = Math.hypot(x, y, z);
+      if (l > 1e-12) { out[i * 3] = x / l; out[i * 3 + 1] = y / l; out[i * 3 + 2] = z / l; }
+      else { out[i * 3] = ni[0]; out[i * 3 + 1] = ni[1]; out[i * 3 + 2] = ni[2]; }
+    });
+  });
+  geometry.setAttribute('normal', new THREE.BufferAttribute(out, 3));
+  return geometry;
+}
+
+// ---------- materials for what isn't wood ----------
+// What a material most likely is, from its names: metal (and which), glass,
+// leather, rubber, paint - else plain. Several languages, like woodtex.js.
+const KINDS = [
+  { kind: 'brass', words: ['brass', 'laiton', 'messing', 'laton', 'bronze', 'gold', 'or'] },
+  { kind: 'copper', words: ['copper', 'cuivre', 'kupfer', 'cobre'] },
+  { kind: 'blackMetal', words: ['black iron', 'cast iron', 'wrought', 'blackened', 'fonte', 'gusseisen', 'oxide', 'anthracite'] },
+  { kind: 'metal', words: ['steel', 'stainless', 'iron', 'metal', 'metallic', 'chrome', 'aluminum', 'aluminium', 'zinc', 'nickel', 'galvanized', 'acier', 'metal', 'stahl', 'eisen', 'acero', 'hierro', 'inox', 'bolt', 'screw', 'nut', 'washer', 'rod', 'hinge', 'nail', 'hardware'] },
+  { kind: 'glass', words: ['glass', 'glazing', 'verre', 'glas', 'vidrio', 'cristal', 'translucent', 'acrylic', 'plexi', 'mirror'] },
+  { kind: 'leather', words: ['leather', 'cuir', 'leder', 'cuero', 'suede'] },
+  { kind: 'rubber', words: ['rubber', 'caoutchouc', 'gummi', 'goma', 'foam', 'vinyl', 'plastic', 'nylon', 'pvc'] },
+  { kind: 'fabric', words: ['fabric', 'cloth', 'canvas', 'linen', 'cotton', 'wool', 'felt', 'upholstery', 'cushion', 'tissu', 'stoff', 'tela'] },
+  { kind: 'stone', words: ['stone', 'concrete', 'marble', 'granite', 'brick', 'tile', 'slate', 'beton', 'pierre', 'stein', 'piedra', 'hormigon'] },
+  { kind: 'paint', words: ['paint', 'painted', 'lacquer', 'enamel', 'milk paint', 'peinture', 'lack', 'pintura', 'color', 'colour'] },
+];
+const cleanName = (s) => ` ${String(s || '').normalize('NFKD').replace(/[^\x00-\x7F]/g, '').replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase().replace(/[^a-z]+/g, ' ').trim()} `;
+export function materialKind(category, ...names) {
+  const text = names.map(cleanName).join(' ');
+  for (const { kind, words } of KINDS) if (words.some((w) => text.includes(` ${w} `))) return kind;
+  if (category === 'Hardware') return 'metal';
+  if (category === 'Leather') return 'leather';
+  return 'plain';
+}
+
+// A physically based material (lit like the wood, with reflections from the
+// studio environment) for a non-wood part: `color` from the model, `kind`
+// from materialKind().
+export function surfaceMaterial(kind, color) {
+  const c = new THREE.Color(color);
+  const lum = c.r * 0.2126 + c.g * 0.7152 + c.b * 0.0722;
+  const opts = { color: c, roughness: 0.6, metalness: 0, envMapIntensity: 0.5 };
+  switch (kind) {
+    case 'metal':
+      // SketchUp's greys are often very light or very dark; keep steel steel-ish
+      if (Math.abs(c.r - c.g) < 0.06 && Math.abs(c.g - c.b) < 0.08) c.setScalar(THREE.MathUtils.clamp(lum, 0.45, 0.8));
+      Object.assign(opts, { roughness: 0.38, metalness: 0.85, envMapIntensity: 1.1 });
+      break;
+    case 'blackMetal': Object.assign(opts, { roughness: 0.55, metalness: 0.7, envMapIntensity: 0.9 }); break;
+    case 'brass': case 'copper': Object.assign(opts, { roughness: 0.32, metalness: 0.9, envMapIntensity: 1.2 }); break;
+    case 'glass': Object.assign(opts, { roughness: 0.05, transparent: true, opacity: 0.3, envMapIntensity: 1.5, depthWrite: false }); break;
+    case 'leather': Object.assign(opts, { roughness: 0.62, envMapIntensity: 0.4 }); break;
+    case 'rubber': Object.assign(opts, { roughness: 0.85, envMapIntensity: 0.25 }); break;
+    case 'fabric': Object.assign(opts, { roughness: 0.95, envMapIntensity: 0.15 }); break;
+    case 'stone': Object.assign(opts, { roughness: 0.85, envMapIntensity: 0.25 }); break;
+    case 'paint': Object.assign(opts, { roughness: 0.45, envMapIntensity: 0.5 }); break;
+    default: break;
+  }
+  const m = new THREE.MeshStandardMaterial(opts);
+  m.userData.kind = kind;
+  return m;
+}
+
+// ---------- the stage: lights, ground, shadows ----------
+const GRID_VERT = /* glsl */`
+  #include <common>
+  #include <logdepthbuf_pars_vertex>
+  varying vec3 vWorld;
+  void main() {
+    vec4 w = modelMatrix * vec4(position, 1.0);
+    vWorld = w.xyz;
+    gl_Position = projectionMatrix * viewMatrix * w;
+    #include <logdepthbuf_vertex>
+  }`;
+// Minor and major lines, anti-aliased with screen-space derivatives; minor
+// lines fade out where they'd crowd into a grey smear (seen edge-on or from
+// far away), and the whole grid fades out towards its edge instead of
+// stopping at a hard square.
+const GRID_FRAG = /* glsl */`
+  #include <common>
+  #include <logdepthbuf_pars_fragment>
+  uniform vec3 minorColor;
+  uniform vec3 majorColor;
+  uniform float cell;
+  uniform float major;
+  uniform vec2 center;
+  uniform float radius;
+  varying vec3 vWorld;
+  float lineAt(vec2 p, float size, out float density) {
+    vec2 g = p / size;
+    vec2 w = fwidth(g);
+    density = max(w.x, w.y);
+    vec2 d = abs(fract(g - 0.5) - 0.5) / max(w, 1e-5);
+    return 1.0 - min(min(d.x, d.y), 1.0);
+  }
+  void main() {
+    #include <logdepthbuf_fragment>
+    float dMinor, dMajor;
+    float minor = lineAt(vWorld.xz, cell, dMinor) * (1.0 - smoothstep(0.08, 0.3, dMinor));
+    float maj = lineAt(vWorld.xz, cell * major, dMajor) * (1.0 - smoothstep(0.3, 0.7, dMajor));
+    float fade = 1.0 - smoothstep(radius * 0.45, radius, length(vWorld.xz - center));
+    float a = max(minor * 0.55, maj) * fade;
+    if (a < 0.003) discard;
+    gl_FragColor = vec4(mix(minorColor, majorColor, maj), a);
+  }`;
+
+const GROUND_THEMES = {
+  dark: { minor: 0x34363b, major: 0x4b4e55, shadow: 0.55 },
+  light: { minor: 0xe0d9ce, major: 0xc4bbad, shadow: 0.2 },
+};
+
+// Grid squares that suit the model's size: inches for a box, a foot for
+// furniture, four feet for a shed. [minor, lines per major]
+export function gridSpacing(footprint) {
+  if (footprint <= 8) return [0.25, 4];      // 1/4", with inch lines
+  if (footprint <= 20) return [1, 6];        // 1", every 6"
+  if (footprint <= 150) return [1, 12];      // 1", every foot
+  if (footprint <= 400) return [6, 8];       // 6", every 4'
+  return [12, 10];                           // 1', every 10'
+}
+
+export function createStage(scene, renderer) {
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap; // with a radius: a soft edge (PCFSoft ignores it)
+
+  // Sky above, warm bounce from a wooden shop floor below: tops read lighter
+  // than sides even where the key light doesn't reach, so boards don't go flat.
+  const hemi = new THREE.HemisphereLight(0xfbf6ee, 0x6b5a48, 0.55);
+  scene.add(hemi);
+  const ambient = new THREE.AmbientLight(0xffffff, 0.12);
+  scene.add(ambient);
+  // key: casts the shadows; fill from the other side, and a little rim from behind
+  const key = new THREE.DirectionalLight(0xfff4e6, 1.35);
+  key.castShadow = true;
+  key.shadow.mapSize.set(2048, 2048);
+  key.shadow.radius = 3;
+  scene.add(key, key.target);
+  const fill = new THREE.DirectionalLight(0xe8f0ff, 0.45);
+  scene.add(fill, fill.target);
+  const rim = new THREE.DirectionalLight(0xffffff, 0.3);
+  scene.add(rim, rim.target);
+
+  const ground = new THREE.Group();
+  ground.name = 'ground';
+  const gridMat = new THREE.ShaderMaterial({
+    uniforms: {
+      minorColor: { value: new THREE.Color() }, majorColor: { value: new THREE.Color() },
+      cell: { value: 1 }, major: { value: 12 }, center: { value: new THREE.Vector2() }, radius: { value: 100 },
+    },
+    vertexShader: GRID_VERT, fragmentShader: GRID_FRAG,
+    transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    extensions: { derivatives: true },
+  });
+  const gridMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), gridMat);
+  gridMesh.renderOrder = -2;
+  gridMesh.raycast = () => {}; // never picked or measured
+  const shadowMat = new THREE.ShadowMaterial({ opacity: 0.5, depthWrite: false, transparent: true });
+  const shadowMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), shadowMat);
+  shadowMesh.receiveShadow = true;
+  shadowMesh.renderOrder = -1;
+  shadowMesh.raycast = () => {};
+  ground.add(gridMesh, shadowMesh);
+  scene.add(ground);
+
+  const stage = { ground, key, fill, rim, hemi, size: 100, box: null };
+
+  // Lay the stage out around `box` (world): the ground at its foot, lights
+  // aimed from `viewDir` (the model's 3D preset, so the key light comes from
+  // over the viewer's shoulder and its shadow falls behind and to the side).
+  stage.fit = (box, viewDir = [0.7, 0.5, 0.7]) => {
+    if (!box || box.isEmpty()) return;
+    stage.box = box.clone();
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const R = Math.max(size.length() / 2, 0.5);
+    stage.size = R;
+    const footprint = Math.max(size.x, size.z, size.y * 0.5, 1);
+    const y = box.min.y - R * 0.0005; // just under the feet, so they don't z-fight
+
+    const [cell, major] = gridSpacing(footprint);
+    const extent = Math.max(footprint * 3.2, R * 4);
+    gridMesh.scale.set(extent * 2, 1, extent * 2);
+    gridMesh.position.set(center.x, y, center.z);
+    gridMat.uniforms.cell.value = cell;
+    gridMat.uniforms.major.value = major;
+    gridMat.uniforms.center.value.set(center.x, center.z);
+    gridMat.uniforms.radius.value = extent;
+    shadowMesh.scale.set(extent * 2, 1, extent * 2);
+    shadowMesh.position.set(center.x, y + R * 0.0002, center.z);
+
+    // lights: the key over the viewer's right shoulder, high; fill low from
+    // the viewer's left; rim from behind
+    const v = new THREE.Vector3(...viewDir);
+    v.y = 0;
+    if (v.lengthSq() < 1e-6) v.set(0.7, 0, 0.7);
+    v.normalize();
+    const up = new THREE.Vector3(0, 1, 0);
+    const around = (deg, elev) => v.clone().applyAxisAngle(up, THREE.MathUtils.degToRad(deg))
+      .multiplyScalar(Math.cos(THREE.MathUtils.degToRad(elev))).setY(Math.sin(THREE.MathUtils.degToRad(elev))).normalize();
+    const kDir = around(-50, 52), fDir = around(70, 25), rDir = around(170, 40);
+    [[key, kDir], [fill, fDir], [rim, rDir]].forEach(([l, d]) => {
+      l.target.position.copy(center);
+      l.position.copy(center).addScaledVector(d, R * 4);
+      l.target.updateMatrixWorld();
+      l.updateMatrixWorld();
+    });
+
+    // shadow camera: just big enough for the model and the shadow it throws on the ground
+    const cam = key.shadow.camera;
+    const look = new THREE.Matrix4().lookAt(key.position, center, Math.abs(kDir.y) > 0.99 ? new THREE.Vector3(0, 0, 1) : up);
+    const inv = look.clone().invert();
+    const lb = new THREE.Box3();
+    const p = new THREE.Vector3();
+    for (let i = 0; i < 8; i++) {
+      p.set(i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : box.min.y, i & 4 ? box.max.z : box.min.z);
+      lb.expandByPoint(p.clone().sub(key.position).applyMatrix4(inv));
+      // where that corner's shadow lands on the ground
+      const drop = (p.y - y) / Math.max(kDir.y, 0.1);
+      p.addScaledVector(kDir, -drop);
+      lb.expandByPoint(p.clone().sub(key.position).applyMatrix4(inv));
+    }
+    const pad = R * 0.08;
+    cam.left = lb.min.x - pad; cam.right = lb.max.x + pad;
+    cam.bottom = lb.min.y - pad; cam.top = lb.max.y + pad;
+    cam.near = Math.max(0.01, -lb.max.z - R); cam.far = -lb.min.z + R;
+    cam.updateProjectionMatrix();
+    // bias in world terms: a couple of shadow-map texels, so boards don't
+    // shadow themselves in stripes (acne) but stay in contact with what they touch
+    const texel = Math.max(cam.right - cam.left, cam.top - cam.bottom) / key.shadow.mapSize.x;
+    key.shadow.normalBias = texel * 1.5;
+    key.shadow.bias = -0.0004;
+    key.shadow.needsUpdate = true;
+  };
+
+  stage.setTheme = (name) => {
+    const t = GROUND_THEMES[name] || GROUND_THEMES.dark;
+    gridMat.uniforms.minorColor.value.setHex(t.minor);
+    gridMat.uniforms.majorColor.value.setHex(t.major);
+    shadowMat.opacity = t.shadow;
+  };
+  stage.setTheme('dark');
+  return stage;
+}
