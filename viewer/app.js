@@ -22,7 +22,7 @@ import { initShare } from './share.js';
 import { buildTemplate } from './template.js';
 import { initLibrary, modelZip } from './library.js';
 import { getModelFiles, getModelMeta, lastOpened, rememberOpened, putModelFile, addPhoto, listPhotos, deletePhoto, setThumbnail } from './modelstore.js';
-import { obbFromDims, partsTouch, findOverlaps, applyJoins, endJoints, pointInObb } from './geometry.js';
+import { obbFromDims, partsTouch, findOverlaps, findButts, applyJoins, endJoints, pointInObb } from './geometry.js';
 import { cutFeatures } from './features.js';
 import { glueUpStrips } from './nesting.js';
 import { createStage, smoothNormals, orientFaces, materialKind, surfaceMaterial, featureEdges, edgeMaterial } from './look.js';
@@ -502,6 +502,11 @@ function computeRows() {
 // Fills overlapKind and autoFixes; true if there's anything to fix.
 function classifyOverlaps() {
   ({ kinds: overlapKind, fixes: autoFixes } = classifyOverlapsIn(overlaps, baseObjectDims, (n) => meshByName.get(n)));
+  // boards butted end grain to end grain are one board drawn in pieces
+  const used = new Set([...autoFixes.joins.flat(), ...autoFixes.dupes]);
+  findButts(baseObjectDims).forEach((names) => {
+    if (names.every((n) => !used.has(n) && meshByName.has(n))) autoFixes.joins.push(names);
+  });
   return autoFixes.joins.length + autoFixes.dupes.length > 0;
 }
 
@@ -514,7 +519,7 @@ function announceAutoFixes() {
   if (settings().autoFixSeen === sig) return;
   updateSettings({ autoFixSeen: sig });
   const parts = [];
-  if (joined) parts.push(`joined ${joined} part${joined > 1 ? 's' : ''} the model drew as overlapping boards`);
+  if (joined) parts.push(`joined ${joined} part${joined > 1 ? 's' : ''} the model drew in pieces (overlapping, or butted end to end)`);
   if (dropped) parts.push(`removed ${dropped} exact cop${dropped > 1 ? 'ies' : 'y'}`);
   showToast(`Fixed automatically: ${parts.join(', ')}. See the part's card to undo.`, { ms: 9000 });
 }
@@ -527,6 +532,7 @@ function refreshRows() {
   rowByMeshName.clear();
   allPartRows.forEach((r) => (r.obj_names || []).forEach((n) => rowByMeshName.set(n, r)));
   meshes.forEach((m) => { meshInfo.get(m).row = rowByMeshName.get(m.name); });
+  explodeUnits();
   setCutListRows(allPartRows);
   diagram.setRows(rows);
   if (diagram.isOpen()) diagram.render();
@@ -658,9 +664,14 @@ function prepareMeshes(materialNames) {
   });
   updateModelBox();
 
-  // Exploded view moves each assembly group away from the model center, and
-  // each part a little further away from its group's center, so assemblies
-  // stay recognisable while coming apart.
+  explodeUnits();
+}
+
+// Exploded view moves each assembly group away from the model center, and
+// each part a little further away from its group's center, so assemblies
+// stay recognisable while coming apart. Worked out again after edits (a
+// merge makes pieces one part).
+function explodeGroups() {
   const groupBoxes = new Map();
   meshes.forEach((m) => {
     const g = meshInfo.get(m).row?.top_group || '?';
@@ -671,7 +682,6 @@ function prepareMeshes(materialNames) {
     const info = meshInfo.get(m);
     info.groupCenter = groupBoxes.get(info.row?.top_group || '?').getCenter(new THREE.Vector3());
   });
-  explodeUnits();
 }
 
 // What comes apart in the exploded view. Pieces of one part that touch are
@@ -681,6 +691,7 @@ function prepareMeshes(materialNames) {
 // its own. Pieces of a part that don't touch (a pair of legs) still come
 // apart.
 function explodeUnits() {
+  explodeGroups();
   const box = (m) => m.geometry.boundingBox.clone().expandByScalar(0.03);
   const parent = new Map(meshes.map((m) => [m, m]));
   const find = (m) => { while (parent.get(m) !== m) m = parent.get(m); return m; };
@@ -694,6 +705,11 @@ function explodeUnits() {
       if ((sameRow || (hw(a) && hw(b))) && boxes.get(a).intersectsBox(boxes.get(b))) join(a, b);
     }
   });
+  // pieces joined into one part (merged, or a board drawn in pieces) are one thing
+  allPartRows.forEach((r) => (r.pieces || []).forEach((names) => {
+    const ms = names.map((n) => meshByName.get(n)).filter(Boolean);
+    ms.slice(1).forEach((m) => join(m, ms[0]));
+  }));
   const units = new Map();
   meshes.forEach((m) => {
     const r = find(m);
@@ -736,6 +752,13 @@ function applyMaterials() {
   meshes.forEach((m) => {
     const info = meshInfo.get(m);
     const catHidden = info.row && hidden.has(info.row.category);
+    if (merging) {
+      // picking pieces to merge: everything shown, the picked ones lit up
+      m.visible = isShownPart(m) && !catHidden;
+      m.material = merging.has(m.name) ? info.hlPiece : info.orig;
+      m.castShadow = !m.material.transparent;
+      return;
+    }
     if (build) {
       // build mode: parts from earlier steps solid, this step highlighted, the rest ghosted
       const step = build.stepOf.get(info.row?.key);
@@ -2110,7 +2133,7 @@ function renderDimCard() {
     ${row.overlapPairs?.length && !row.status ? `<div class="card-actions">
       <button class="card-btn" data-act="join-overlap" title="They're one longer piece: measure them end to end as one part">Join into one ${escapeHtml(formatLength(row.overlapPairs[0].span, settings().units))} piece</button>
       <button class="card-btn danger" data-act="del-overlap" title="It's a copy left in the model: delete it (you can restore it from Deleted)">Delete the overlapping copy</button></div>` : ''}
-    ${row.joined ? `<div class="card-note">${row.autoJoined ? 'Joined automatically: the model draws this' : 'Joined from'} as ${row.pieces[0].length} overlapping boards; measured end to end as one piece. <button class="card-btn" data-act="split" title="Undo the join">Split ${row.count > 1 ? `all ×${row.count} ` : ''}apart</button></div>` : ''}
+    ${row.joined ? `<div class="card-note">${row.autoJoined ? 'Joined automatically: the model draws this as' : 'Merged from'} ${row.pieces[0].length} pieces; measured as one. <button class="card-btn" data-act="split" title="Undo the join">Split ${row.count > 1 ? `all ×${row.count} ` : ''}apart</button></div>` : ''}
     ${current.piece && row.count > 1 && !row.pieceStatus && !row.status && !row.joined ? `<div class="card-piece">The piece you clicked:
       <button class="card-btn" data-act="piece-aside" title="Set aside just this piece">Set aside</button>
       <button class="card-btn danger" data-act="piece-delete" title="Delete just this piece, not all ${row.count}">Delete</button></div>` : ''}
@@ -2120,6 +2143,7 @@ function renderDimCard() {
     ? '<button class="card-btn" data-act="build" title="Put this part back in the build">Put back in build</button>'
     : `<button class="card-btn" data-act="aside" title="Keep it with its sizes, but leave it out of the build: totals, shopping list, prints (e.g. a tool drawn on the bench)">Set aside${row.count > 1 ? ` all ×${row.count}` : ''}</button>`}
       <button class="card-btn danger" data-act="delete" title="Delete from this model: a mistake or junk in the model (Del). You can restore it.">Delete${row.count > 1 ? ` all ×${row.count}` : ''}</button>
+      ${row.status ? '' : '<button class="card-btn" data-act="merge" title="One solid piece the model drew in several (a glued-up slab, a board drawn in two): click the other pieces in 3D, then Merge">Merge…</button>'}
     </div>
   `;
   dimCard.style.display = 'block';
@@ -2160,9 +2184,60 @@ function renderDimCard() {
     commitEdits(withJoin(edits, [o.a, o.b]), `Joined into one ${formatLength(o.span, settings().units)} piece`);
     selectRow(allPartRows.find((r) => r.obj_names.includes(o.a)), { frame: false });
   });
+  dimCard.querySelector('[data-act="merge"]')?.addEventListener('click', () => startMerge());
   dimCard.querySelector('[data-act="split"]')?.addEventListener('click', () => {
     commitEdits(withSplit(edits, row.pieces), 'Split back into the pieces in the model');
   });
+}
+
+// ---------- merging pieces into one part ----------
+// Automatic joins catch a board drawn as two overlapping or butted pieces;
+// anything else that's really one solid piece (a slab glued up from three
+// boards, a block drawn in two halves) you merge yourself: Merge… on the
+// part's card, click the other pieces in 3D, Merge. Stored as a join in
+// your edits (undo, or Split apart on the card), measured as one piece.
+let merging = null; // mesh names picked, while merging
+const mergeBar = document.createElement('div');
+mergeBar.id = 'mergeBar';
+viewport.appendChild(mergeBar);
+// a piece already joined to others comes with them
+const joinedWith = (m) => rowByMeshName.get(m.name)?.pieces?.find((p) => p.includes(m.name)) || [m.name];
+function startMerge() {
+  if (!current) return;
+  merging = new Set((current.piece ? [current.piece] : current.meshes).flatMap(joinedWith));
+  renderMergeBar();
+  applyMaterials();
+}
+function toggleMergePiece(m) {
+  const names = joinedWith(m);
+  const on = !merging.has(m.name);
+  names.forEach((n) => (on ? merging.add(n) : merging.delete(n)));
+  renderMergeBar();
+  applyMaterials();
+}
+function renderMergeBar() {
+  const n = merging.size;
+  mergeBar.innerHTML = `<span><b>Merge:</b> click the pieces that are one solid piece (${n} picked)</span>
+    <button class="card-btn" data-act="do-merge"${n < 2 ? ' disabled' : ''}>Merge ${n > 1 ? n : ''} into one</button>
+    <button class="card-btn" data-act="cancel-merge" title="Esc">Cancel</button>`;
+  mergeBar.style.display = 'flex';
+  mergeBar.querySelector('[data-act="do-merge"]').addEventListener('click', doMerge);
+  mergeBar.querySelector('[data-act="cancel-merge"]').addEventListener('click', endMerge);
+  requestRender();
+}
+function endMerge() {
+  merging = null;
+  mergeBar.style.display = 'none';
+  applyMaterials();
+  requestRender();
+}
+function doMerge() {
+  const names = [...merging];
+  endMerge();
+  if (names.length < 2) return;
+  commitEdits(withJoin(edits, names), `Merged ${names.length} pieces into one part`);
+  const row = allPartRows.find((r) => r.obj_names.includes(names[0]));
+  if (row) selectRow(row, { frame: false });
 }
 
 // ---------- hover + click picking ----------
@@ -2265,8 +2340,9 @@ renderer.domElement.addEventListener('click', (e) => {
   if (!model || wasDrag(e)) return;
   if (measure.handleClick(e)) return;
   const hit = raycastAt(e.clientX, e.clientY, meshes.filter((m) => m.visible));
-  if (!hit) { if (current && !build) clearSelection(); return; }
+  if (!hit) { if (current && !build && !merging) clearSelection(); return; }
   const row = rowByMeshName.get(hit.object.name);
+  if (merging) { toggleMergePiece(hit.object); return; }
   if (build && row) { const k = build.order.findIndex((r) => r.key === row.key); if (k >= 0 && k !== build.i) { build.i = k; showStep(false); return; } }
   if (row && (!current || row.key !== current.row.key)) selectRow(row, { frame: false });
   // remember which of the part's pieces was clicked (to delete just that one)
@@ -2598,6 +2674,7 @@ $('tagsBtn').addEventListener('click', () => setTags(!tagsOn));
 
 // ---------- keyboard shortcuts ----------
 window.addEventListener('keydown', (e) => {
+  if (merging && e.key === 'Escape') { endMerge(); e.stopImmediatePropagation(); return; }
   const tag = (e.target.tagName || '').toLowerCase();
   if (tag === 'input' || tag === 'select' || tag === 'textarea') {
     if (e.key === 'Escape') e.target.blur();

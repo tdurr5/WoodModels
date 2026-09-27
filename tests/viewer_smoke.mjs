@@ -1099,6 +1099,35 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     await p2.goto(base);
     await loaded();
     await p2.locator('#introClose').click();
+    // Merge: two pieces that are one solid piece, picked by clicking in 3D
+    await p2.locator('#clList .row', { hasText: 'Bench' }).first().click();
+    await p2.waitForTimeout(300);
+    await p2.locator('#dimCard [data-act="merge"]').click();
+    check(await p2.locator('#mergeBar').isVisible(), 'Merge… asks you to click the other pieces');
+    const benchCount = await p2.evaluate(() => window.__viewer.meshesOf('Bench').length);
+    // click the middle of each Bench piece not already picked
+    const spots = await p2.evaluate(() => {
+      const v = window.__viewer, r = document.querySelector('#viewport canvas').getBoundingClientRect();
+      return v.meshesOf('Bench').map((m) => {
+        const c = m.geometry.boundingBox.getCenter(new v.THREE.Vector3()).project(v.camera);
+        return { x: r.left + (c.x + 1) / 2 * r.width, y: r.top + (1 - c.y) / 2 * r.height };
+      });
+    });
+    // it starts with all of the part's pieces; clicking one drops it, again adds it back
+    await p2.mouse.click(spots[0].x, spots[0].y); await p2.waitForTimeout(150);
+    const dropped = await p2.locator('#mergeBar').innerText();
+    await p2.mouse.click(spots[0].x, spots[0].y); await p2.waitForTimeout(150);
+    const picked = await p2.locator('#mergeBar').innerText();
+    check(/1 picked/.test(dropped) && /2 picked/.test(picked), `clicking a piece picks or drops it (${dropped.match(/\d+ picked/)} then ${picked.match(/\d+ picked/)})`);
+    await p2.locator('#mergeBar [data-act="do-merge"]').click();
+    await p2.waitForTimeout(300);
+    const merged = await p2.evaluate(() => window.__viewer.rows().filter((r) => r.name === 'Bench').map((r) => ({ count: r.count, joined: !!r.joined, dims: r.dims })));
+    check(benchCount === 2 && merged.length === 1 && merged[0].count === 1 && merged[0].joined, `Merge makes the picked pieces one part (${picked.replace(/\s+/g, ' ')} -> ${JSON.stringify(merged)})`);
+    check(merged[0] && merged[0].dims[1] > 7.9, `measured as one piece, the width of both (${merged[0]?.dims})`);
+    await p2.keyboard.press('Control+z');
+    await p2.waitForTimeout(300);
+    check(await p2.evaluate(() => window.__viewer.rows().filter((r) => r.name === 'Bench')[0]?.count) === 2, 'and Undo puts the pieces back');
+    await p2.keyboard.press('Escape');
     await p2.locator('#clList .row', { hasText: 'Seat Handle' }).first().click();
     await p2.keyboard.press('Delete');
     check(!(await names()).includes('Seat Handle'), 'a built-in model part can be deleted');
