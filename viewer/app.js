@@ -22,7 +22,8 @@ import { initShare } from './share.js';
 import { buildTemplate } from './template.js';
 import { initLibrary, modelZip } from './library.js';
 import { getModelFiles, lastOpened, rememberOpened, putModelFile, addPhoto, listPhotos, deletePhoto } from './modelstore.js';
-import { obbFromDims, partsTouch, findOverlaps, applyJoins, endJoints } from './geometry.js';
+import { obbFromDims, partsTouch, findOverlaps, applyJoins, endJoints, pointInObb } from './geometry.js';
+import { cutFeatures } from './features.js';
 import { glueUpStrips } from './nesting.js';
 
 const $ = (id) => document.getElementById(id);
@@ -465,6 +466,7 @@ function announceAutoFixes() {
 
 function refreshRows() {
   jointCache.clear(); // parts deleted or set aside no longer take a tenon
+  cutCache.clear();
   computeRows();
   rows = allPartRows.filter((r) => !r.status);
   rowByMeshName.clear();
@@ -945,7 +947,18 @@ function disposeOverlays() {
   current.labels = [];
 }
 
-const xrayMaterial = new THREE.MeshBasicMaterial({ color: 0xff7a45, transparent: true, opacity: 0.28, depthTest: false, depthWrite: false });
+// x-ray in two passes over the part: first mark the pixels where the part
+// can be seen (stencil 1), then tint the rest where it's behind something
+// else - once per pixel. Its own holes and notches, and faces it hides
+// itself, aren't tinted over.
+const xrayMask = new THREE.MeshBasicMaterial({
+  colorWrite: false, depthWrite: false, transparent: true,
+  stencilWrite: true, stencilRef: 1, stencilFunc: THREE.AlwaysStencilFunc, stencilZPass: THREE.ReplaceStencilOp,
+});
+const xrayMaterial = new THREE.MeshBasicMaterial({
+  color: 0xff7a45, transparent: true, opacity: 0.3, depthFunc: THREE.GreaterDepth, depthWrite: false,
+  stencilWrite: true, stencilRef: 1, stencilFunc: THREE.NotEqualStencilFunc, stencilZPass: THREE.ReplaceStencilOp,
+});
 function buildSelectionOverlays() {
   requestRender();
   disposeOverlays();
@@ -965,12 +978,14 @@ function buildSelectionOverlays() {
   // x-ray: the part shows faintly through whatever is in front of it (a block
   // set into a top, a tenon inside a leg), following it as it moves (explode)
   current.meshes.forEach((m) => {
-    const ghost = new THREE.Mesh(m.geometry, xrayMaterial);
-    ghost.matrixAutoUpdate = false;
-    ghost.renderOrder = 10;
-    ghost.userData.shared = true;
-    ghost.onBeforeRender = () => { ghost.matrix.copy(m.matrixWorld); ghost.matrixWorld.copy(m.matrixWorld); };
-    gizmo.add(ghost);
+    [[xrayMask, 10], [xrayMaterial, 11]].forEach(([mat, order]) => {
+      const ghost = new THREE.Mesh(m.geometry, mat);
+      ghost.matrixAutoUpdate = false;
+      ghost.renderOrder = order;
+      ghost.userData.shared = true;
+      ghost.onBeforeRender = () => { ghost.matrix.copy(m.matrixWorld); ghost.matrixWorld.copy(m.matrixWorld); };
+      gizmo.add(ghost);
+    });
   });
   const pieces = rowPieces(current.row);
   const first = objectDims[pieces[0]?.key];
@@ -983,7 +998,17 @@ function buildSelectionOverlays() {
     if (!data || !data.axes) return;
     const sub = new THREE.Group();
     sub.position.copy(m.position); // exploded-view offset
-    if (i < (current.row.customDims ? 1 : MAX_DIMENSIONED)) buildDimensionGizmo(sub, data, labelSpecs, m.position, i ? first : null);
+    if (i < (current.row.customDims ? 1 : MAX_DIMENSIONED)) {
+      buildDimensionGizmo(sub, data, labelSpecs, m.position, i ? first : null);
+      // the end the card measures its cuts from: the version's first piece's
+      // start, and the matching end of the others (a mirrored pair's are opposite)
+      const g = variants.find((v) => v.meshes.includes(m));
+      if (g && cutsOf(current.row, g.meshes[0]).some((c) => c.surface !== 'end' && !c.full)) {
+        const L = new THREE.Vector3(...data.axes[0].direction);
+        const end = m === g.meshes[0] || lengthBias(m) * lengthBias(g.meshes[0]) >= 0 ? -1 : 1;
+        labelSpecs.push({ pos: new THREE.Vector3(...data.center).addScaledVector(L, end * data.axes[0].length / 2).add(m.position), text: '0', color: '#f2f2f2', cls: 'origin' });
+      }
+    }
     if (settings().showPartAngles) buildAngleGizmo(sub, data, labelSpecs, m.position);
     // several versions of the part: number each piece by its version
     if (variants.length > 1) {
@@ -1002,6 +1027,7 @@ function buildSelectionOverlays() {
     el.style.background = spec.color;
     if (spec.differs) el.title = 'Different from the first piece';
     if (spec.cls === 'version') el.title = `Version ${spec.text} of this part - see the part card`;
+    if (spec.cls === 'origin') el.title = 'The part card measures the cuts in this piece from this end';
     axisLabelsEl.appendChild(el);
     return { pos: spec.pos, el, text: spec.text };
   });
@@ -1291,6 +1317,89 @@ function joineryHtml(row, mesh) {
   ].filter(Boolean).join('');
 }
 
+// ---------- cuts: holes, notches, dados... in a part (features.js) ----------
+const cutCache = new Map();
+// The cuts the model draws in one piece, less what's listed elsewhere: the
+// shoulders of its own tenons, mortises for other parts' tenons and holes
+// for bolts and rods. Each keeps the part that sits in it, if any.
+function cutsOf(row, mesh) {
+  if (!mesh || !isCut(row) || row.joined || row.customDims) return [];
+  if (cutCache.has(mesh)) return cutCache.get(mesh);
+  let out = [];
+  const d = objectDims[mesh.name];
+  if (d?.axes?.length === 3) {
+    const ends = [0, 0];
+    jointsOf(mesh).forEach((j) => { if (j.kind !== 'butt') ends[j.end > 0 ? 1 : 0] = j.depth; });
+    const found = cutFeatures(obbFromDims(d), singleSidedGeometry(mesh.geometry).attributes.position.array, { ends });
+    out = found.flatMap((f) => {
+      const inIt = meshes.find((o) => o !== mesh && objectDims[o.name]?.axes && rowByMeshName.get(o.name) && !rowByMeshName.get(o.name).status
+        && pointInObb(f.center, obbFromDims(objectDims[o.name])));
+      const r = inIt && rowByMeshName.get(inIt.name);
+      // listed already: a mortise for its tenon, a hole for a bolt through it
+      if (r && (jointsOf(inIt).some((j) => j.name === mesh.name && j.kind !== 'butt') || (f.dia && isRod(r) && contactsOf(mesh).has(inIt)))) return [];
+      const full = f.box[0][0] < 1 / 32 && f.box[1][0] > d.axes[0].length - 1 / 32; // runs the whole length
+      return [{ ...f, full, row: r && r.key !== row.key ? r : null }];
+    });
+  }
+  cutCache.set(mesh, out);
+  return out;
+}
+
+// Which way a piece's detail leans along its length: the mean of its
+// vertices from its centre (0 for a piece that's the same both ends).
+function lengthBias(mesh) {
+  const info = meshInfo.get(mesh);
+  if (info.lengthBias === undefined) {
+    const d = objectDims[mesh.name], pos = mesh.geometry.attributes.position.array;
+    const L = d.axes[0].direction;
+    let sum = 0;
+    for (let i = 0; i + 2 < pos.length; i += 3) sum += (pos[i] - d.center[0]) * L[0] + (pos[i + 1] - d.center[1]) * L[1] + (pos[i + 2] - d.center[2]) * L[2];
+    const b = sum / (pos.length / 3);
+    info.lengthBias = Math.abs(b) < d.axes[0].length * 0.005 ? 0 : b;
+  }
+  return info.lengthBias;
+}
+
+// "4 × ⌀3/4" hole through the edge, at 6", 12"... from one end" per kind
+function cutsText(cuts, link, units) {
+  const f = (x) => formatLength(x, units);
+  const groups = new Map();
+  cuts.forEach((c) => {
+    const size = c.dia ? `⌀${f(c.dia)}` : `${f(c.size[0])} × ${f(c.size[1])}`;
+    const k = [c.kind, c.surface, size, c.through ? 'through' : f(c.depth), c.row?.key || ''].join('|');
+    const g = groups.get(k) || { c, size, at: [] };
+    // along the length: a hole's centre, anything else where it starts
+    if (c.surface !== 'end') g.at.push(c.dia || c.kind === 'mortise' || c.kind === 'slot' ? (c.box[0][0] + c.box[1][0]) / 2 : c.box[0][0]);
+    groups.set(k, g);
+  });
+  return [...groups.values()].map(({ c, size, at }) => {
+    const n = at.length || 1;
+    const what = c.dia ? `${size} hole${n > 1 ? 's' : ''}` : `${c.kind}${n > 1 ? (c.kind.endsWith('ch') ? 'es' : 's') : ''} ${size}`;
+    const deep = c.through ? `through the ${c.surface}` : `${f(c.depth)} deep in the ${c.surface}`;
+    const where = !at.length || c.full || n > 6 ? '' : `, at ${at.map(f).join(', ')}`;
+    return `${n > 1 ? `${n} × ` : ''}${what}, ${deep}${where}${c.row ? ` (for ${link(c.row)})` : ''}`;
+  });
+}
+
+// cuts of the part's pieces, one per line, measured on each version's first piece
+function cutsHtml(row, variants, mesh) {
+  const link = (r) => `<a href="#part=${encodeURIComponent(partRef(r))}" data-key="${escapeHtml(r.key)}">${escapeHtml(r.name)}</a>`;
+  const units = settings().units;
+  const list = (t) => `<ul class="cut-list">${t.map((x) => `<li>${x}</li>`).join('')}</ul>`;
+  let body = '';
+  if (variants?.length > 1 && !row.customDims) {
+    // versions of the part: each one's cuts, numbered as on the model
+    const each = variants.map((g) => cutsText(cutsOf(row, g.meshes[0]), link, units));
+    if (each.some((t) => t.length)) {
+      body = each.map((t, i) => `<div class="cut-ver">Version <b>${i + 1}</b> ×${variants[i].meshes.length}${t.length ? '' : ': none'}</div>${t.length ? list(t) : ''}`).join('');
+    }
+  } else {
+    const t = cutsText(cutsOf(row, variants?.[0]?.meshes[0] || mesh), link, units);
+    if (t.length) body = list(t);
+  }
+  return body ? `<div class="card-rel card-cuts"><b>Cuts</b> <span class="muted">- positions from the end marked 0</span>${body}</div>` : '';
+}
+
 // For the printed sheet: every part with joinery drawn in the model.
 function joineryPrintHtml() {
   const units = settings().units;
@@ -1303,6 +1412,21 @@ function joineryPrintHtml() {
     return `<tr><td><b>${name(r)}</b></td><td>${[t.ends, t.holes && `${t.holesLabel}: ${t.holes}`].filter(Boolean).join('<br>')}</td></tr>`;
   }).filter(Boolean);
   return lines.length ? `<h2>Joinery</h2><table class="ps-table ps-joinery"><tbody>${lines.join('')}</tbody></table>` : '';
+}
+
+// For the printed sheet: the cuts in each part (per version).
+function cutsPrintHtml() {
+  const units = settings().units;
+  const name = (r) => `${r.letter ? `${r.letter} ` : ''}${escapeHtml(r.name)}`;
+  const lines = rows.filter((r) => isCut(r) && r.clickable && !r.joined && !r.customDims).map((r) => {
+    const vs = pieceVariants(rowPieces(r).map((p) => p.meshes[0]).filter(Boolean));
+    const texts = vs.map((g, i) => {
+      const t = cutsText(cutsOf(r, g.meshes[0]), name, units);
+      return t.length ? `${vs.length > 1 ? `<b>${i + 1}</b> ×${g.meshes.length}: ` : ''}${t.join('; ')}` : '';
+    }).filter(Boolean);
+    return texts.length ? `<tr><td><b>${name(r)}</b></td><td>${texts.join('<br>')}</td></tr>` : '';
+  }).filter(Boolean);
+  return lines.length ? `<h2>Cuts</h2><p class="ps-cuts-note">Holes, notches and grooves the model draws in each part; positions along the length from one end (the end marked 0 on the model when you select the part).</p><table class="ps-table ps-joinery"><tbody>${lines.join('')}</tbody></table>` : '';
 }
 
 // "2×4" when a wood part is a dimensional-lumber size (buy it, no milling) -
@@ -1594,6 +1718,7 @@ function partStepHtml(row, units) {
     <div class="bp-sub">${row.customDims ? '' : 'Thickness × Width × Length'}${stdSize(row) ? ` · a standard <b>${stdSize(row)}</b>` : rough ? ` · rough <b>${escapeHtml(rough)}</b>` : ''} · ${escapeHtml(row.materialLabel)}</div>
     ${contactHtml(row)}
     ${joineryHtml(row, current?.meshes[0])}
+    ${cutsHtml(row, current?.variants, current?.meshes[0])}
     ${row.notes.map((t) => `<div class="card-note${row.warn ? ' warn' : ''}">${escapeHtml(t)}</div>`).join('')}
     ${mine ? `<div class="card-note mine">✎ ${escapeHtml(mine)}</div>` : ''}`;
 }
@@ -1785,6 +1910,7 @@ function renderDimCard() {
     ${variantsHtml(current.variants)}
     ${contactHtml(row)}
     ${joineryHtml(row, current.piece || current.meshes[0])}
+    ${cutsHtml(row, current.variants, current.meshes[0])}
     ${notes}
     <details class="card-mynote"${userNote(row) ? ' open' : ''}>
       <summary>${userNote(row) ? 'Your note' : 'Add a note'}</summary>
@@ -2225,7 +2351,7 @@ window.addEventListener('beforeprint', () => {
     ? `<div class="ps-diagrams"><h2>Shopping list &amp; cutting diagrams</h2>${layoutsHTML(layouts, { pxPerInch: 700 / longest, units: settings().units, colorFor: diagram.colorFor, hardware: rows, finishArea: woodSurfaceArea(), sheets })}</div>`
     : '';
   const mill = millingPlanHTML(rows);
-  buildPrintSheet($('printSheet'), rows, config, img, drillingHtml() + joineryPrintHtml() + (mill ? `<h2>Milling plan</h2>${mill}` : '') + diagrams);
+  buildPrintSheet($('printSheet'), rows, config, img, drillingHtml() + joineryPrintHtml() + cutsPrintHtml() + (mill ? `<h2>Milling plan</h2>${mill}` : '') + diagrams);
 });
 
 // ---------- part letter tags in 3D ----------
