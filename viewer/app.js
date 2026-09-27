@@ -149,7 +149,8 @@ scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnviron
 const stage = createStage(scene, renderer);
 // every part's outline, SketchUp-style (look.js featureEdges); one material
 // for plain parts and one for the highlighted part, recoloured with the theme
-const edgeMats = { plain: edgeMaterial(0x000000, 0.4), hl: edgeMaterial(0x5a1a00, 0.55) };
+const edgeMats = { plain: edgeMaterial(0x000000, 0.4), hl: edgeMaterial(0x5a1a00, 0.55), hover: edgeMaterial(0xffa640, 0.95) };
+let hoverRow = null; // the part under the pointer: its outline lights up
 
 // ---------- state ----------
 let config = {};
@@ -643,8 +644,19 @@ function applyMaterials() {
 }
 // Outlines on solid parts only: a ghosted part is just a hint, and wireframe draws its own
 function showEdges(m, info) {
-  info.edges.visible = !wireOn && m.material !== info.dim;
-  info.edges.material = m.material === info.hl || m.material === info.hlPiece ? edgeMats.hl : edgeMats.plain;
+  const hover = hoverRow && info.row === hoverRow;
+  info.edges.visible = !wireOn && (hover || m.material !== info.dim);
+  info.edges.material = hover ? edgeMats.hover : m.material === info.hl || m.material === info.hlPiece ? edgeMats.hl : edgeMats.plain;
+}
+function setHoverRow(row) {
+  if (row === hoverRow) return;
+  const was = hoverRow;
+  hoverRow = row;
+  meshes.forEach((m) => {
+    const info = meshInfo.get(m);
+    if (info.row && (info.row === was || info.row === row)) showEdges(m, info);
+  });
+  requestRender();
 }
 
 // Section caps: solid cut faces instead of hollow shells. Each part gets an
@@ -2014,16 +2026,17 @@ renderer.domElement.addEventListener('pointerup', (e) => {
 
 let pendingMove = null;
 renderer.domElement.addEventListener('pointermove', (e) => { if (e.buttons === 0) pendingMove = e; });
-renderer.domElement.addEventListener('pointerleave', () => { pendingMove = null; hoverTip.style.display = 'none'; });
+renderer.domElement.addEventListener('pointerleave', () => { pendingMove = null; hoverTip.style.display = 'none'; setHoverRow(null); });
 function processHover() {
   const e = pendingMove;
   pendingMove = null;
   if (!e || !model) return;
   measure.handleMove(e);
-  if (measure.mode) { hoverTip.style.display = 'none'; renderer.domElement.style.cursor = 'crosshair'; return; }
+  if (measure.mode) { hoverTip.style.display = 'none'; renderer.domElement.style.cursor = 'crosshair'; setHoverRow(null); return; }
   const hit = raycastAt(e.clientX, e.clientY, meshes.filter((m) => m.visible));
   const row = hit && rowByMeshName.get(hit.object.name);
   renderer.domElement.style.cursor = row ? 'pointer' : '';
+  setHoverRow(row || null);
   if (!row) { hoverTip.style.display = 'none'; return; }
   const r = viewport.getBoundingClientRect();
   hoverTip.innerHTML = `<b>${row.letter} · ${escapeHtml(row.name)}</b> <span>${escapeHtml(finishedDims(row))}</span>`;
