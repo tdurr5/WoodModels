@@ -451,6 +451,7 @@ try {
   check(drill === 1, 'print sheet includes a drilling list');
   const joinery = await page.locator('#printSheet .ps-extra').innerText();
   check(/Joinery[\s\S]*Ratchet Dove[\s\S]*tenon/.test(joinery), 'print sheet lists the joinery drawn in the model');
+  check(/Cuts[\s\S]*Bench[\s\S]*cut-away/.test(joinery), 'print sheet lists the cuts in each part');
   check(printRows === 24, `print sheet lists every part (${printRows})`);
   await page.emulateMedia({ media: 'print' });
   await page.pdf({ path: path.join(OUT, 'cut-sheet.pdf'), format: 'Letter', margin: { top: '0.5in', bottom: '0.5in', left: '0.5in', right: '0.5in' } });
@@ -461,6 +462,9 @@ try {
   await selectPart('Bench');
   const rel = (await page.locator('#dimCard .card-rel').allInnerTexts()).join(' | ');
   check(/Joins:.*Leg Rear/.test(rel) && /4 × ⌀1\/2"/.test(rel), `bench card lists joined parts and its 4 rod holes (${rel})`);
+  const cuts = await page.locator('#dimCard .card-cuts').innerText().catch(() => '');
+  check(/cut-away 36-11\/16" × 4-3\/8", through the face/.test(cuts) && !/⌀1\/2"/.test(cuts), `bench card lists the cuts in it, not the rod holes again (${cuts})`);
+  check(await page.locator('.axisLabel.origin').count() === 2, 'each bench piece marks the end its cuts are measured from');
   await page.locator('#dimCard .card-rel a', { hasText: 'Leg Rear' }).click();
   await page.waitForTimeout(200);
   check((await cardName()) === 'Leg Rear', 'clicking a joined part selects it');
@@ -474,6 +478,7 @@ try {
   await page.waitForTimeout(400);
   const mortise = await page.locator('#dimCard .card-joinery').innerText().catch(() => '');
   check(/Mortises: 7\/16" × 1-7\/8", 1\/2" deep, for Ratchet Dove/.test(mortise), `the part it goes into lists the mortise to cut (${mortise})`);
+  check(await page.locator('#dimCard .card-cuts').count() === 0, 'a mortise listed under joinery isn\'t listed again as a cut');
 
   console.log('full-size template');
   await selectPart('Leg Front');
