@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
@@ -14,7 +15,7 @@ import {
 } from './cutlist.js';
 import { buildOrder, withAssemblySteps } from './build.js';
 import {
-  normalizeEdits, withStatus, withName, withGroupName, withPieceStatus, withJoin, withSplit, withAutoFixes, joinKey,
+  normalizeEdits, withStatus, withName, withGroupName, withPieceStatus, withJoin, withSplit, withAutoFixes, joinKey, withExplodeOffset,
 } from './edits.js';
 import { initMeasure } from './measure.js';
 import { initDiagramModal, computeLayouts, layoutsHTML, STOCK_DEFAULTS, shoppingText, setSpeciesLookup } from './diagram.js';
@@ -22,10 +23,10 @@ import { initShare } from './share.js';
 import { buildTemplate } from './template.js';
 import { initLibrary, modelZip } from './library.js';
 import { getModelFiles, getModelMeta, lastOpened, rememberOpened, putModelFile, addPhoto, listPhotos, deletePhoto, setThumbnail } from './modelstore.js';
-import { obbFromDims, partsTouch, findOverlaps, applyJoins, endJoints, pointInObb } from './geometry.js';
+import { obbFromDims, partsTouch, findOverlaps, findButts, applyJoins, endJoints, pointInObb } from './geometry.js';
 import { cutFeatures } from './features.js';
 import { glueUpStrips } from './nesting.js';
-import { createStage, smoothNormals, orientFaces, materialKind, surfaceMaterial, featureEdges, edgeMaterial } from './look.js';
+import { createStage, smoothNormals, orientFaces, materialKind, surfaceMaterial, featureEdges, edgeMaterial, threadPitch, boltThreadLength, addThreads } from './look.js';
 
 const $ = (id) => document.getElementById(id);
 const viewport = $('viewport');
@@ -124,6 +125,7 @@ function setOrtho(on) {
   camera = next;
   controls.object = camera;
   controls.update();
+  mover.camera = camera; // (only switched by you, long after startup)
   $('orthoBtn').classList.toggle('on', on);
 }
 
@@ -502,6 +504,11 @@ function computeRows() {
 // Fills overlapKind and autoFixes; true if there's anything to fix.
 function classifyOverlaps() {
   ({ kinds: overlapKind, fixes: autoFixes } = classifyOverlapsIn(overlaps, baseObjectDims, (n) => meshByName.get(n)));
+  // boards butted end grain to end grain are one board drawn in pieces
+  const used = new Set([...autoFixes.joins.flat(), ...autoFixes.dupes]);
+  findButts(baseObjectDims).forEach((names) => {
+    if (names.every((n) => !used.has(n) && meshByName.has(n))) autoFixes.joins.push(names);
+  });
   return autoFixes.joins.length + autoFixes.dupes.length > 0;
 }
 
@@ -514,7 +521,7 @@ function announceAutoFixes() {
   if (settings().autoFixSeen === sig) return;
   updateSettings({ autoFixSeen: sig });
   const parts = [];
-  if (joined) parts.push(`joined ${joined} part${joined > 1 ? 's' : ''} the model drew as overlapping boards`);
+  if (joined) parts.push(`joined ${joined} part${joined > 1 ? 's' : ''} the model drew in pieces (overlapping, or butted end to end)`);
   if (dropped) parts.push(`removed ${dropped} exact cop${dropped > 1 ? 'ies' : 'y'}`);
   showToast(`Fixed automatically: ${parts.join(', ')}. See the part's card to undo.`, { ms: 9000 });
 }
@@ -527,6 +534,8 @@ function refreshRows() {
   rowByMeshName.clear();
   allPartRows.forEach((r) => (r.obj_names || []).forEach((n) => rowByMeshName.set(n, r)));
   meshes.forEach((m) => { meshInfo.get(m).row = rowByMeshName.get(m.name); });
+  explodeUnits();
+  applyThreads();
   setCutListRows(allPartRows);
   diagram.setRows(rows);
   if (diagram.isOpen()) diagram.render();
@@ -658,9 +667,71 @@ function prepareMeshes(materialNames) {
   });
   updateModelBox();
 
-  // Exploded view moves each assembly group away from the model center, and
-  // each part a little further away from its group's center, so assemblies
-  // stay recognisable while coming apart.
+  explodeUnits();
+  applyThreads();
+}
+
+// ---------- threads on bolts and rods ----------
+// A round hardware part is a bolt when a bolt head sits on one end: plain
+// shank from the head, threads the usual length at the far end. With no
+// head, a rod whose name says it's threaded (1/2"-13, M10, all-thread) is
+// threaded all along. The part's card can say otherwise (edits.threads:
+// row key -> 'full' | 'none' | inches of thread).
+const THREAD_CHOICES = ['full', 'none', 0.5, 1, 1.5, 2, 3, 4];
+function threadSpecFor(m) {
+  const row = meshInfo.get(m).row, d = objectDims[m.name];
+  if (!row || row.category !== 'Hardware' || d?.axes?.length !== 3) return null;
+  const [L, W, T] = d.axes;
+  if (Math.abs(W.length - T.length) > 0.15 * W.length || L.length < 2 * W.length) return null; // not a shank
+  const dia = (W.length + T.length) / 2;
+  const axis = new THREE.Vector3(...L.direction), c = new THREE.Vector3(...d.center);
+  const ends = [c.clone().addScaledVector(axis, -L.length / 2), c.clone().addScaledVector(axis, L.length / 2)];
+  let head = -1;
+  meshes.forEach((o) => {
+    const r = meshInfo.get(o).row;
+    if (o === m || head >= 0 || !r || r.category !== 'Hardware' || !/head/i.test(`${r.name} ${r.label}`)) return;
+    const b = o.geometry.boundingBox.clone().expandByScalar(dia * 0.3);
+    head = b.containsPoint(ends[0]) ? 0 : b.containsPoint(ends[1]) ? 1 : -1;
+  });
+  const names = [row.name, row.label]; // not its size: 4-1/2" isn't a thread
+  const choice = edits.threads?.[row.key];
+  let length;
+  if (choice === 'none') return { shank: true, length: 0 };
+  if (typeof choice === 'number') length = Math.min(choice, L.length);
+  else if (choice === 'full') length = L.length;
+  else if (head >= 0) length = boltThreadLength(dia, L.length);
+  else if (/thread|\brod\b|stud|all.?thread|\d\s*"?\s*-\s*\d{1,2}\b|\bUN[CF]\b|\bM\d/i.test(names.join(' '))) length = L.length;
+  else return { shank: true, length: 0 };
+  // from the tip (the end away from the head) towards the head
+  const tip = head === 0 ? 1 : 0;
+  const dir = tip === 0 ? axis : axis.clone().negate();
+  return { shank: true, axis: dir.toArray(), origin: ends[tip].toArray(), length, pitch: threadPitch(dia, ...names), head: head >= 0 };
+}
+function applyThreads() {
+  meshes.forEach((m) => {
+    const info = meshInfo.get(m);
+    const spec = threadSpecFor(m);
+    info.threads = spec;
+    if (!spec) return;
+    [info.orig, info.dim, info.hl, info.hlPiece].forEach((mat) => {
+      const had = !!mat.userData.threadUniforms;
+      addThreads(mat, spec.length ? spec : null);
+      if (!had) mat.needsUpdate = true;
+    });
+  });
+  requestRender();
+}
+function setThreads(row, choice) {
+  const next = normalizeEdits(edits);
+  if (choice === 'auto') delete next.threads[row.key]; else next.threads[row.key] = choice;
+  commitEdits(next, choice === 'none' ? 'No threads drawn' : choice === 'auto' ? 'Threads as the model suggests' : 'Threads changed');
+}
+
+// Exploded view moves each assembly group away from the model center, and
+// each part a little further away from its group's center, so assemblies
+// stay recognisable while coming apart. Worked out again after edits (a
+// merge makes pieces one part).
+function explodeGroups() {
   const groupBoxes = new Map();
   meshes.forEach((m) => {
     const g = meshInfo.get(m).row?.top_group || '?';
@@ -671,7 +742,6 @@ function prepareMeshes(materialNames) {
     const info = meshInfo.get(m);
     info.groupCenter = groupBoxes.get(info.row?.top_group || '?').getCenter(new THREE.Vector3());
   });
-  explodeUnits();
 }
 
 // What comes apart in the exploded view. Pieces of one part that touch are
@@ -681,6 +751,7 @@ function prepareMeshes(materialNames) {
 // its own. Pieces of a part that don't touch (a pair of legs) still come
 // apart.
 function explodeUnits() {
+  explodeGroups();
   const box = (m) => m.geometry.boundingBox.clone().expandByScalar(0.03);
   const parent = new Map(meshes.map((m) => [m, m]));
   const find = (m) => { while (parent.get(m) !== m) m = parent.get(m); return m; };
@@ -694,6 +765,11 @@ function explodeUnits() {
       if ((sameRow || (hw(a) && hw(b))) && boxes.get(a).intersectsBox(boxes.get(b))) join(a, b);
     }
   });
+  // pieces joined into one part (merged, or a board drawn in pieces) are one thing
+  allPartRows.forEach((r) => (r.pieces || []).forEach((names) => {
+    const ms = names.map((n) => meshByName.get(n)).filter(Boolean);
+    ms.slice(1).forEach((m) => join(m, ms[0]));
+  }));
   const units = new Map();
   meshes.forEach((m) => {
     const r = find(m);
@@ -717,7 +793,8 @@ function explodeUnits() {
         if (vol > best) { best = vol; anchor = o; }
       });
     }
-    list.forEach((m) => { const info = meshInfo.get(m); info.unitCenter = center; info.anchor = anchor; });
+    const unitKey = list.map((m) => m.name).sort()[0]; // what a move in the exploded view is stored under
+    list.forEach((m) => { const info = meshInfo.get(m); info.unitCenter = center; info.anchor = anchor; info.unitKey = unitKey; });
   });
 }
 
@@ -736,6 +813,13 @@ function applyMaterials() {
   meshes.forEach((m) => {
     const info = meshInfo.get(m);
     const catHidden = info.row && hidden.has(info.row.category);
+    if (merging) {
+      // picking pieces to merge: everything shown, the picked ones lit up
+      m.visible = isShownPart(m) && !catHidden;
+      m.material = merging.has(m.name) ? info.hlPiece : info.orig;
+      m.castShadow = !m.material.transparent;
+      return;
+    }
     if (build) {
       // build mode: parts from earlier steps solid, this step highlighted, the rest ghosted
       const step = build.stepOf.get(info.row?.key);
@@ -911,17 +995,24 @@ function setWireframe(on) {
 function setExplodePositions(f) {
   requestRender();
   const reach = new THREE.Box3();
+  // where you moved a piece yourself (Move on its card), at full explode
+  const moved = (info) => {
+    const v = moving?.key === info.unitKey ? moving.live : edits.explode?.[info.unitKey];
+    return v ? new THREE.Vector3(...v).multiplyScalar(f) : new THREE.Vector3();
+  };
   const offset = (info) => info.groupCenter.clone().sub(modelCenter).multiplyScalar(f)
-    .add(info.unitCenter.clone().sub(info.groupCenter).multiplyScalar(f * 0.6));
+    .add(info.unitCenter.clone().sub(info.groupCenter).multiplyScalar(f * 0.6)).add(moved(info));
   meshes.forEach((m) => {
     const info = meshInfo.get(m);
     m.position.copy(offset(info.anchor ? meshInfo.get(info.anchor) : info)); // hardware moves with its wood
+    if (info.anchor) m.position.add(moved(info));
     if (isShownPart(m)) reach.union(m.geometry.boundingBox.clone().translate(m.position));
   });
   fitStage(reach); // the floor drops with parts pulled below it, and shadows follow them out
 }
 
 function setExplode(f) {
+  stopMove(); // its arrows sit where the piece was
   explode = f;
   setExplodePositions(f);
   $('explodeRange').value = String(f);
@@ -1083,6 +1174,7 @@ function selectRow(row, { frame = true } = {}) {
 }
 
 function clearSelection({ keepHash = false } = {}) {
+  stopMove();
   disposeOverlays();
   current = null;
   groupSel = null;
@@ -2110,7 +2202,7 @@ function renderDimCard() {
     ${row.overlapPairs?.length && !row.status ? `<div class="card-actions">
       <button class="card-btn" data-act="join-overlap" title="They're one longer piece: measure them end to end as one part">Join into one ${escapeHtml(formatLength(row.overlapPairs[0].span, settings().units))} piece</button>
       <button class="card-btn danger" data-act="del-overlap" title="It's a copy left in the model: delete it (you can restore it from Deleted)">Delete the overlapping copy</button></div>` : ''}
-    ${row.joined ? `<div class="card-note">${row.autoJoined ? 'Joined automatically: the model draws this' : 'Joined from'} as ${row.pieces[0].length} overlapping boards; measured end to end as one piece. <button class="card-btn" data-act="split" title="Undo the join">Split ${row.count > 1 ? `all ×${row.count} ` : ''}apart</button></div>` : ''}
+    ${row.joined ? `<div class="card-note">${row.autoJoined ? 'Joined automatically: the model draws this as' : 'Merged from'} ${row.pieces[0].length} pieces; measured as one. <button class="card-btn" data-act="split" title="Undo the join">Split ${row.count > 1 ? `all ×${row.count} ` : ''}apart</button></div>` : ''}
     ${current.piece && row.count > 1 && !row.pieceStatus && !row.status && !row.joined ? `<div class="card-piece">The piece you clicked:
       <button class="card-btn" data-act="piece-aside" title="Set aside just this piece">Set aside</button>
       <button class="card-btn danger" data-act="piece-delete" title="Delete just this piece, not all ${row.count}">Delete</button></div>` : ''}
@@ -2120,6 +2212,10 @@ function renderDimCard() {
     ? '<button class="card-btn" data-act="build" title="Put this part back in the build">Put back in build</button>'
     : `<button class="card-btn" data-act="aside" title="Keep it with its sizes, but leave it out of the build: totals, shopping list, prints (e.g. a tool drawn on the bench)">Set aside${row.count > 1 ? ` all ×${row.count}` : ''}</button>`}
       <button class="card-btn danger" data-act="delete" title="Delete from this model: a mistake or junk in the model (Del). You can restore it.">Delete${row.count > 1 ? ` all ×${row.count}` : ''}</button>
+      ${threadsHtml(row)}
+      ${row.status ? '' : '<button class="card-btn" data-act="merge" title="One solid piece the model drew in several (a glued-up slab, a board drawn in two): click the other pieces in 3D, then Merge">Merge…</button>'}
+      ${canMove() && !row.status ? `<button class="card-btn${moving ? ' on' : ''}" data-act="move" title="Lay out the exploded view: drag the arrows to move this piece (saved with the model, so your phone shows it too)">${moving ? 'Done moving' : '✥ Move'}</button>` : ''}
+      ${canMove() && edits.explode?.[meshInfo.get(current.piece || current.meshes[0])?.unitKey] ? '<button class="card-btn" data-act="move-reset" title="Back to where exploding puts it">Reset position</button>' : ''}
     </div>
   `;
   dimCard.style.display = 'block';
@@ -2160,9 +2256,132 @@ function renderDimCard() {
     commitEdits(withJoin(edits, [o.a, o.b]), `Joined into one ${formatLength(o.span, settings().units)} piece`);
     selectRow(allPartRows.find((r) => r.obj_names.includes(o.a)), { frame: false });
   });
+  dimCard.querySelector('[data-act="merge"]')?.addEventListener('click', () => startMerge());
+  dimCard.querySelector('select[data-act="threads"]')?.addEventListener('change', (e) => {
+    const v = e.target.value;
+    setThreads(row, v === 'auto' || v === 'full' || v === 'none' ? v : +v);
+  });
+  dimCard.querySelector('[data-act="move"]')?.addEventListener('click', () => (moving ? stopMove() : startMove()));
+  dimCard.querySelector('[data-act="move-reset"]')?.addEventListener('click', () => {
+    const key = meshInfo.get(current.piece || current.meshes[0])?.unitKey;
+    stopMove();
+    commitEdits(withExplodeOffset(edits, key, null), 'Back where exploding puts it');
+  });
   dimCard.querySelector('[data-act="split"]')?.addEventListener('click', () => {
     commitEdits(withSplit(edits, row.pieces), 'Split back into the pieces in the model');
   });
+}
+
+// the Threads choice on a bolt's or rod's card
+function threadsHtml(row) {
+  const spec = current?.meshes.map((m) => meshInfo.get(m).threads).find(Boolean);
+  if (!spec?.shank) return '';
+  const choice = edits.threads?.[row.key] ?? 'auto';
+  const units = settings().units;
+  const auto = spec && choice === 'auto' ? (spec.length ? `Auto (${spec.head ? `${formatLength(spec.length, units)} at the end` : 'whole length'})` : 'Auto (none)') : 'Auto';
+  const opt = (v, label) => `<option value="${v}"${String(v) === String(choice) ? ' selected' : ''}>${escapeHtml(label)}</option>`;
+  return `<label class="card-threads" title="How much of it is threaded - drawn on the model">Threads
+    <select data-act="threads">${opt('auto', auto)}${THREAD_CHOICES.map((v) => opt(v, v === 'full' ? 'Whole length' : v === 'none' ? 'None (plain pin)' : `${formatLength(v, units)} at the end`)).join('')}</select></label>`;
+}
+
+// ---------- laying out the exploded view ----------
+// On a computer (the phone just shows the result): with the model exploded,
+// Move on a part's card puts arrows on it; drag them to move the piece -
+// and whatever moves with it (its other pieces, the bolts through it) -
+// somewhere clearer. Stored in your edits as an offset at full explode, so
+// it scales with the slider, undoes, and travels with the model to a phone.
+const mover = new TransformControls(camera, renderer.domElement);
+mover.setSize(0.9);
+scene.add(mover);
+const moverTarget = new THREE.Object3D();
+scene.add(moverTarget);
+let moving = null; // { key, base, live, start }
+const finePointer = window.matchMedia?.('(pointer: fine)').matches ?? true;
+const canMove = () => finePointer && explode > 0.15 && !build;
+mover.addEventListener('change', () => requestRender());
+mover.addEventListener('dragging-changed', (e) => {
+  controls.enabled = !e.value;
+  if (!e.value && moving) {
+    const { key, live } = moving;
+    commitEdits(withExplodeOffset(edits, key, live), 'Moved in the exploded view');
+    if (moving) { moving.base = [...live]; moving.start = moverTarget.position.clone(); }
+  }
+});
+mover.addEventListener('objectChange', () => {
+  if (!moving) return;
+  const d = moverTarget.position.clone().sub(moving.start).divideScalar(explode);
+  moving.live = moving.base.map((v, i) => v + d.getComponent(i));
+  setExplodePositions(explode);
+});
+function startMove() {
+  if (!current || !canMove()) return;
+  const m = current.piece || current.meshes[0];
+  const info = meshInfo.get(m);
+  const base = edits.explode?.[info.unitKey] || [0, 0, 0];
+  moverTarget.position.copy(info.unitCenter).add(m.position);
+  moving = { key: info.unitKey, base: [...base], live: [...base], start: moverTarget.position.clone() };
+  mover.camera = camera;
+  mover.attach(moverTarget);
+  renderDimCard();
+  requestRender();
+}
+function stopMove() {
+  if (!moving) return;
+  moving = null;
+  mover.detach();
+  controls.enabled = true;
+  if (current) renderDimCard();
+  requestRender();
+}
+
+// ---------- merging pieces into one part ----------
+// Automatic joins catch a board drawn as two overlapping or butted pieces;
+// anything else that's really one solid piece (a slab glued up from three
+// boards, a block drawn in two halves) you merge yourself: Merge… on the
+// part's card, click the other pieces in 3D, Merge. Stored as a join in
+// your edits (undo, or Split apart on the card), measured as one piece.
+let merging = null; // mesh names picked, while merging
+const mergeBar = document.createElement('div');
+mergeBar.id = 'mergeBar';
+viewport.appendChild(mergeBar);
+// a piece already joined to others comes with them
+const joinedWith = (m) => rowByMeshName.get(m.name)?.pieces?.find((p) => p.includes(m.name)) || [m.name];
+function startMerge() {
+  if (!current) return;
+  merging = new Set((current.piece ? [current.piece] : current.meshes).flatMap(joinedWith));
+  renderMergeBar();
+  applyMaterials();
+}
+function toggleMergePiece(m) {
+  const names = joinedWith(m);
+  const on = !merging.has(m.name);
+  names.forEach((n) => (on ? merging.add(n) : merging.delete(n)));
+  renderMergeBar();
+  applyMaterials();
+}
+function renderMergeBar() {
+  const n = merging.size;
+  mergeBar.innerHTML = `<span><b>Merge:</b> click the pieces that are one solid piece (${n} picked)</span>
+    <button class="card-btn" data-act="do-merge"${n < 2 ? ' disabled' : ''}>Merge ${n > 1 ? n : ''} into one</button>
+    <button class="card-btn" data-act="cancel-merge" title="Esc">Cancel</button>`;
+  mergeBar.style.display = 'flex';
+  mergeBar.querySelector('[data-act="do-merge"]').addEventListener('click', doMerge);
+  mergeBar.querySelector('[data-act="cancel-merge"]').addEventListener('click', endMerge);
+  requestRender();
+}
+function endMerge() {
+  merging = null;
+  mergeBar.style.display = 'none';
+  applyMaterials();
+  requestRender();
+}
+function doMerge() {
+  const names = [...merging];
+  endMerge();
+  if (names.length < 2) return;
+  commitEdits(withJoin(edits, names), `Merged ${names.length} pieces into one part`);
+  const row = allPartRows.find((r) => r.obj_names.includes(names[0]));
+  if (row) selectRow(row, { frame: false });
 }
 
 // ---------- hover + click picking ----------
@@ -2265,8 +2484,9 @@ renderer.domElement.addEventListener('click', (e) => {
   if (!model || wasDrag(e)) return;
   if (measure.handleClick(e)) return;
   const hit = raycastAt(e.clientX, e.clientY, meshes.filter((m) => m.visible));
-  if (!hit) { if (current && !build) clearSelection(); return; }
+  if (!hit) { if (current && !build && !merging) clearSelection(); return; }
   const row = rowByMeshName.get(hit.object.name);
+  if (merging) { toggleMergePiece(hit.object); return; }
   if (build && row) { const k = build.order.findIndex((r) => r.key === row.key); if (k >= 0 && k !== build.i) { build.i = k; showStep(false); return; } }
   if (row && (!current || row.key !== current.row.key)) selectRow(row, { frame: false });
   // remember which of the part's pieces was clicked (to delete just that one)
@@ -2297,6 +2517,7 @@ function processHover() {
   if (!e || !model) return;
   measure.handleMove(e);
   if (measure.mode) { hoverTip.style.display = 'none'; renderer.domElement.style.cursor = 'crosshair'; setHoverRow(null); return; }
+  if (moving) { hoverTip.style.display = 'none'; setHoverRow(null); return; } // nothing over the arrows
   const hit = raycastAt(e.clientX, e.clientY, meshes.filter((m) => m.visible));
   const row = hit && rowByMeshName.get(hit.object.name);
   renderer.domElement.style.cursor = row ? 'pointer' : '';
@@ -2598,6 +2819,7 @@ $('tagsBtn').addEventListener('click', () => setTags(!tagsOn));
 
 // ---------- keyboard shortcuts ----------
 window.addEventListener('keydown', (e) => {
+  if (merging && e.key === 'Escape') { endMerge(); e.stopImmediatePropagation(); return; }
   const tag = (e.target.tagName || '').toLowerCase();
   if (tag === 'input' || tag === 'select' || tag === 'textarea') {
     if (e.key === 'Escape') e.target.blur();
@@ -2727,5 +2949,6 @@ window.__viewer = {
   contactsOf: (name) => [...contactsOf(meshByName.get(name))].map((m) => m.name),
   endTemplate: () => { printingTemplate = false; },
   outlineOf: (m) => meshInfo.get(m)?.edges.length / 6 || 0, // a part's outline segments
+  threadsOf: (m) => meshInfo.get(m)?.threads || null,
   outlinesDrawn: () => Object.fromEntries(Object.entries(edgeLayers).map(([k, l]) => [k, (l.geometry.attributes.position?.count || 0) / 2])),
 };

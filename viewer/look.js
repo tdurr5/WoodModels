@@ -294,13 +294,16 @@ export function surfaceMaterial(kind, color) {
   const lum = c.r * 0.2126 + c.g * 0.7152 + c.b * 0.0722;
   const opts = { color: c, roughness: 0.6, metalness: 0, envMapIntensity: 0.5 };
   switch (kind) {
+    // The metal decides the colour, not the model: Warehouse metals are often
+    // a photo with no colour of their own (the parser's stand-in tan) or
+    // simply painted any colour, so steel would come out warm and brass grey.
     case 'metal':
-      // SketchUp's greys are often very light or very dark; keep steel steel-ish
-      if (Math.abs(c.r - c.g) < 0.06 && Math.abs(c.g - c.b) < 0.08) c.setScalar(THREE.MathUtils.clamp(lum, 0.45, 0.8));
+      c.setScalar(THREE.MathUtils.clamp(lum, 0.45, 0.8)); // neutral grey, as light as the model drew it
       Object.assign(opts, { roughness: 0.38, metalness: 0.85, envMapIntensity: 1.1 });
       break;
-    case 'blackMetal': Object.assign(opts, { roughness: 0.55, metalness: 0.7, envMapIntensity: 0.9 }); break;
-    case 'brass': case 'copper': Object.assign(opts, { roughness: 0.32, metalness: 0.9, envMapIntensity: 1.2 }); break;
+    case 'blackMetal': c.setScalar(THREE.MathUtils.clamp(lum, 0.04, 0.12)); Object.assign(opts, { roughness: 0.55, metalness: 0.7, envMapIntensity: 0.9 }); break;
+    case 'brass': c.set(0xc9a24a); Object.assign(opts, { roughness: 0.32, metalness: 0.9, envMapIntensity: 1.2 }); break;
+    case 'copper': c.set(0xc0714a); Object.assign(opts, { roughness: 0.32, metalness: 0.9, envMapIntensity: 1.2 }); break;
     case 'glass': Object.assign(opts, { roughness: 0.08, transparent: true, opacity: 0.18, envMapIntensity: 0.7, depthWrite: false }); break; // see through it to the shelves
     case 'leather': Object.assign(opts, { roughness: 0.62, envMapIntensity: 0.4 }); break;
     case 'rubber': Object.assign(opts, { roughness: 0.85, envMapIntensity: 0.25 }); break;
@@ -522,4 +525,86 @@ export function createStage(scene, renderer) {
   };
   stage.setTheme('dark');
   return stage;
+}
+
+// ---------- threads on bolts and rods ----------
+// Coarse (UNC) threads per inch by diameter, and metric coarse pitches.
+const UNC = [[0.25, 20], [0.3125, 18], [0.375, 16], [0.4375, 14], [0.5, 13], [0.5625, 12], [0.625, 11], [0.75, 10], [0.875, 9], [1, 8], [1.25, 7], [1.5, 6]];
+const METRIC = [[3, 0.5], [4, 0.7], [5, 0.8], [6, 1], [8, 1.25], [10, 1.5], [12, 1.75], [16, 2], [20, 2.5], [24, 3]];
+// Inches from one thread to the next: from a spec in the name ("1/2"-13",
+// "3/8-16 UNC", "M10x1.5"), else coarse thread for the diameter (inches).
+export function threadPitch(diameter, ...names) {
+  const text = names.filter(Boolean).join(' ');
+  const inch = text.match(/(\d+\s*\/\s*\d+|\d*\.\d+|\d+)\s*(?:"|''|in)?\s*[-x×]\s*(\d{1,2})\b(?!\s*\/)/i);
+  if (inch && +inch[2] >= 4 && +inch[2] <= 80) return 1 / +inch[2];
+  const metric = text.match(/\bM\s?(\d+(?:\.\d+)?)(?:\s*[x×]\s*(\d+(?:\.\d+)?))?/i);
+  if (metric) {
+    const mm = +metric[1];
+    const p = metric[2] ? +metric[2] : METRIC.reduce((b, r) => (Math.abs(r[0] - mm) < Math.abs(b[0] - mm) ? r : b))[1];
+    return p / 25.4;
+  }
+  const row = UNC.reduce((b, r) => (Math.abs(r[0] - diameter) < Math.abs(b[0] - diameter) ? r : b));
+  return 1 / row[1];
+}
+// How much of a bolt is threaded: twice the diameter plus 1/4" (plus 1/2"
+// over 6" long), the usual for hex bolts - never all of it.
+export function boltThreadLength(diameter, length) {
+  return Math.min(length - diameter, 2 * diameter + (length > 6 ? 0.5 : 0.25));
+}
+// Draw threads on a round part: a helix at `pitch` along `axis` from
+// `origin` for `length` (object space, inches; the part's own geometry is in
+// world coordinates, so these don't move when it's exploded). Grooves are
+// darker and tilt the surface; too far away to see single threads, the
+// threaded stretch still reads as a darker band than the plain shank.
+// Material.clone() drops shader hooks: call again on clones.
+export function addThreads(mat, spec) {
+  const { axis = [1, 0, 0], origin = [0, 0, 0], length = 0, pitch = 0.1 } = spec || {};
+  const a = new THREE.Vector3(...axis).normalize();
+  const u = new THREE.Vector3(Math.abs(a.x) < 0.9 ? 1 : 0, Math.abs(a.x) < 0.9 ? 0 : 1, 0).cross(a).normalize();
+  const v = a.clone().cross(u);
+  const old = mat.userData.threadUniforms;
+  if (old) { // already hooked: just move the threads (none: length 0)
+    old.threadAxis.value.copy(a); old.threadU.value.copy(u); old.threadV.value.copy(v);
+    old.threadOrigin.value.set(...origin); old.threadLen.value = length; old.threadPitch.value = pitch;
+    return mat;
+  }
+  const uniforms = {
+    threadAxis: { value: a }, threadU: { value: u }, threadV: { value: v },
+    threadOrigin: { value: new THREE.Vector3(...origin) }, threadLen: { value: length }, threadPitch: { value: pitch },
+  };
+  mat.userData.threadUniforms = uniforms;
+  mat.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vThreadPos;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvThreadPos = transformed;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+        varying vec3 vThreadPos;
+        uniform vec3 threadAxis, threadU, threadV, threadOrigin;
+        uniform float threadLen, threadPitch;
+        float threadPhase;
+        float threadMask;`)
+      .replace('#include <map_fragment>', `#include <map_fragment>
+        {
+          vec3 d = vThreadPos - threadOrigin;
+          float t = dot(d, threadAxis);
+          threadMask = step(0.0, t) * step(t, threadLen);
+          float ang = atan(dot(d, threadV), dot(d, threadU)) / 6.2831853;
+          threadPhase = t / threadPitch + ang;
+          float blur = clamp(fwidth(t / threadPitch) * 1.5, 0.0, 1.0); // threads smaller than a pixel
+          float groove = abs(fract(threadPhase) - 0.5) * 2.0; // 0 at the root, 1 at the crest
+          diffuseColor.rgb *= mix(1.0, mix(0.55 + 0.45 * groove, 0.72, blur), threadMask);
+          threadMask *= 1.0 - blur;
+        }`)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+        {
+          // each flank tilts the surface one way along the axis
+          float flank = fract(threadPhase) < 0.5 ? 1.0 : -1.0;
+          vec3 axisView = normalize((viewMatrix * vec4(threadAxis, 0.0)).xyz);
+          normal = normalize(normal + axisView * flank * 0.8 * threadMask);
+        }`);
+  };
+  mat.customProgramCacheKey = () => 'threads';
+  return mat;
 }

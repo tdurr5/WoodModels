@@ -12,6 +12,10 @@
 //   joins   [[mesh names]...]: overlapping pieces that are really one longer
 //           piece (a rail modeled as two boards slid along each other)
 //   splits  [join keys]: automatic joins you split apart again
+//   threads row key -> 'full' | 'none' | inches: how much of a bolt or rod is threaded
+//   explode mesh name -> [x, y, z]: where you moved that piece (and whatever
+//           moves with it) in the exploded view, on top of where exploding
+//           puts it, in inches at full explode
 // Automatic fixes (see withAutoFixes) are defaults under all of these.
 // Row keys are `${label}|${dims}` like everywhere else. Pure functions; app.js
 // stores the result (in the uploaded model itself, or in browser storage).
@@ -20,7 +24,10 @@ export function normalizeEdits(e) {
   const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? { ...v } : {});
   const joins = Array.isArray(e?.joins) ? e.joins.filter((j) => Array.isArray(j) && j.length > 1 && j.every((n) => typeof n === 'string')).map((j) => [...j]) : [];
   const splits = Array.isArray(e?.splits) ? e.splits.filter((k) => typeof k === 'string') : [];
-  return { names: obj(e?.names), groups: obj(e?.groups), status: obj(e?.status), pieces: obj(e?.pieces), joins, splits };
+  const explode = Object.fromEntries(Object.entries(obj(e?.explode))
+    .filter(([, v]) => Array.isArray(v) && v.length === 3 && v.every(Number.isFinite)).map(([k, v]) => [k, [...v]]));
+  const threads = Object.fromEntries(Object.entries(obj(e?.threads)).filter(([, v]) => v === 'full' || v === 'none' || (Number.isFinite(v) && v > 0)));
+  return { names: obj(e?.names), groups: obj(e?.groups), status: obj(e?.status), pieces: obj(e?.pieces), joins, splits, explode, threads };
 }
 
 // A loose face with no thickness isn't a piece of wood: set aside by default.
@@ -92,6 +99,14 @@ export function withAutoFixes(edits, auto = {}) {
     autoJoins.add(k);
   });
   return { ...e, autoJoins, autoDeleted };
+}
+
+// move a piece in the exploded view (offset [x,y,z] in inches), or put it back (null)
+export function withExplodeOffset(edits, name, offset) {
+  const next = normalizeEdits(edits);
+  if (offset && offset.some((v) => Math.abs(v) > 1e-4)) next.explode[name] = offset.map((v) => Math.round(v * 1000) / 1000);
+  else delete next.explode[name];
+  return next;
 }
 
 export function withName(edits, key, name) {

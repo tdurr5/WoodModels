@@ -374,7 +374,7 @@ test('edits: names are trimmed and cleared by an empty name', () => {
   assert.deepEqual(e.names, {});
   e = withGroupName(e, 'group_7', 'Base');
   assert.deepEqual(e.groups, { group_7: 'Base' });
-  assert.deepEqual(normalizeEdits({ names: [], status: 'x' }), { names: {}, groups: {}, status: {}, pieces: {}, joins: [], splits: [] }, 'bad data is ignored');
+  assert.deepEqual(normalizeEdits({ names: [], status: 'x' }), { names: {}, groups: {}, status: {}, pieces: {}, joins: [], splits: [], explode: {}, threads: {} }, 'bad data is ignored');
 });
 
 // ---------- overlapping copies and single-piece edits ----------
@@ -981,4 +981,25 @@ test('cuts: none in a plain board, a dowel, or a tenon the model draws', async (
   assert.equal(cutFeatures(boxOf([11, 3, 1]), rail).length, 2);
   // ...but not once it's known to be a tenon
   assert.deepEqual(cutFeatures(boxOf([11, 3, 1]), rail, { ends: [0, 1] }), []);
+});
+
+import { surfaceMaterial } from '../viewer/look.js';
+
+test('the metal decides its colour: brass is yellow, steel grey, whatever the model painted', () => {
+  const hue = (m) => m.color.getHSL({}).h, sat = (m) => m.color.getHSL({}).s;
+  const brassOnGrey = surfaceMaterial('brass', new THREE3.Color(0.5, 0.5, 0.5));
+  assert.ok(sat(brassOnGrey) > 0.3 && hue(brassOnGrey) > 0.08 && hue(brassOnGrey) < 0.17, 'brass stays brass on a grey material');
+  const steelOnTan = surfaceMaterial('metal', new THREE3.Color(0.7, 0.55, 0.35)); // the parser's stand-in tan
+  assert.ok(sat(steelOnTan) < 0.01, 'steel stays grey on a tan material');
+});
+
+import { normalizeEdits as normEdits, withExplodeOffset } from '../viewer/edits.js';
+
+test('pieces moved in the exploded view are kept with the edits', () => {
+  let e = withExplodeOffset(normEdits(null), 'Leg_1', [0, 3.14159, -2]);
+  assert.deepEqual(e.explode.Leg_1, [0, 3.142, -2]);
+  assert.deepEqual(normEdits(JSON.parse(JSON.stringify(e))).explode, { Leg_1: [0, 3.142, -2] }); // survives saving
+  e = withExplodeOffset(e, 'Leg_1', null);
+  assert.deepEqual(e.explode, {});
+  assert.deepEqual(normEdits({ explode: { a: [1, 2], b: 'x', c: [1, NaN, 2] } }).explode, {}); // junk ignored
 });

@@ -120,27 +120,72 @@ export function findOverlaps(dims, { tol = 1 / 16, minOverlap = 1 } = {}) {
   return out;
 }
 
-// ---------- joining overlapping pieces into one ----------
-// A rail modeled as two overlapping boards is one longer piece: its size
-// runs from the first board's end to the last one's. list: object_dims
-// entries lying on one line (as findOverlaps reports them).
+// Boards butted end to end: same cross-section, same way round, on one
+// line, the end of one touching the end of the next. Nobody glues end grain
+// to end grain without a joint, and a drawn tenon would overlap - so it's
+// one longer board the model drew in pieces. Returns lists of mesh names,
+// each a chain of pieces that make one board (three in a row is one list).
+export function findButts(dims, { tol = 1 / 32 } = {}) {
+  const parts = Object.entries(dims)
+    .filter(([, d]) => d.axes && d.axes.length === 3)
+    .map(([name, d]) => ({ name, c: d.center, ax: d.axes.map((a) => a.direction), len: d.axes.map((a) => a.length) }));
+  const buckets = new Map();
+  parts.forEach((p) => {
+    const k = `${Math.round(p.len[1] * 16)}|${Math.round(p.len[2] * 16)}`;
+    if (!buckets.has(k)) buckets.set(k, []);
+    buckets.get(k).push(p);
+  });
+  const parent = new Map(parts.map((p) => [p.name, p.name]));
+  const find = (n) => { while (parent.get(n) !== n) n = parent.get(n); return n; };
+  buckets.forEach((list) => {
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        const A = list[i], B = list[j];
+        if (Math.abs(A.len[1] - B.len[1]) > tol || Math.abs(A.len[2] - B.len[2]) > tol) continue;
+        if (Math.abs(dot(A.ax[0], B.ax[0])) < 0.999 || Math.abs(dot(A.ax[1], B.ax[1])) < 0.999) continue;
+        const d = sub(B.c, A.c);
+        if (Math.abs(dot(d, A.ax[1])) > tol || Math.abs(dot(d, A.ax[2])) > tol) continue;
+        const gap = Math.abs(dot(d, A.ax[0])) - (A.len[0] + B.len[0]) / 2;
+        if (Math.abs(gap) <= tol) parent.set(find(A.name), find(B.name));
+      }
+    }
+  });
+  const groups = new Map();
+  parts.forEach((p) => {
+    const r = find(p.name);
+    if (!groups.has(r)) groups.set(r, []);
+    groups.get(r).push(p.name);
+  });
+  return [...groups.values()].filter((g) => g.length > 1);
+}
+
+// ---------- joining pieces into one ----------
+// Pieces that are really one: a rail modeled as two overlapping or butted
+// boards, or pieces you merged yourself (a glued-up slab). list: their
+// object_dims entries. as one: the box around them all, square to the first piece -
+// boards end to end (a rail modeled as two) come out longer, boards side by
+// side (a glued-up slab) wider or thicker. Axes are re-ranked by length.
 export function joinDims(list, toLabel = (x) => `${x}`) {
   const A = list[0];
   if (!A?.axes || A.axes.length !== 3) return null;
-  const ax = A.axes[0].direction;
-  let lo = Infinity, hi = -Infinity;
+  const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
   for (const d of list) {
-    if (!d?.axes || Math.abs(dot(d.axes[0].direction, ax)) < 0.999) return null;
-    const t = dot(sub(d.center, A.center), ax);
-    lo = Math.min(lo, t - d.axes[0].length / 2);
-    hi = Math.max(hi, t + d.axes[0].length / 2);
+    if (!d?.axes || d.axes.length !== 3) return null;
+    for (let k = 0; k < 3; k++) {
+      const ax = A.axes[k].direction;
+      const t = dot(sub(d.center, A.center), ax);
+      const r = d.axes.reduce((s, a) => s + Math.abs(dot(a.direction, ax)) * a.length / 2, 0);
+      lo[k] = Math.min(lo[k], t - r);
+      hi[k] = Math.max(hi[k], t + r);
+    }
   }
-  const mid = (lo + hi) / 2;
-  const length = Math.round((hi - lo) * 1e4) / 1e4;
-  return {
-    center: A.center.map((c, k) => Math.round((c + ax[k] * mid) * 1e4) / 1e4),
-    axes: [{ ...A.axes[0], length, label: toLabel(length) }, ...A.axes.slice(1)],
-  };
+  const center = A.center.map((c, i) => Math.round((c + A.axes.reduce((s, a, k) => s + a.direction[i] * (lo[k] + hi[k]) / 2, 0)) * 1e4) / 1e4);
+  const axes = A.axes.map((a, k) => {
+    const length = Math.round((hi[k] - lo[k]) * 1e4) / 1e4;
+    return { ...a, length, label: toLabel(length) };
+  }).sort((a, b) => b.length - a.length);
+  ['Length', 'Width', 'Thickness'].forEach((role, i) => { axes[i] = { ...axes[i], role }; });
+  return { center, axes };
 }
 
 // Apply edits.joins (lists of mesh names) to parts_report rows and

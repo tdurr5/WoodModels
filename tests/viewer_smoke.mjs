@@ -1099,6 +1099,83 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     await p2.goto(base);
     await loaded();
     await p2.locator('#introClose').click();
+    // Merge: two pieces that are one solid piece, picked by clicking in 3D
+    await p2.locator('#clList .row', { hasText: 'Bench' }).first().click();
+    await p2.waitForTimeout(300);
+    await p2.locator('#dimCard [data-act="merge"]').click();
+    check(await p2.locator('#mergeBar').isVisible(), 'Merge… asks you to click the other pieces');
+    const benchCount = await p2.evaluate(() => window.__viewer.meshesOf('Bench').length);
+    // click the middle of each Bench piece not already picked
+    const spots = await p2.evaluate(() => {
+      const v = window.__viewer, r = document.querySelector('#viewport canvas').getBoundingClientRect();
+      return v.meshesOf('Bench').map((m) => {
+        const c = m.geometry.boundingBox.getCenter(new v.THREE.Vector3()).project(v.camera);
+        return { x: r.left + (c.x + 1) / 2 * r.width, y: r.top + (1 - c.y) / 2 * r.height };
+      });
+    });
+    // it starts with all of the part's pieces; clicking one drops it, again adds it back
+    await p2.mouse.click(spots[0].x, spots[0].y); await p2.waitForTimeout(150);
+    const dropped = await p2.locator('#mergeBar').innerText();
+    await p2.mouse.click(spots[0].x, spots[0].y); await p2.waitForTimeout(150);
+    const picked = await p2.locator('#mergeBar').innerText();
+    check(/1 picked/.test(dropped) && /2 picked/.test(picked), `clicking a piece picks or drops it (${dropped.match(/\d+ picked/)} then ${picked.match(/\d+ picked/)})`);
+    await p2.locator('#mergeBar [data-act="do-merge"]').click();
+    await p2.waitForTimeout(300);
+    const merged = await p2.evaluate(() => window.__viewer.rows().filter((r) => r.name === 'Bench').map((r) => ({ count: r.count, joined: !!r.joined, dims: r.dims })));
+    check(benchCount === 2 && merged.length === 1 && merged[0].count === 1 && merged[0].joined, `Merge makes the picked pieces one part (${picked.replace(/\s+/g, ' ')} -> ${JSON.stringify(merged)})`);
+    check(merged[0] && merged[0].dims[1] > 7.9, `measured as one piece, the width of both (${merged[0]?.dims})`);
+    await p2.keyboard.press('Control+z');
+    await p2.waitForTimeout(300);
+    check(await p2.evaluate(() => window.__viewer.rows().filter((r) => r.name === 'Bench')[0]?.count) === 2, 'and Undo puts the pieces back');
+    await p2.keyboard.press('Escape');
+    // laying out the exploded view: Move a part along an arrow
+    await p2.locator('#explodeRange').fill('0.6');
+    await p2.locator('#clList .row', { hasText: 'Leg Front' }).first().click();
+    await p2.waitForTimeout(300);
+    await p2.locator('#dimCard [data-act="move"]').click();
+    await p2.waitForTimeout(300);
+    const legAt = () => p2.evaluate(() => window.__viewer.meshesOf('Leg Front')[0].position.x);
+    const x0 = await legAt();
+    const arrow = await p2.evaluate(() => {
+      const v = window.__viewer, r = document.querySelector('#viewport canvas').getBoundingClientRect();
+      const m = v.meshesOf('Leg Front')[0];
+      const c = m.geometry.boundingBox.getCenter(new v.THREE.Vector3()).add(m.position);
+      const d = c.distanceTo(v.camera.position);
+      const p = (q) => { const s = q.clone().project(v.camera); return { x: r.left + (s.x + 1) / 2 * r.width, y: r.top + (1 - s.y) / 2 * r.height }; };
+      return [p(c.clone().add(new v.THREE.Vector3(d * 0.06, 0, 0))), p(c.clone().add(new v.THREE.Vector3(d * 0.2, 0, 0)))];
+    });
+    await p2.mouse.move(arrow[0].x, arrow[0].y);
+    await p2.waitForTimeout(150);
+    await p2.mouse.down();
+    await p2.mouse.move(arrow[1].x, arrow[1].y, { steps: 8 });
+    await p2.mouse.up();
+    await p2.waitForTimeout(300);
+    const x1 = await legAt();
+    const saved = await p2.evaluate(() => JSON.parse(localStorage.getItem('woodmodels:shaving-horse:edits') || '{}').explode || {});
+    check(x1 - x0 > 1 && Object.keys(saved).length === 1, `Move drags a part to a new place in the exploded view, and it's kept (${x0.toFixed(1)} -> ${x1.toFixed(1)}, ${JSON.stringify(saved)})`);
+    await p2.locator('#dimCard [data-act="move-reset"]').click();
+    await p2.waitForTimeout(300);
+    check(Math.abs((await legAt()) - x0) < 0.01, 'Reset position puts it back');
+    await p2.locator('#explodeRange').fill('0');
+    await p2.keyboard.press('Escape');
+    // bolts: a plain shank from the head, threads at the far end
+    const rod = await p2.evaluate(() => {
+      const v = window.__viewer;
+      return v.rows().filter((r) => /Threaded Rod/.test(r.name)).map((r) => v.threadsOf(v.scene.getObjectByName(r.obj_names[0])));
+    });
+    // (one rod's head is the model's corrupted component: with no head it's all-thread)
+    check(rod.length > 0 && rod.every((t) => t && Math.abs(t.pitch - 1 / 13) < 1e-6 && (t.head ? t.length > 1 && t.length < 2 : t.length > 6)) && rod.some((t) => t.head),
+      `bolts are drawn with threads at the end, 13 to the inch (${rod.map((t) => t && `${t.length}" ${t.head ? 'at the end' : 'all along'}`).join(', ')})`);
+    const seatHandle = await p2.evaluate(() => { const v = window.__viewer; return v.threadsOf(v.meshesOf('Seat Handle')[0]); });
+    check(!seatHandle || !seatHandle.length, 'a plain pin gets no threads');
+    await p2.locator('#clList .row', { hasText: 'Threaded Rod' }).first().click();
+    await p2.waitForTimeout(300);
+    await p2.locator('#dimCard select[data-act="threads"]').selectOption('full');
+    await p2.waitForTimeout(300);
+    const full = await p2.evaluate(() => window.__viewer.threadsOf(window.__viewer.currentSelectionMeshes()[0]).length);
+    check(full > 4, `the card's Threads choice can make it threaded all along (${full}")`);
+    await p2.keyboard.press('Control+z');
+    await p2.keyboard.press('Escape');
     await p2.locator('#clList .row', { hasText: 'Seat Handle' }).first().click();
     await p2.keyboard.press('Delete');
     check(!(await names()).includes('Seat Handle'), 'a built-in model part can be deleted');
