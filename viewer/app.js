@@ -2132,12 +2132,14 @@ function captureOverview({ exploded = 0 } = {}) {
   const box = exploded ? meshes.reduce((b, m) => (m.visible ? b.expandByObject(m) : b), new THREE.Box3()) : modelBox;
   frameBox(box, config.views?.iso?.dir || [0.7, 0.5, 0.7], false);
   let url = null;
+  stage.invalidateShadows(); // parts set aside or exploded for the picture
   try {
     renderer.render(scene, camera);
     url = cropToContent(renderer.domElement, 24, exploded ? drawCallouts : null);
   } catch { /* tainted canvas etc. */ }
   scene.background = saved.bg;
   stage.ground.visible = true;
+  stage.invalidateShadows(); // and back as they were
   current = saved.current;
   if (current?.gizmo) current.gizmo.visible = saved.gizmoVisible;
   applyMaterials();
@@ -2387,6 +2389,8 @@ function animate(now) {
   if (camera.isOrthographicCamera) updateOrthoFrustumIfNeeded();
   processHover();
   updateOverlays();
+  const on = section.axis !== 'off';
+  stage.updateShadows(meshes, [on ? 1 : 0, on ? clipPlane.constant : 0, on ? clipPlane.normal.x + 2 * clipPlane.normal.y + 4 * clipPlane.normal.z : 0]);
   renderer.render(scene, camera);
 }
 let lastOrthoDist = 0;

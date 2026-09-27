@@ -366,6 +366,9 @@ export function gridSpacing(footprint) {
 export function createStage(scene, renderer) {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap; // with a radius: a soft edge (PCFSoft ignores it)
+  // The light doesn't move with the camera, so orbiting never changes the
+  // shadows: they're redrawn only when the parts do (stage.updateShadows).
+  renderer.shadowMap.autoUpdate = false;
 
   // Sky above, warm bounce from a wooden shop floor below: tops read lighter
   // than sides even where the key light doesn't reach, so boards don't go flat.
@@ -407,6 +410,25 @@ export function createStage(scene, renderer) {
   scene.add(ground);
 
   const stage = { ground, key, fill, rim, hemi, size: 100, box: null };
+
+  // Before each frame: redraw the shadow map if anything that throws a
+  // shadow has changed since the last one - a part moved (explode), shown or
+  // hidden, ghosted, cut by the section, or drawn as wireframe. `extra`: other
+  // numbers that change the shadows (the section plane).
+  let lastSig = NaN;
+  stage.updateShadows = (meshes, extra = []) => {
+    let h = 17;
+    const mix = (v) => { h = Math.imul(h ^ Math.round(v * 1024), 16777619); };
+    meshes.forEach((m, i) => {
+      if (!m.visible || !m.castShadow) return;
+      mix(i + 1); mix(m.position.x); mix(m.position.y); mix(m.position.z);
+      if (m.material.wireframe) mix(-1);
+    });
+    extra.forEach(mix);
+    if (h !== lastSig) { lastSig = h; renderer.shadowMap.needsUpdate = true; }
+  };
+  // the next frame redraws the shadows whatever changed (after a one-off render)
+  stage.invalidateShadows = () => { lastSig = NaN; renderer.shadowMap.needsUpdate = true; };
 
   // Lay the stage out around `box` (world): the ground at its foot (or at
   // `floor`, lower, when exploded parts hang below it), lights aimed from
@@ -474,7 +496,7 @@ export function createStage(scene, renderer) {
     const texel = Math.max(cam.right - cam.left, cam.top - cam.bottom) / key.shadow.mapSize.x;
     key.shadow.normalBias = texel * 1.5;
     key.shadow.bias = -0.0004;
-    key.shadow.needsUpdate = true;
+    stage.invalidateShadows();
   };
 
   stage.setTheme = (name) => {
