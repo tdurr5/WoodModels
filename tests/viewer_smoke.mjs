@@ -447,6 +447,8 @@ try {
   check(await page.locator('#printSheet .ps-diagrams .cd-board').count() >= 5, 'print sheet includes the cutting diagrams');
   const drill = await page.locator('#printSheet h2', { hasText: 'Holes to drill' }).count();
   check(drill === 1, 'print sheet includes a drilling list');
+  const joinery = await page.locator('#printSheet .ps-extra').innerText();
+  check(/Joinery[\s\S]*Ratchet Dove[\s\S]*tenon/.test(joinery), 'print sheet lists the joinery drawn in the model');
   check(printRows === 24, `print sheet lists every part (${printRows})`);
   await page.emulateMedia({ media: 'print' });
   await page.pdf({ path: path.join(OUT, 'cut-sheet.pdf'), format: 'Letter', margin: { top: '0.5in', bottom: '0.5in', left: '0.5in', right: '0.5in' } });
@@ -463,6 +465,13 @@ try {
   await page.evaluate(() => { const v = window.__viewer; v.selectRow(v.rows().find((r) => r.label === 'Shaft_1_2_-13_6_7_8')); });
   const bore = await page.locator('#dimCard .card-rel').innerText();
   check(/Bore ⌀1\/2".*Bench ×2.*Filler Rear.*Leg Rear ×2/.test(bore), `rod card is a drilling list (${bore})`);
+  await selectPart('Ratchet Dove');
+  const tenon = await page.locator('#dimCard .card-joinery').innerText().catch(() => '');
+  check(/tenon 7\/16" × 1-7\/8", 1\/2" long.*into Jaw Support/.test(tenon), `a tenon drawn into another part is sized, with where it goes (${tenon})`);
+  await page.locator('#dimCard .card-joinery a', { hasText: 'Jaw Support' }).click();
+  await page.waitForTimeout(400);
+  const mortise = await page.locator('#dimCard .card-joinery').innerText().catch(() => '');
+  check(/Mortises: 7\/16" × 1-7\/8", 1\/2" deep, for Ratchet Dove/.test(mortise), `the part it goes into lists the mortise to cut (${mortise})`);
 
   console.log('full-size template');
   await selectPart('Leg Front');

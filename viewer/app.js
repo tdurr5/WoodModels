@@ -21,7 +21,7 @@ import { initDiagramModal, computeLayouts, layoutsHTML } from './diagram.js';
 import { buildTemplate } from './template.js';
 import { initLibrary } from './library.js';
 import { getModelFiles, lastOpened, rememberOpened, putModelFile } from './modelstore.js';
-import { obbFromDims, partsTouch, findOverlaps, applyJoins } from './geometry.js';
+import { obbFromDims, partsTouch, findOverlaps, applyJoins, endJoints } from './geometry.js';
 
 const $ = (id) => document.getElementById(id);
 const viewport = $('viewport');
@@ -426,6 +426,7 @@ function announceAutoFixes() {
 }
 
 function refreshRows() {
+  jointCache.clear(); // parts deleted or set aside no longer take a tenon
   computeRows();
   rows = allPartRows.filter((r) => !r.status);
   rowByMeshName.clear();
@@ -1151,6 +1152,102 @@ function contactsOf(mesh) {
   return out;
 }
 
+// ---------- joinery: tenons, housed ends, mortises (geometry.js endJoints) ----------
+const jointCache = new Map();
+function jointsOf(mesh) {
+  if (jointCache.has(mesh)) return jointCache.get(mesh);
+  let out = [];
+  const d = objectDims[mesh.name];
+  if (d?.axes?.length === 3) {
+    const others = [];
+    meshes.forEach((o) => {
+      const r = rowByMeshName.get(o.name), dB = objectDims[o.name];
+      if (o !== mesh && r && isCut(r) && !r.status && dB) others.push({ name: o.name, box: obbFromDims(dB) });
+    });
+    out = endJoints(obbFromDims(d), meshTris(mesh), others);
+  }
+  jointCache.set(mesh, out);
+  return out;
+}
+
+// What this part's ends go into (and the shoulder-to-shoulder length that
+// leaves), the mortises other parts need cut in it, and ends that only meet
+// another part (no tenon drawn - add one's length if you'll use it).
+function joineryOf(row, mesh) {
+  if (!mesh || !isCut(row) || row.joined || row.customDims) return null;
+  const rowOf = (name) => rowByMeshName.get(name);
+  const js = jointsOf(mesh).filter((j) => rowOf(j.name));
+  const cuts = js.filter((j) => j.kind !== 'butt').map((j) => ({ ...j, row: rowOf(j.name) }));
+  const length = objectDims[mesh.name].axes[0].length;
+  const shoulders = length - cuts.reduce((a, j) => a + j.depth, 0);
+  // (almost) all of it inside the parts it joins: a loose tenon, spline or dowel
+  const loose = cuts.length === 2 && shoulders < Math.max(1 / 4, length * 0.15);
+  const holes = new Map();
+  meshes.forEach((o) => {
+    const r = rowOf(o.name);
+    if (o === mesh || !r || !isCut(r) || r.status || r.joined) return;
+    jointsOf(o).forEach((j) => {
+      if (j.name !== mesh.name || j.kind === 'butt') return;
+      const k = `${Math.round(Math.min(j.width, j.thick) * 64)}|${Math.round(Math.max(j.width, j.thick) * 64)}|${j.through ? 'through' : Math.round(j.depth * 64)}|${r.key}`;
+      const h = holes.get(k) || { j, row: r, n: 0 };
+      h.n++;
+      holes.set(k, h);
+    });
+  });
+  const butts = cuts.length ? [] : [...new Map(js.filter((j) => j.kind === 'butt').map((j) => [rowOf(j.name).key, rowOf(j.name)])).values()];
+  const buttEnds = js.filter((j) => j.kind === 'butt').length;
+  if (!cuts.length && !holes.size && !butts.length) return null;
+  return { cuts, shoulders, loose, holes: [...holes.values()], butts, buttEnds };
+}
+
+function joineryText(jy, link, units) {
+  const f = (x) => formatLength(x, units);
+  const size = (j) => `${f(Math.min(j.width, j.thick))} × ${f(Math.max(j.width, j.thick))}`;
+  const out = {};
+  if (jy.cuts.length) {
+    const texts = jy.cuts.map((j) => `${j.kind === 'tenon' ? `tenon ${size(j)}, ${f(j.depth)} long` : `goes ${f(j.depth)} in`}${j.through ? ' (through)' : ''} into ${link(j.row)}`);
+    const both = texts.length === 2 && texts[0] === texts[1];
+    out.ends = `${both ? `${texts[0]}, each end` : texts.join('; ')}. ${jy.loose
+      ? 'It sits almost wholly inside the parts it joins, like a loose tenon or dowel.'
+      : `The length includes ${jy.cuts.length > 1 ? 'both' : 'it'}: <b>${f(jy.shoulders)}</b> ${jy.cuts.length > 1 ? 'shoulder to shoulder' : 'from the shoulder to the other end'}.`}`;
+  }
+  if (jy.holes.length) {
+    out.holesLabel = jy.holes.some((h) => h.j.kind === 'tenon') ? 'Mortises' : 'Housings';
+    out.holes = jy.holes.map(({ j, row: r, n }) => `${size(j)}, ${j.through ? 'through' : `${f(j.depth)} deep`}, for ${link(r)}${n > 1 ? ` (${n})` : ''}`).join('; ');
+  }
+  if (jy.butts.length) {
+    const many = jy.buttEnds > 1;
+    out.butt = `${many ? 'Its ends meet' : 'One end meets'} ${jy.butts.map((r) => link(r)).join(', ')} with no tenon drawn. If you'll join ${many ? 'them' : 'it'} with a mortise and tenon, add the tenon's length${many ? ' at each end' : ''} to the cut length.`;
+  }
+  return out;
+}
+
+function joineryHtml(row, mesh) {
+  const jy = joineryOf(row, mesh);
+  if (!jy) return '';
+  const link = (r) => `<a href="#part=${encodeURIComponent(partRef(r))}" data-key="${escapeHtml(r.key)}">${escapeHtml(r.name)}</a>`;
+  const t = joineryText(jy, link, settings().units);
+  return [
+    t.ends && `<div class="card-rel card-joinery"><b>Joinery:</b> ${t.ends}</div>`,
+    t.holes && `<div class="card-rel card-joinery"><b>${t.holesLabel}:</b> ${t.holes}</div>`,
+    t.butt && `<div class="card-note">${t.butt}</div>`,
+  ].filter(Boolean).join('');
+}
+
+// For the printed sheet: every part with joinery drawn in the model.
+function joineryPrintHtml() {
+  const units = settings().units;
+  const name = (r) => `${r.letter ? `${r.letter} ` : ''}${escapeHtml(r.name)}`;
+  const lines = rows.filter((r) => isCut(r) && r.clickable).map((r) => {
+    const mesh = meshByName.get(r.obj_names[0]);
+    const jy = mesh && joineryOf(r, mesh);
+    if (!jy || (!jy.cuts.length && !jy.holes.length)) return '';
+    const t = joineryText(jy, name, units);
+    return `<tr><td><b>${name(r)}</b></td><td>${[t.ends, t.holes && `${t.holesLabel}: ${t.holes}`].filter(Boolean).join('<br>')}</td></tr>`;
+  }).filter(Boolean);
+  return lines.length ? `<h2>Joinery</h2><table class="ps-table ps-joinery"><tbody>${lines.join('')}</tbody></table>` : '';
+}
+
 // Contacts of one piece of the selected row, grouped by the row they belong to.
 function pieceContacts(mesh, row) {
   const byRow = new Map();
@@ -1374,6 +1471,7 @@ function renderBuildPanel() {
     <div class="bp-size">${escapeHtml(finishedDims(row, units))}</div>
     <div class="bp-sub">${row.customDims ? '' : 'Thickness × Width × Length'}${rough ? ` · rough <b>${escapeHtml(rough)}</b>` : ''} · ${escapeHtml(row.materialLabel)}</div>
     ${contactHtml(row)}
+    ${joineryHtml(row, current?.meshes[0])}
     ${row.notes.map((t) => `<div class="card-note${row.warn ? ' warn' : ''}">${escapeHtml(t)}</div>`).join('')}
     ${mine ? `<div class="card-note mine">✎ ${escapeHtml(mine)}</div>` : ''}
     <div class="bp-nav">
@@ -1398,7 +1496,7 @@ function renderBuildPanel() {
     if (e.target.checked && build.i < n - 1) setTimeout(() => stepBuild(1), 250);
     else renderBuildPanel();
   });
-  el.querySelectorAll('.card-rel a').forEach((a) => a.addEventListener('click', (e) => {
+  el.querySelectorAll('.card-rel a, .card-note a').forEach((a) => a.addEventListener('click', (e) => {
     e.preventDefault();
     const k = build.order.findIndex((r) => r.key === a.dataset.key);
     if (k >= 0) { build.i = k; showStep(true); }
@@ -1429,6 +1527,7 @@ function renderDimCard() {
     <div class="meta">qty ${row.count} · ${escapeHtml(row.materialLabel)} · ${escapeHtml(row.groupName)}</div>
     ${variantsHtml(current.variants)}
     ${contactHtml(row)}
+    ${joineryHtml(row, current.piece || current.meshes[0])}
     ${notes}
     <details class="card-mynote"${userNote(row) ? ' open' : ''}>
       <summary>${userNote(row) ? 'Your note' : 'Add a note'}</summary>
@@ -1452,7 +1551,7 @@ function renderDimCard() {
   dimCard.style.display = 'block';
   dimCard.querySelector('.card-close').addEventListener('click', () => clearSelection());
   dimCard.querySelector('.card-min').addEventListener('click', () => { cardCollapsed = !cardCollapsed; renderDimCard(); });
-  dimCard.querySelectorAll('.card-rel a').forEach((a) => a.addEventListener('click', (e) => {
+  dimCard.querySelectorAll('.card-rel a, .card-note a').forEach((a) => a.addEventListener('click', (e) => {
     e.preventDefault();
     const r = rows.find((x) => x.key === a.dataset.key);
     if (r) selectRow(r);
@@ -1869,7 +1968,7 @@ window.addEventListener('beforeprint', () => {
     ? `<div class="ps-diagrams"><h2>Shopping list &amp; cutting diagrams</h2>${layoutsHTML(layouts, { pxPerInch: 700 / longest, units: settings().units, colorFor: diagram.colorFor, hardware: rows, finishArea: woodSurfaceArea(), sheets })}</div>`
     : '';
   const mill = millingPlanHTML(rows);
-  buildPrintSheet($('printSheet'), rows, config, img, drillingHtml() + (mill ? `<h2>Milling plan</h2>${mill}` : '') + diagrams);
+  buildPrintSheet($('printSheet'), rows, config, img, drillingHtml() + joineryPrintHtml() + (mill ? `<h2>Milling plan</h2>${mill}` : '') + diagrams);
 });
 
 // ---------- part letter tags in 3D ----------
@@ -2030,7 +2129,7 @@ window.__viewer = {
   currentSelectionMeshes: () => (current ? current.meshes : []),
   meshesOf: (name) => meshes.filter((m) => meshInfo.get(m).row?.name === name),
   measureClickCount: () => measure.points.length + measure.measurements.length * 2,
-  setExplode, setView, selectRow, rows: () => rows, requestRender,
+  setExplode, setView, selectRow, rows: () => rows, requestRender, objectDims: () => objectDims,
   prepareTemplate,
   guidePoints: () => selectionGuidePoints(),
   guideAxes: () => selectionGuideAxes(),

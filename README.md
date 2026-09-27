@@ -13,7 +13,7 @@ A 3D cut-list viewer for woodworking plans, starting with the Lie-Nielsen/Brian 
   - `cutlist.js` - sidebar cut list, totals, CSV export, printable cut sheet
   - `diagram.js`, `nesting.js` - shopping list, cost estimate, cutting diagrams
   - `template.js` - printable full-size part templates
-  - `geometry.js` - oriented-box contact tests (what joins what, where holes go), overlapping pieces and joining them
+  - `geometry.js` - oriented-box contact tests (what joins what, where holes go), tenons and mortises, overlapping pieces and joining them
   - `autofix.js` - tells a board modeled as two overlapping pieces, or a stray copy, from a lap joint (automatic fixes on load)
   - `measure.js` - distance / angle / bevel tools with snapping
   - `angles.js`, `format.js` - compound-angle math, fractions, rough stock, board feet (pure, unit-tested)
@@ -59,7 +59,7 @@ On a phone the layout follows how you hold it (model above the list upright, sid
 - **Units**: fractional inches (1/16, 1/32, 1/8), decimal inches or mm.
 - **Rough stock**: shows the lumber to mill each part from: the next standard thickness (4/4, 5/4, 8/4, 10/4…) plus length and width allowances you can set. Board feet are shown per part, and totals per species and thickness.
 - **Tick parts off** as you cut them; the progress bar and your ticks are remembered in the browser.
-- **Filter** (`/`), **hide a category** in 3D (e.g. hardware), **Export CSV**, **Print cut sheet** (or Ctrl+P). The printed sheet has checkboxes, rough sizes, your notes, an overview picture, a drilling list, the shopping list and the cutting diagrams.
+- **Filter** (`/`), **hide a category** in 3D (e.g. hardware), **Export CSV**, **Print cut sheet** (or Ctrl+P). The printed sheet has checkboxes, rough sizes, your notes, an overview picture, a drilling list, the joinery, the shopping list and the cutting diagrams.
 - **Shopping list & cutting diagram** (`C`):
   - Lays the rough parts out on boards of your stock size (length, width, kerf), grouped by species and thickness. Shows how many boards to buy and how much of each is used, and flags when an offcut will do.
   - Cuts follow a real sequence: crosscut into sections, rip into strips, crosscut the parts. Click a piece to find it in 3D.
@@ -70,7 +70,7 @@ On a phone the layout follows how you hold it (model above the list upright, sid
 - ⚠ notes flag known problems in the source model (e.g. rods whose name says 8-1/4" but are modeled 6-7/8").
 
 **Build mode** (▶ Build at the top of the cut list) - the plan as a step-by-step guide for the shop, made for a phone:
-- One part per step, big: letter, name, quantity, finished and rough size, what it joins, its holes and your notes. Tick **Cut** and it moves on to the next part.
+- One part per step, big: letter, name, quantity, finished and rough size, what it joins, its tenons or mortises, its holes and your notes. Tick **Cut** and it moves on to the next part.
 - The model assembles as you go: parts from earlier steps solid, this one highlighted with its dimensions, the rest ghosted. Tap any part to jump to its step.
 - **Assembly order** builds from the ground up, assembly by assembly; **Cutting order** groups the wood by species and stock thickness, widest and longest first, the way you'd mill it.
 - It remembers where you were. ← / → (or Back / Next) step through; Esc leaves.
@@ -82,6 +82,7 @@ On a phone the layout follows how you hold it (model above the list upright, sid
 - Click a part (on the model or in the list) to isolate it. You'll see its dimensions drawn on the part's own axes and a card with size, quantity and angles.
 - Angled parts can show their lean: click **∠ Show angles** on the part's card (it's off until you ask, so only your own measurements are drawn). You get the total lean from plumb (or level) as arcs, split into front-to-back and side-to-side components. Legs also get the chairmaker's resultant/sightline angle and a bevel-gauge setting.
 - The card lists what the part **joins** (click to jump there) and its **holes**, e.g. "4 × ⌀1/2" for Threaded Rod". A rod's card is a drilling list of the parts it passes through.
+- **Joinery**: where a model draws a part's tenons pushed into the part they join, the card says so - "tenon 3/8" × 2-1/2", 1-1/4" long into Leg, each end" - and gives the **shoulder-to-shoulder** length (the listed length includes the tenons, so it's the one to cut). The part it goes into lists the **mortises** to cut in it; full-width ends list housings (dadoes), and through tenons say so. Where a rail only meets a leg's face (no tenon drawn), the card reminds you to add the tenon's length if you'll mortise it. The printed sheet has the whole joinery list.
 - **Print full-size template** (on a wood part's card): face and edge views at 1:1, tiled across letter pages with a 1" check square. Tape the tiles together and trace the part onto your stock.
 - **3D / Front / Side / Top** views (`1`-`4`). Straight-on views switch to **Ortho** for true-scale elevations (`O` toggles it).
 - **Explode** slider (`E`), **Section** cut along any axis (cut faces are drawn solid and hatched, like a drawing), **Isolate** (`I`), **Wireframe** (`W`), **Screenshot**, **Light/Dark** theme (`L`).
