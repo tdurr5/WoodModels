@@ -509,8 +509,8 @@ function updateModelBox() {
 }
 // The ground, lights and camera limits follow the model's size: a 6" box
 // and a 20' shed both get a grid to scale and room to orbit.
-function fitStage() {
-  stage.fit(modelBox, config.views?.iso?.dir);
+function fitStage(floor) {
+  stage.fit(modelBox, config.views?.iso?.dir, floor);
   const R = stage.size;
   controls.maxDistance = Math.max(400, R * 12);
   perspCamera.far = Math.max(2000, R * 40);
@@ -759,11 +759,14 @@ function setWireframe(on) {
 
 function setExplodePositions(f) {
   requestRender();
+  let floor = modelBox.min.y;
   meshes.forEach((m) => {
     const { baseCenter, groupCenter } = meshInfo.get(m);
     m.position.copy(groupCenter).sub(modelCenter).multiplyScalar(f)
       .add(baseCenter.clone().sub(groupCenter).multiplyScalar(f * 0.6));
+    if (isShownPart(m)) floor = Math.min(floor, m.geometry.boundingBox.min.y + m.position.y);
   });
+  fitStage(floor); // the floor drops with parts pulled below it
 }
 
 function setExplode(f) {

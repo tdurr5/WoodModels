@@ -408,10 +408,11 @@ export function createStage(scene, renderer) {
 
   const stage = { ground, key, fill, rim, hemi, size: 100, box: null };
 
-  // Lay the stage out around `box` (world): the ground at its foot, lights
-  // aimed from `viewDir` (the model's 3D preset, so the key light comes from
-  // over the viewer's shoulder and its shadow falls behind and to the side).
-  stage.fit = (box, viewDir = [0.7, 0.5, 0.7]) => {
+  // Lay the stage out around `box` (world): the ground at its foot (or at
+  // `floor`, lower, when exploded parts hang below it), lights aimed from
+  // `viewDir` (the model's 3D preset, so the key light comes from over the
+  // viewer's shoulder and its shadow falls behind and to the side).
+  stage.fit = (box, viewDir = [0.7, 0.5, 0.7], floor = box?.min.y) => {
     if (!box || box.isEmpty()) return;
     stage.box = box.clone();
     const size = box.getSize(new THREE.Vector3());
@@ -419,7 +420,7 @@ export function createStage(scene, renderer) {
     const R = Math.max(size.length() / 2, 0.5);
     stage.size = R;
     const footprint = Math.max(size.x, size.z, size.y * 0.5, 1);
-    const y = box.min.y - R * 0.0005; // just under the feet, so they don't z-fight
+    const y = Math.min(floor, box.min.y) - R * 0.0005; // just under the feet, so they don't z-fight
 
     const [cell, major] = gridSpacing(footprint);
     const extent = Math.max(footprint * 3.2, R * 4);
@@ -456,7 +457,7 @@ export function createStage(scene, renderer) {
     const lb = new THREE.Box3();
     const p = new THREE.Vector3();
     for (let i = 0; i < 8; i++) {
-      p.set(i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : box.min.y, i & 4 ? box.max.z : box.min.z);
+      p.set(i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : y, i & 4 ? box.max.z : box.min.z);
       lb.expandByPoint(p.clone().sub(key.position).applyMatrix4(inv));
       // where that corner's shadow lands on the ground
       const drop = (p.y - y) / Math.max(kDir.y, 0.1);
