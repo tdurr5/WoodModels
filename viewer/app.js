@@ -75,7 +75,9 @@ function resize() {
 
 // The part of the view the build panel leaves free, where framing centers
 // the model - on a phone the panel covers the bottom (or, sideways, the
-// right) of the screen. Null: the whole view.
+// right) of the screen. Outside build mode: between the toolbar and the
+// bottom bar, so a tall model isn't framed under the buttons. Null: the
+// whole view.
 let freeArea = null;
 function updateFreeArea() {
   const w = viewport.clientWidth, h = viewport.clientHeight;
@@ -86,6 +88,11 @@ function updateFreeArea() {
     const top = 48; // under the toolbar
     if (p.width > w * 0.6 && p.top - v.top > h * 0.3) f = { x: 0, y: top, w, h: p.top - v.top - top };
     else if (p.height > h * 0.6 && p.left - v.left > w * 0.35) f = { x: 0, y: top, w: p.left - v.left, h: h - top };
+  } else if (w && h) {
+    const v = viewport.getBoundingClientRect();
+    const top = $('toolbar').getBoundingClientRect().bottom - v.top + 4;
+    const bottom = $('bottombar').getBoundingClientRect().top - v.top - 4;
+    if (top > 0 && bottom - top > h * 0.5) f = { x: 0, y: top, w, h: bottom - top };
   }
   freeArea = f;
   // shift the picture so the view's center sits in the middle of the free part
@@ -2213,6 +2220,9 @@ function captureOverview({ exploded = 0, width = 1800, height = 1200 } = {}) {
   const W = width, H = height;
   const savedHover = hoverRow;
   hoverRow = null; // no orange outline on whatever the pointer rests on
+  const savedFree = freeArea;
+  freeArea = null; // its own picture: framed in the middle, not around the toolbars
+  perspCamera.clearViewOffset();
   camera = perspCamera;
   controls.object = camera;
   renderer.setSize(W, H, false);
@@ -2243,6 +2253,7 @@ function captureOverview({ exploded = 0, width = 1800, height = 1200 } = {}) {
   } catch { /* tainted canvas etc. */ }
   scene.background = saved.bg;
   hoverRow = savedHover;
+  freeArea = savedFree;
   stage.ground.visible = true;
   stage.invalidateShadows(); // and back as they were
   current = saved.current;
@@ -2257,6 +2268,7 @@ function captureOverview({ exploded = 0, width = 1800, height = 1200 } = {}) {
   renderer.setSize(saved.size.x, saved.size.y, false);
   perspCamera.aspect = saved.aspect;
   perspCamera.updateProjectionMatrix();
+  updateFreeArea(); // the view's offset around the toolbars again
   camera = saved.camera;
   controls.object = camera;
   camera.position.copy(saved.pos);
