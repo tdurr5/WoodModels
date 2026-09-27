@@ -51,7 +51,7 @@ export function initShare({ getTitle, localId, shoppingText, modelFile, notify }
     const appUrl = url && `${location.origin}${location.pathname}`;
     const phone = localId
       ? `<p>This model is saved in this browser only. <b>Send it to your phone</b> (AirDrop, Messages, email…), then on the phone open this app and add it under <b>Models → Upload</b>.</p>
-         <button class="card-btn primary share-model">📤 Send the model file</button>
+         <button class="card-btn primary share-model" disabled>Preparing the file…</button>
          ${appUrl ? `<p class="muted small">The app on your phone - scan with the camera:</p><div class="share-qr">${qrSvg(appUrl)}</div>` : ''}`
       : url
         ? `<p><b>Scan with your phone's camera</b> to open this model there:</p><div class="share-qr">${qrSvg(url)}</div><p class="muted small share-url">${escapeHtml(url)}</p>`
@@ -62,11 +62,22 @@ export function initShare({ getTitle, localId, shoppingText, modelFile, notify }
       <h3>Shopping list</h3>
       <pre class="share-text">${escapeHtml(list)}</pre>
       <button class="card-btn share-list">📤 Share the list</button> <button class="card-btn share-copy">Copy</button>`;
-    body.querySelector('.share-model')?.addEventListener('click', async () => {
-      const file = await modelFile();
-      const how = await shareOut({ title: getTitle(), file });
-      if (how === 'downloaded') notify('Saved the model as a zip - send it to your phone and add it under Models → Upload there.');
-    });
+    // Read and zip the model now: the share sheet only opens straight after
+    // a tap, not after waiting on a big file.
+    const sendBtn = body.querySelector('.share-model');
+    if (sendBtn) {
+      let file = null;
+      modelFile().then((f) => {
+        file = f;
+        sendBtn.disabled = false;
+        sendBtn.textContent = '📤 Send the model file';
+      }).catch(() => { sendBtn.textContent = 'Couldn\'t read the model'; });
+      sendBtn.addEventListener('click', async () => {
+        if (!file) return;
+        const how = await shareOut({ title: getTitle(), file });
+        if (how === 'downloaded') notify('Saved the model as a zip - send it to your phone and add it under Models → Upload there.');
+      });
+    }
     body.querySelector('.share-list').addEventListener('click', async () => {
       const how = await shareOut({ title: `${getTitle()} - shopping list`, text: list });
       if (how === 'copied') notify('Shopping list copied - paste it into a message.');

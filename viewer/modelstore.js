@@ -56,7 +56,7 @@ function newId() {
 export async function saveModel({ name, source = '', files, parts = 0 }) {
   const id = newId();
   const now = Date.now();
-  const size = Object.values(files).reduce((n, s) => n + s.length, 0);
+  const size = Object.values(files).reduce((n, s) => n + (typeof s === 'string' ? s.length : Object.values(s || {}).reduce((a, b) => a + (b.length || 0), 0)), 0);
   await tx(['meta', 'files', 'config'], 'readwrite', (meta, fs, c) => {
     meta.put({ id, name, source, parts, size, createdAt: now, updatedAt: now });
     fs.put(files, id);
@@ -104,7 +104,10 @@ export async function putModelFile(id, fileName, content, metaPatch = {}) {
 }
 
 export async function deleteModel(id) {
-  await tx(['meta', 'files', 'config'], 'readwrite', (meta, fs, c) => { meta.delete(id); fs.delete(id); c.delete(id); });
+  await tx(['meta', 'files', 'config', 'photos'], 'readwrite', (meta, fs, c, photos) => {
+    meta.delete(id); fs.delete(id); c.delete(id);
+    photos.delete(IDBKeyRange.bound(`local-${id}|`, `local-${id}|\uffff`)); // its build log (app.js modelKey)
+  });
   // its preferences, ticks, notes and quick-saved edits (see settings.js, app.js)
   try { ['settings', 'edits'].forEach((k) => localStorage.removeItem(`woodmodels:local-${id}:${k}`)); } catch { /* ignore */ }
   if (lastOpened() === `local:${id}`) rememberOpened('');

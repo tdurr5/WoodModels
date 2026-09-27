@@ -15,6 +15,9 @@ Covers the paths parse_dae.py has to handle in the real export:
     overlap by 4" but each is cut to half thickness there (real joinery)
   - optionally (scaled=True) a copy of the board component stretched 2x
     along its length, the way SketchUp's Scale tool leaves it
+  - optionally (painted=True) a rail painted two ways, the way 3D Warehouse
+    models often are: its end faces left as SketchUp's unnamed default
+    "material" (listed first) and its long sides a photo-textured walnut
   - optionally (sketchup2023=True) an unnamed group the way newer SketchUp
     exports it: one rail as two open meshes (sides + end faces painted
     another material), a post drawn touching it, and a closed dowel
@@ -173,19 +176,19 @@ def polygons_geometry(gid, verts, material_symbol):
 
 
 def build(unit_meter=0.0254, scale=1.0, up_axis='Z_UP', leg_as='polylist', transforms='matrix', namespace=NS,
-          sketchup2023=False, scaled=False, overlap=False, lap=False):
+          sketchup2023=False, scaled=False, overlap=False, lap=False, painted=False):
     """`scale` multiplies every length, for writing the same model in another
     unit (e.g. unit_meter=0.001, scale=25.4 for millimetres). `leg_as` picks
     the primitive the leg is written with ('polylist' or 'polygons');
     `transforms='trs'` places parts with <translate>/<rotate> instead of
     <matrix>; `namespace` may be the COLLADA 1.5 one or '' (none)."""
-    xml = _build(unit_meter, scale, up_axis, leg_as, transforms, sketchup2023, scaled, overlap, lap)
+    xml = _build(unit_meter, scale, up_axis, leg_as, transforms, sketchup2023, scaled, overlap, lap, painted)
     if namespace != NS:
         xml = xml.replace(f' xmlns="{NS}"', f' xmlns="{namespace}"' if namespace else '')
     return xml
 
 
-def _build(unit_meter, scale, up_axis, leg_as, transforms, sketchup2023=False, scaled=False, overlap=False, lap=False):
+def _build(unit_meter, scale, up_axis, leg_as, transforms, sketchup2023=False, scaled=False, overlap=False, lap=False, painted=False):
     if transforms == 'trs':
         place_board = lambda y: f'<translate>0 {6 * scale if y else 0} {20 * scale}</translate>'  # noqa: E731
         place_leg = f'<translate>{2 * scale} 0 0</translate><rotate>1 0 0 90</rotate>'
@@ -228,6 +231,40 @@ def _build(unit_meter, scale, up_axis, leg_as, transforms, sketchup2023=False, s
           <node name="Board">{matrix(translate(6 * scale, 0, 20 * scale))}
             <instance_geometry url="#geom_board">{bind()}</instance_geometry>
           </node>'''
+    if painted:
+        rail = sc(box_at((0, 0, 0), (24, 3, 1)))
+        geoms += f'''
+    <geometry id="geom_painted"><mesh>
+      <source id="geom_painted-pos"><float_array id="geom_painted-pos-arr" count="24">{floats(v for p in rail for v in p)}</float_array>
+        <technique_common><accessor source="#geom_painted-pos-arr" count="8" stride="3"/></technique_common></source>
+      <vertices id="geom_painted-vtx"><input semantic="POSITION" source="#geom_painted-pos"/></vertices>
+      <polylist count="2" material="Material2"><input semantic="VERTEX" source="#geom_painted-vtx" offset="0"/>
+        <vcount>4 4</vcount><p>{' '.join(str(i) for q in ENDS_X for i in q)}</p></polylist>
+      <polylist count="4" material="Material3"><input semantic="VERTEX" source="#geom_painted-vtx" offset="0"/>
+        <vcount>4 4 4 4</vcount><p>{' '.join(str(i) for q in SIDES_X for i in q)}</p></polylist>
+    </mesh></geometry>'''
+        scaled_node += f'''
+          <node name="Painted_rail">{matrix(translate(0, -20 * scale, 20 * scale))}
+            <instance_geometry url="#geom_painted"><bind_material><technique_common>
+              <instance_material symbol="Material2" target="#ID_default"/>
+              <instance_material symbol="Material3" target="#ID_walnut"/>
+            </technique_common></bind_material></instance_geometry>
+          </node>'''
+    painted_lib = '''
+    <effect id="eff_plain"><profile_COMMON><technique sid="common"><lambert>
+      <diffuse><color>1 1 1 1</color></diffuse></lambert></technique></profile_COMMON></effect>
+    <effect id="eff_walnut"><profile_COMMON>
+      <newparam sid="walnut-surface"><surface type="2D"><init_from>ID_walnut_img</init_from></surface></newparam>
+      <newparam sid="walnut-sampler"><sampler2D><source>walnut-surface</source></sampler2D></newparam>
+      <technique sid="common"><lambert><diffuse><texture texture="walnut-sampler" texcoord="UVSET0"/></diffuse></lambert></technique>
+    </profile_COMMON></effect>''' if painted else ''
+    painted_mats = '''
+    <material id="ID_default" name="material"><instance_effect url="#eff_plain"/></material>
+    <material id="ID_walnut" name="Walnut_-_Long_Grain"><instance_effect url="#eff_walnut"/></material>''' if painted else ''
+    painted_imgs = '''
+  <library_images>
+    <image id="ID_walnut_img"><init_from>model/Walnut_-_Long_Grain.jpg</init_from></image>
+  </library_images>''' if painted else ''
     geoms += extra_geoms
     return f'''<?xml version="1.0" encoding="utf-8"?>
 <COLLADA xmlns="{NS}" version="1.4.1">
@@ -236,12 +273,12 @@ def _build(unit_meter, scale, up_axis, leg_as, transforms, sketchup2023=False, s
     <effect id="eff_wood"><profile_COMMON><technique sid="common"><lambert>
       <diffuse><color>0.9 0.7 0.5 1</color></diffuse></lambert></technique></profile_COMMON></effect>
     <effect id="eff_edge"><profile_COMMON><technique sid="common"><lambert>
-      <diffuse><color>0 0 0 1</color></diffuse></lambert></technique></profile_COMMON></effect>
-  </library_effects>
+      <diffuse><color>0 0 0 1</color></diffuse></lambert></technique></profile_COMMON></effect>{painted_lib}
+  </library_effects>{painted_imgs}
   <library_materials>
     <material id="ID_wood" name="Wood"><instance_effect url="#eff_wood"/></material>
     <material id="ID_edge" name="edge_color000255"><instance_effect url="#eff_edge"/></material>
-    <material id="ID_endgrain" name="Wood_End_Grain"><instance_effect url="#eff_wood"/></material>
+    <material id="ID_endgrain" name="Wood_End_Grain"><instance_effect url="#eff_wood"/></material>{painted_mats}
   </library_materials>
   <library_geometries>{geoms}
   </library_geometries>

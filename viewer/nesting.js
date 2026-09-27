@@ -96,7 +96,18 @@ export function boardYield(board) {
 // Expand cut-list rows into individual pieces grouped by material + rough
 // thickness: { key, material, thickness: {label, inches}, pieces: [...] }.
 // `roughFor(row)` returns the row's rough-stock size (see format.js roughStock).
-export function piecesByStock(rows, roughFor) {
+// A part much wider than your boards (a table top) is laid out as the strips
+// you'd glue it up from: as few as fit your board width, each 1/4" wider than
+// its share for jointing the glue joints. Only when it's clearly too wide -
+// a part just over the width says "buy a wider board" instead.
+export const GLUE_JOINT_ALLOWANCE = 0.25;
+export function glueUpStrips(width, maxWidth) {
+  if (!(maxWidth > GLUE_JOINT_ALLOWANCE * 4) || width <= Math.max(maxWidth * 1.25, maxWidth + 2)) return null;
+  const n = Math.ceil(width / (maxWidth - GLUE_JOINT_ALLOWANCE));
+  return { n, width: width / n + GLUE_JOINT_ALLOWANCE };
+}
+
+export function piecesByStock(rows, roughFor, { maxWidth = 0 } = {}) {
   const groups = new Map();
   rows.forEach((row) => {
     const rough = roughFor(row);
@@ -105,11 +116,19 @@ export function piecesByStock(rows, roughFor) {
     if (!groups.has(key)) {
       groups.set(key, { key, material: row.materialLabel, thicknessLabel: rough.thicknessLabel, thickness: rough.thickness, pieces: [] });
     }
+    const label = row.letter ? `${row.letter} ${row.name}` : row.name;
+    const glue = glueUpStrips(rough.width, maxWidth);
     for (let i = 0; i < row.count; i++) {
-      groups.get(key).pieces.push({
-        id: `${row.key}#${i}`, rowKey: row.key, label: row.letter ? `${row.letter} ${row.name}` : row.name,
-        length: rough.length, width: rough.width,
-      });
+      if (glue) {
+        for (let k = 0; k < glue.n; k++) {
+          groups.get(key).pieces.push({
+            id: `${row.key}#${i}.${k}`, rowKey: row.key, label: `${label} (strip ${k + 1}/${glue.n})`,
+            length: rough.length, width: glue.width, glueUp: true,
+          });
+        }
+        continue;
+      }
+      groups.get(key).pieces.push({ id: `${row.key}#${i}`, rowKey: row.key, label, length: rough.length, width: rough.width });
     }
   });
   // thinnest stock first, the order you'd list it on a lumber order

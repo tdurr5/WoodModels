@@ -25,6 +25,7 @@ export async function importFile(file, onStatus = () => {}) {
   onStatus(`Reading ${file.name}…`);
   const bytes = new Uint8Array(await file.arrayBuffer());
   let xml = null;
+  let zipEntries = null;
   if (isZip(bytes)) {
     const entries = await unzip(bytes);
     const names = [...entries.keys()].filter((n) => !n.startsWith('__MACOSX/'));
@@ -34,12 +35,15 @@ export async function importFile(file, onStatus = () => {}) {
       const files = {};
       DATA_FILES.forEach((f) => { files[f] = bytesToText(entries.get(names.find((n) => base(n) === f))); });
       const cfg = JSON.parse(files['model.json']);
+      const images = woodImages(cfg, entries, names);
+      if (images) files.images = images;
       return { name: cfg.title || file.name, files, parts: JSON.parse(files['parts_report.json']).length };
     }
     const daes = names.filter((n) => n.toLowerCase().endsWith('.dae'));
     if (!daes.length) throw new Error(`No .dae model inside ${file.name}.`);
     daes.sort((a, b) => entries.get(b).length - entries.get(a).length); // the model, not a stray preview
     xml = bytesToText(entries.get(daes[0]));
+    zipEntries = { entries, names };
   } else {
     xml = bytesToText(bytes);
     if (!/<COLLADA[\s>]/.test(xml.slice(0, 4000))) throw new Error(`${file.name} isn't a COLLADA (.dae), KMZ or zip file.`);
@@ -55,7 +59,24 @@ export async function importFile(file, onStatus = () => {}) {
     if (!m.label && label !== name) m.label = label;
   });
   files['model.json'] = JSON.stringify(cfg, null, 2);
+  // the model's own photos of its woods (3D Warehouse zips carry them), shown on the parts
+  const images = zipEntries && woodImages(cfg, zipEntries.entries, zipEntries.names);
+  if (images) files.images = images;
   return { name: cfg.title, files, parts: stats.parts };
+}
+
+// { file name: bytes } of the wood photos model.json refers to, found in the zip
+function woodImages(cfg, entries, names) {
+  const wanted = new Set(Object.values(cfg.materials || {}).map((m) => m.texture?.image).filter(Boolean));
+  const images = {};
+  const base = (n) => n.split('/').pop();
+  const decode = (n) => { try { return decodeURIComponent(n); } catch { return n; } };
+  wanted.forEach((img) => {
+    const hit = names.find((n) => base(n) === img || decode(base(n)) === decode(img));
+    const bytes = hit && entries.get(hit);
+    if (bytes && bytes.length < 12e6) images[img] = bytes;
+  });
+  return Object.keys(images).length ? images : null;
 }
 
 // An uploaded model as a zip of its data files in a folder named after it
@@ -63,7 +84,10 @@ export async function importFile(file, onStatus = () => {}) {
 export async function modelZip(id) {
   const [files, meta] = await Promise.all([getModelFiles(id), getModelMeta(id)]);
   const slug = (meta?.name || 'model').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'model';
-  const bytes = zip(Object.fromEntries(DATA_FILES.map((f) => [`${slug}/${f}`, files[f]])));
+  const bytes = zip({
+    ...Object.fromEntries(DATA_FILES.map((f) => [`${slug}/${f}`, files[f]])),
+    ...Object.fromEntries(Object.entries(files.images || {}).map(([name, b]) => [`${slug}/${name}`, b])),
+  });
   return new File([bytes], `${slug}.zip`, { type: 'application/zip' });
 }
 
@@ -256,7 +280,7 @@ export function initLibrary({ current, onOpen, builtIn }) {
         <td class="num">${uses[m] || 0} pc</td>
         <td><select data-mat="${escapeHtml(m)}" data-initial="${escapeHtml(effectiveCategory(m, cfg.materials[m]))}">${CATEGORIES.map((c) => `<option${c === effectiveCategory(m, cfg.materials[m]) ? ' selected' : ''}>${c}</option>`).join('')}</select></td>
         <td><input data-label="${escapeHtml(m)}" value="${escapeHtml(cfg.materials[m].label || (m === '(none)' ? 'No material' : defaultMaterialLabel(m, cfg.materials[m])))}" /></td>
-        <td><select data-species="${escapeHtml(m)}"><option value="">${escapeHtml(SPECIES[speciesFor(cfg.materials[m].label, m)]?.name ? `Auto (${SPECIES[speciesFor(cfg.materials[m].label, m)].name})` : 'Auto (wide grain)')}</option><optgroup label="In the model's colour">${Object.entries(GRAINS).map(([k, g]) => `<option value="${k}"${cfg.materials[m].species === k ? ' selected' : ''}>${escapeHtml(g.name)}</option>`).join('')}</optgroup><optgroup label="Species">${Object.entries(SPECIES).map(([k, sp]) => `<option value="${k}"${cfg.materials[m].species === k ? ' selected' : ''}>${escapeHtml(sp.name)}</option>`).join('')}</optgroup></select></td></tr>`).join('')}
+        <td><select data-species="${escapeHtml(m)}"><option value="">${escapeHtml(cfg.materials[m].texture?.image ? 'The model\'s own photo' : SPECIES[speciesFor(cfg.materials[m].label, m)]?.name ? `Auto (${SPECIES[speciesFor(cfg.materials[m].label, m)].name})` : 'Auto (wide grain)')}</option><optgroup label="In the model's colour">${Object.entries(GRAINS).map(([k, g]) => `<option value="${k}"${cfg.materials[m].species === k ? ' selected' : ''}>${escapeHtml(g.name)}</option>`).join('')}</optgroup><optgroup label="Species">${Object.entries(SPECIES).map(([k, sp]) => `<option value="${k}"${cfg.materials[m].species === k ? ' selected' : ''}>${escapeHtml(sp.name)}</option>`).join('')}</optgroup></select></td></tr>`).join('')}
       </tbody></table>
       <p class="muted small">Only <b>Wood</b> parts go into rough stock, board feet, the cutting diagram and templates. Give materials the same name (e.g. all the oak textures "Red oak") to total them as one species.</p>`;
     setup.dataset.id = id;

@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { woodMaterial, addEndGrain, endMapOf, speciesFor, generateGrainUV } from './woodtex.js';
+import { woodMaterial, addEndGrain, endMapOf, speciesFor, generateGrainUV, photoWood, SPECIES } from './woodtex.js';
 import { classifyOverlaps as classifyOverlapsIn, singleSidedGeometry } from './autofix.js';
 import { formatLength, escapeHtml, toFraction, isCut, dimensionalSize } from './format.js';
 import { compoundAngle, describeAngle, round1, DEFAULT_AXIS_NAMES } from './angles.js';
@@ -17,12 +17,13 @@ import {
   normalizeEdits, withStatus, withName, withGroupName, withPieceStatus, withJoin, withSplit, withAutoFixes, joinKey,
 } from './edits.js';
 import { initMeasure } from './measure.js';
-import { initDiagramModal, computeLayouts, layoutsHTML, STOCK_DEFAULTS, shoppingText } from './diagram.js';
+import { initDiagramModal, computeLayouts, layoutsHTML, STOCK_DEFAULTS, shoppingText, setSpeciesLookup } from './diagram.js';
 import { initShare } from './share.js';
 import { buildTemplate } from './template.js';
 import { initLibrary, modelZip } from './library.js';
 import { getModelFiles, lastOpened, rememberOpened, putModelFile, addPhoto, listPhotos, deletePhoto } from './modelstore.js';
 import { obbFromDims, partsTouch, findOverlaps, applyJoins, endJoints } from './geometry.js';
+import { glueUpStrips } from './nesting.js';
 
 const $ = (id) => document.getElementById(id);
 const viewport = $('viewport');
@@ -187,6 +188,25 @@ const axisLabelsEl = $('axisLabels');
 const AXIS_COLORS = { Length: '#ff6b4a', Width: '#7ee08a', Thickness: '#6ab7ff' };
 
 // ---------- loading ----------
+// The wood photos a model comes with (3D Warehouse textures): kept with an
+// upload (files.images), or next to scene.obj for a model folder. A photo
+// that can't be read just leaves the generated grain.
+let woodPhotos = new Map();
+async function loadWoodPhotos(cfg, files) {
+  const out = new Map();
+  const wanted = [...new Set(Object.values(cfg.materials || {}).map((m) => m.texture?.image).filter(Boolean))];
+  await Promise.all(wanted.map(async (name) => {
+    try {
+      let blob = files.images?.[name] ? new Blob([files.images[name]]) : null;
+      if (!blob && !LOCAL_ID) {
+        const r = await fetch(MODEL_BASE + name.split('/').map(encodeURIComponent).join('/'));
+        if (r.ok) blob = await r.blob();
+      }
+      if (blob) out.set(name, photoWood(await createImageBitmap(blob), name));
+    } catch { /* not an image the browser can read */ }
+  }));
+  return out;
+}
 // Which model to show:
 //   ?model=local:<id>          an uploaded model saved in this browser (library.js)
 //   ?model=models/workbench/   another model's data files in a folder next to this page
@@ -254,6 +274,11 @@ async function init() {
     onShare: () => share.open(),
   });
   diagram = initDiagramModal({ rows, onSelectRow: (r) => selectRow(r), finishArea: () => (model ? woodSurfaceArea() : 0) });
+  // typical prices follow the species picked in Set up (materials are grouped by their label)
+  setSpeciesLookup((label) => {
+    const hit = Object.entries(cfg.materials || {}).find(([name, m]) => (m.label || name.replace(/^_+/, '')) === label && m.species);
+    return hit ? hit[1].species : null;
+  });
   buildViewButtons();
 
   $('loading').textContent = 'Building 3D model…';
@@ -262,6 +287,7 @@ async function init() {
   mtl.preload();
   model = new OBJLoader().setMaterials(mtl).parse(files['scene.obj']);
   scene.add(model);
+  woodPhotos = await loadWoodPhotos(cfg, files);
   prepareMeshes(materialNames);
   if (classifyOverlaps()) refreshRows();
   frameBox(modelBox, config.views?.iso?.dir || [0.7, 0.5, 0.7], false);
@@ -269,7 +295,7 @@ async function init() {
   rememberOpened(LOCAL_ID ? `local:${LOCAL_ID}` : MODEL_REF);
   applySettingsToScene();
   announceAutoFixes();
-  renderModelCheck();
+  scheduleModelCheck();
   selectFromHash();
   if (new URLSearchParams(location.search).has('setup') && LOCAL_ID) {
     history.replaceState(null, '', `${location.pathname}?model=${encodeURIComponent(MODEL_REF)}${location.hash}`); // a reload shouldn't reopen it
@@ -469,7 +495,7 @@ function refreshRows() {
     } else clearSelection();
   }
   if (build) refreshBuild();
-  renderModelCheck();
+  scheduleModelCheck();
 }
 
 // Parts drawn in 3D: not deleted, and set-aside ones only when shown.
@@ -506,7 +532,9 @@ function prepareMeshes(materialNames) {
       // wood: the species set in Set up, else guessed from the material's names
       const seed = [...child.name].reduce((h, ch) => (Math.imul(h, 31) + ch.charCodeAt(0)) | 0, 17);
       generateGrainUV(child.geometry, 6, objectDims[child.name], seed);
-      child.material = woodMaterial(mc.species || speciesFor(mc.label, realName), mc.texture);
+      // the model's own photo of the wood, unless you picked how it looks in Set up
+      const photo = !mc.species && woodPhotos.get(mc.texture?.image);
+      child.material = woodMaterial(mc.species || speciesFor(mc.label, realName), mc.texture, photo || null);
       child.material.color.multiplyScalar(0.9 + 0.14 * (((seed >>> 0) % 97) / 97)); // no two boards quite the same shade
     } else {
       child.material = child.material.clone(); // own copy so clipping/wireframe flags are per mesh
@@ -741,7 +769,7 @@ onSettingsChange((s, patch) => {
   if ('units' in patch || 'showRough' in patch || 'allowance' in patch || 'cut' in patch || 'hiddenCategories' in patch || 'userNotes' in patch || 'showAside' in patch) renderRows();
   if ('showAside' in patch && model) updateModelBox();
   if ('units' in patch && model && overlaps.length) refreshRows(); // overlap notes are written in the units shown
-  else if (('units' in patch || 'stock' in patch) && model) renderModelCheck();
+  else if (('units' in patch || 'stock' in patch) && model) scheduleModelCheck();
   // typing a note mustn't rebuild the card it's being typed into
   if (Object.keys(patch).every((k) => k === 'userNotes')) return;
   if ('hiddenCategories' in patch && current && settings().hiddenCategories.includes(current.row.category)) clearSelection();
@@ -906,13 +934,18 @@ function disposeOverlays() {
   if (!current) return;
   if (current.gizmo) {
     scene.remove(current.gizmo);
-    current.gizmo.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+    current.gizmo.traverse((o) => {
+      if (o.userData.shared) return; // an x-ray ghost: the part's own geometry, a shared material
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) o.material.dispose();
+    });
     current.gizmo = null;
   }
   axisLabelsEl.innerHTML = '';
   current.labels = [];
 }
 
+const xrayMaterial = new THREE.MeshBasicMaterial({ color: 0xff7a45, transparent: true, opacity: 0.28, depthTest: false, depthWrite: false });
 function buildSelectionOverlays() {
   requestRender();
   disposeOverlays();
@@ -929,6 +962,16 @@ function buildSelectionOverlays() {
   // not always their holes and cuts, and a named part can differ slightly);
   // a measurement that differs from the first piece's is flagged. Show the
   // lean on each, since mirrored pairs lean in opposite directions.
+  // x-ray: the part shows faintly through whatever is in front of it (a block
+  // set into a top, a tenon inside a leg), following it as it moves (explode)
+  current.meshes.forEach((m) => {
+    const ghost = new THREE.Mesh(m.geometry, xrayMaterial);
+    ghost.matrixAutoUpdate = false;
+    ghost.renderOrder = 10;
+    ghost.userData.shared = true;
+    ghost.onBeforeRender = () => { ghost.matrix.copy(m.matrixWorld); ghost.matrixWorld.copy(m.matrixWorld); };
+    gizmo.add(ghost);
+  });
   const pieces = rowPieces(current.row);
   const first = objectDims[pieces[0]?.key];
   // (hardware with a hand-written size is stored as one mesh per facet: not versions)
@@ -1219,7 +1262,7 @@ function joineryText(jy, link, units) {
   const size = (j) => `${f(Math.min(j.width, j.thick))} × ${f(Math.max(j.width, j.thick))}`;
   const out = {};
   if (jy.cuts.length) {
-    const texts = jy.cuts.map((j) => `${j.kind === 'tenon' ? `tenon ${size(j)}, ${f(j.depth)} long` : `goes ${f(j.depth)} in`}${j.through ? ' (through)' : ''} into ${link(j.row)}`);
+    const texts = jy.cuts.map((j) => `${j.kind === 'tenon' ? `tenon ${size(j)}, ${f(j.depth)} long` : `goes ${f(j.depth)} in`}${j.through ? ` (through${j.proud ? `, ${f(j.proud)} proud` : ''})` : ''} into ${link(j.row)}`);
     const both = texts.length === 2 && texts[0] === texts[1];
     out.ends = `${both ? `${texts[0]}, each end` : texts.join('; ')}. ${jy.loose
       ? 'It sits almost wholly inside the parts it joins, like a loose tenon or dowel.'
@@ -1262,8 +1305,17 @@ function joineryPrintHtml() {
   return lines.length ? `<h2>Joinery</h2><table class="ps-table ps-joinery"><tbody>${lines.join('')}</tbody></table>` : '';
 }
 
-// "2×4" when a wood part is a dimensional-lumber size (buy it, no milling)
-const stdSize = (row) => (row.category === 'Wood' && !row.customDims && row.dims?.length === 3 ? dimensionalSize(row.dims[2], row.dims[1]) : null);
+// "2×4" when a wood part is a dimensional-lumber size (buy it, no milling) -
+// construction lumber is softwood: a 3/4" x 3-1/2" walnut rail isn't a 1x4
+const SOFTWOODS = new Set(['pine', 'larch', 'fir', 'cedar']);
+function stdSize(row) {
+  if (row.category !== 'Wood' || row.customDims || row.dims?.length !== 3) return null;
+  const mc = config.materials?.[row.material] || {};
+  if (mc.species === 'hardwood') return null;
+  const sp = SPECIES[mc.species] ? mc.species : speciesFor(row.materialLabel, row.material);
+  if (sp && !SOFTWOODS.has(sp)) return null;
+  return dimensionalSize(row.dims[2], row.dims[1]);
+}
 
 // ---------- model check: things in a downloaded model worth a look ----------
 // Wood that touches nothing (a leftover, or drawn in the wrong place), parts
@@ -1281,12 +1333,26 @@ function modelCheckItems() {
       items.push({ kind: 'Floating', row: r, text: `touches no other part${r.count > 1 ? ' (none of its pieces)' : ''}: a leftover, or drawn in the wrong place?` });
     }
     if (r.overlapPairs?.length) items.push({ kind: 'Overlap', row: r, text: 'has a piece overlapping another: a copy, or one piece drawn as two (see its card).' });
-    if (r.category === 'Wood' && r.dims[1] > stockW + 1 / 32) {
-      const n = Math.ceil(r.dims[1] / stockW);
-      items.push({ kind: 'Glue-up', row: r, text: `is ${f(r.dims[1])} wide: glue it up from ${n} boards of your ${f(stockW)} stock${r.count > 1 ? `, for each of ${r.count}` : ''}.`, info: true });
+    const roughW = r.category === 'Wood' ? (roughFor(r)?.width || r.dims[1]) : 0;
+    if (roughW && r.dims[1] > stockW + 1 / 32) {
+      const glue = glueUpStrips(roughW, stockW);
+      items.push({ kind: 'Glue-up', row: r, info: true, text: glue
+        ? `is ${f(r.dims[1])} wide: glue it up from ${glue.n} strips of your ${f(stockW)} boards${r.count > 1 ? `, for each of ${r.count}` : ''} (laid out that way in the cutting diagram).`
+        : `is ${f(r.dims[1])} wide, just over your ${f(stockW)} boards: buy a wider board, or glue it up from 2.` });
     }
   });
   return items;
+}
+// It measures what touches what, all parts against all: once the model is on
+// screen, not before (a big model on a phone). The results are cached, so
+// after an edit it's quick.
+let checkPending = false;
+function scheduleModelCheck() {
+  if (checkPending || !$('clCheck')) return;
+  checkPending = true;
+  if (!$('clCheck').textContent) $('clCheck').innerHTML = '<div class="model-check ok">Model check: checking…</div>';
+  const later = window.requestIdleCallback ? (f) => window.requestIdleCallback(f, { timeout: 1500 }) : (f) => setTimeout(f, 200);
+  later(() => { checkPending = false; renderModelCheck(); });
 }
 function renderModelCheck() {
   const el = $('clCheck');
@@ -1493,6 +1559,15 @@ function exitBuild() {
   frameBox(focusBox(), null);
 }
 
+// A small part (a key, a dog block) framed on its own fills the screen with
+// no sign of where it goes: frame at least a foot around it.
+const CONTEXT_SIZE = 12;
+function withContext(box) {
+  const size = box.getSize(new THREE.Vector3());
+  const grow = new THREE.Vector3(...[size.x, size.y, size.z].map((d) => Math.max(0, CONTEXT_SIZE - d) / 2));
+  return box.clone().expandByVector(grow);
+}
+
 function stepBuild(delta) {
   if (!build) return;
   build.i = Math.min(build.order.length - 1, Math.max(0, build.i + delta));
@@ -1507,7 +1582,7 @@ function showStep(frame) {
   // frame once the panel is up: its height changes with the step
   updateFreeArea();
   const box = step.assemble ? groupBox(step.group) : current?.box;
-  if (frame && box && !box.isEmpty()) frameBox(box, null);
+  if (frame && box && !box.isEmpty()) frameBox(withContext(box), null);
 }
 
 function partStepHtml(row, units) {
@@ -2232,7 +2307,8 @@ window.addEventListener('keydown', (e) => {
     // removes the last measuring point first; otherwise deletes the selected part
     if (measure.undo()) e.preventDefault();
     else if (current && k === 'Delete') { setPartStatus([current.row], 'deleted'); e.preventDefault(); }
-    else if (groupSel !== null && k === 'Delete') { setPartStatus(allPartRows.filter((r) => r.top_group === groupSel), 'deleted'); e.preventDefault(); }
+    // (not in build mode, where an Assemble step shows a whole sub-assembly)
+    else if (groupSel !== null && k === 'Delete' && !build) { setPartStatus(allPartRows.filter((r) => r.top_group === groupSel), 'deleted'); e.preventDefault(); }
   } else if (k === 'F2' && current) { renameSelected(); e.preventDefault(); }
   else if (k === '/') { focusSearch(); e.preventDefault(); }
   else if (k === '?') toggleHelp();

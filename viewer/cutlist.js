@@ -38,7 +38,10 @@ export function prepareRows(rawRows, config, edits = config.edits) {
   });
   const rows = split.map((r) => {
     // parts with no material use the model's "(none)" setting, if it has one
-    const matName = (r.materials || []).find((m) => mats[m]) || (r.materials || [])[0] || (mats['(none)'] ? '(none)' : '');
+    // its material: a named one before SketchUp's unnamed default for unpainted faces ("material")
+    const listed = (r.materials || []).filter((m) => mats[m]);
+    const matName = (mats[r.material] ? r.material : null) // the one the parser showed it with
+      || listed.find((m) => !/^material(_\d+)?$/.test(m)) || listed[0] || (r.materials || [])[0] || (mats['(none)'] ? '(none)' : '');
     let category = (mats[matName] && mats[matName].category) || 'Other';
     // plywood, MDF, a part named "1/8 Masonite"...: sheet goods, unless chosen otherwise in Set up
     if ((category === 'Wood' || category === 'Other') && !mats[matName]?.userCategory

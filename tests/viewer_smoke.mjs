@@ -133,6 +133,7 @@ try {
   await page.screenshot({ path: path.join(OUT, '01-loaded.png') });
   await page.locator('#introClose').click();
   check(!(await page.locator('#introTip').isVisible()), 'tips can be dismissed');
+  await page.waitForFunction(() => !/checking/.test(document.getElementById('clCheck').textContent), null, { timeout: 15000 }).catch(() => {});
   check(/✓ Model check/.test(await page.locator('#clCheck').innerText()), 'the model check finds nothing wrong with the built-in model');
   await page.waitForTimeout(1500);
   const frames = await page.evaluate(async () => {
@@ -655,6 +656,59 @@ try {
   }
 }
 
+// ---------- a model's own wood photos ----------
+{
+  console.log('wood photos');
+  const tmp = fs.mkdtempSync(path.join(OUT, 'photos-'));
+  const zipPath = path.join(tmp, 'Painted Bench.zip');
+  // a 3D Warehouse zip whose rail is painted with a walnut photo (and the default on its ends)
+  execFileSync('python3', ['-c', `
+import sys, zipfile, zlib, struct
+sys.path.insert(0, ${JSON.stringify(path.join(ROOT, 'tests'))})
+import make_fixture
+def png(w, h):
+    raw = b''.join(b'\\x00' + b''.join(bytes([90 + (x * 7) % 40, 55, 35]) for x in range(w)) for _ in range(h))
+    chunk = lambda t, d: struct.pack('>I', len(d)) + t + d + struct.pack('>I', zlib.crc32(t + d) & 0xffffffff)
+    return b'\\x89PNG\\r\\n\\x1a\\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b'')
+with zipfile.ZipFile(${JSON.stringify(zipPath)}, 'w', zipfile.ZIP_DEFLATED) as z:
+    z.writestr('model.dae', make_fixture.build(painted=True))
+    z.writestr('model/Walnut_-_Long_Grain.jpg', png(24, 48))
+`]);
+  const b2 = await chromium.launch(launchOpts);
+  const ctx = await b2.newContext({ viewport: { width: 1200, height: 800 }, acceptDownloads: true });
+  const p2 = await ctx.newPage();
+  const errs = [];
+  p2.on('pageerror', (e) => errs.push(e.message));
+  const loaded = () => p2.waitForFunction(() => document.getElementById('loading').style.display === 'none', null, { timeout: 30000 });
+  try {
+    await p2.goto(base);
+    await loaded();
+    await p2.locator('#clLibrary').click();
+    await p2.locator('#libFile').setInputFiles(zipPath);
+    await p2.locator('#setup').waitFor({ state: 'visible', timeout: 30000 });
+    check(/The model's own photo/.test(await p2.locator('#setup select[data-species="Walnut_-_Long_Grain"] option').first().innerText()), 'Set up offers the model\'s own photo of the wood');
+    await Promise.all([p2.waitForEvent('load'), p2.locator('#setup .setup-save').click()]);
+    await loaded();
+    const shown = await p2.evaluate(() => {
+      const m = window.__viewer.meshesOf('Painted rail')[0] || window.__viewer.meshesOf('Walnut')[0];
+      const row = window.__viewer.rows().find((r) => r.name === 'Painted rail');
+      return { w: m?.material.map?.image?.width, h: m?.material.map?.image?.height, category: row?.category };
+    });
+    check(shown.w === 24 && shown.h === 48, `a part painted with a photo shows that photo, not the default listed first (${shown.w}x${shown.h})`);
+    check(shown.category === 'Wood', `and counts as wood in the cut list (${shown.category})`);
+    await p2.locator('#clShare').click();
+    const [sent] = await Promise.all([p2.waitForEvent('download', { timeout: 15000 }), p2.locator('#share .share-model').click()]);
+    const saved = path.join(tmp, 'saved.zip');
+    await sent.saveAs(saved);
+    const listed = execFileSync('python3', ['-c', `import zipfile; print(','.join(zipfile.ZipFile(${JSON.stringify(saved)}).namelist()))`]).toString();
+    check(/Walnut_-_Long_Grain\.jpg/.test(listed), 'the photo travels with the model when it\'s sent or downloaded');
+    check(errs.length === 0, `no page errors with wood photos (${errs.join('; ')})`);
+  } finally {
+    await b2.close();
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
 // ---------- uploading models (3D Warehouse Collada zip / KMZ / .dae) ----------
 {
   console.log('upload a model');
@@ -721,6 +775,7 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     check(JSON.stringify(front) === '[0,0,1]', `setup saves which way is front (${front})`);
     await p2.screenshot({ path: path.join(OUT, '41-uploaded.png') });
     // (the test model's parts are spaced apart, not assembled)
+    await p2.waitForFunction(() => !/checking/.test(document.getElementById('clCheck').textContent), null, { timeout: 15000 }).catch(() => {});
     const mc = await p2.locator('#clCheck').innerText();
     check(/Model check: 2 things to look at/.test(mc), `the model check flags parts that touch nothing (${mc.split('\n')[0]})`);
     await p2.locator('#clCheck summary').click();
@@ -1038,6 +1093,10 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     check(/Assemble Jaw Lower Assy[\s\S]*Parts:.*Jaw Lower[\s\S]*Dry-fit/.test(asm), 'the assemble step lists its parts and says how to glue it up');
     const lit = await p2.evaluate(() => { const v = window.__viewer; return v.meshesOf('Jaw Support').every((m) => m.material.emissiveIntensity > 0); });
     check(lit, 'and highlights the whole sub-assembly');
+    const stepsHere = await p2.locator('#buildPanel .bp-steps option').count();
+    await p2.keyboard.press('Delete');
+    await p2.waitForTimeout(300);
+    check(await p2.locator('#buildPanel .bp-steps option').count() === stepsHere, 'Delete on an assemble step doesn\'t delete the whole sub-assembly');
     // a photo of the step, kept with the model
     const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFklEQVQImWP4z8DwnwEIGBgYGBgAAAgOAQFSSSQjAAAAAElFTkSuQmCC', 'base64');
     await p2.locator('#buildPanel .bp-photo-add input').setInputFiles({ name: 'step.png', mimeType: 'image/png', buffer: png });

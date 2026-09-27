@@ -41,6 +41,12 @@ class TestPrices(unittest.TestCase):
         self.assertAlmostEqual(data['species']['pine']['low'], round(up.BASELINE['pine'][0] * 1.05, 2))
         self.assertEqual(data['indexes']['hardwood']['asOf'], '2026-01')
 
+    def test_a_series_without_the_base_month_is_not_used(self):
+        recent = [('2027-01', 360.0), ('2028-01', 380.0)]  # e.g. a source keeping only recent years
+        self.assertEqual(up.factor_since(recent, up.BASE_MONTH), (None, None))
+        data = up.build({'hardwood': recent, 'softwood': up.parse_bls_json(BLS)})
+        self.assertIsNone(data['indexes']['hardwood']['asOf'])  # main() then leaves prices.json alone
+
     def test_no_data_keeps_baseline(self):
         data = up.build({'hardwood': [], 'softwood': []})
         self.assertEqual(data['indexes']['hardwood']['factor'], 1.0)

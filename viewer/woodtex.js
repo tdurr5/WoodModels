@@ -182,13 +182,69 @@ function texturesFor(key, sp) {
 // colours of a model.json texture entry with a GRAINS style ('hardwood' /
 // 'softwood'; wide grain if none). Faces marked as end grain (the
 // geometry's `endGrain` attribute, see app.js generateGrainUV) show endMap.
-export function woodMaterial(species, fallbackTexture = {}) {
+export function woodMaterial(species, fallbackTexture = {}, photo = null) {
   const sp = SPECIES[species] || paletteSpecies(fallbackTexture, species);
+  if (photo) {
+    // the model's own photo on the faces, and end grain drawn in its colours
+    const ends = { ...(SPECIES[species] || GRAINS.hardwood), early: photo.early, late: photo.late };
+    const key = `photo:${photo.id}`;
+    if (!cache.has(key)) cache.set(key, { endMap: endGrain(ends, [...key].reduce((h, c) => (Math.imul(h, 31) + c.charCodeAt(0)) | 0, 7)) });
+    const mat = new THREE.MeshStandardMaterial({ map: photo.map, bumpMap: photo.map, bumpScale: 0.25, roughness: ends.rough ?? 0.5, metalness: 0, envMapIntensity: 0.3 });
+    addEndGrain(mat, cache.get(key).endMap);
+    return mat;
+  }
   const key = SPECIES[species] ? species : `palette:${GRAINS[species] ? species : 'softwood'}:${sp.early}:${sp.late}`;
   const { map, bumpMap, endMap } = texturesFor(key, sp);
   const mat = new THREE.MeshStandardMaterial({ map, bumpMap, bumpScale: 0.6, roughness: sp.rough, metalness: 0, envMapIntensity: 0.3 });
   addEndGrain(mat, endMap);
   return mat;
+}
+
+// A photo of wood (a model's own texture, e.g. from 3D Warehouse) made ready
+// for boards: turned so its grain runs along V like the generated textures
+// (generateGrainUV), sized to keep its proportions - about 8" of wood across
+// the grain - and its light and dark tones for the end grain.
+// img: ImageBitmap or image. id: a name for it (caching).
+export const PHOTO_ACROSS = 8; // inches of wood across the grain in one photo
+export function photoWood(img, id) {
+  const S = 96;
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.drawImage(img, 0, 0, S, S);
+  const px = g.getImageData(0, 0, S, S).data;
+  const lum = (i) => 0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2];
+  // grain runs the way the picture changes least
+  let gx = 0, gy = 0;
+  for (let y = 0; y < S - 1; y++) {
+    for (let x = 0; x < S - 1; x++) {
+      const i = (y * S + x) * 4;
+      gx += Math.abs(lum(i + 4) - lum(i));
+      gy += Math.abs(lum(i + S * 4) - lum(i));
+    }
+  }
+  const vertical = gy <= gx;
+  // light (earlywood) and dark (latewood) tones: the brighter and darker thirds
+  const all = [];
+  for (let i = 0; i < px.length; i += 4) all.push([lum(i), px[i], px[i + 1], px[i + 2]]);
+  all.sort((a, b) => a[0] - b[0]);
+  const avg = (from, to) => {
+    const part = all.slice(Math.floor(all.length * from), Math.floor(all.length * to));
+    return `#${[1, 2, 3].map((k) => Math.round(part.reduce((a, p) => a + p[k], 0) / part.length).toString(16).padStart(2, '0')).join('')}`;
+  };
+  const tex = new THREE.Texture(img);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  tex.flipY = false; // ImageBitmap can't be flipped; wood doesn't mind
+  const w = img.width, h = img.height;
+  // UVs: u = 1 per 6" across the grain, v = 1 per 24" along it (generateGrainUV)
+  const across = vertical ? w : h, along = vertical ? h : w;
+  const perAlong = 24 / (PHOTO_ACROSS * along / across), perAcross = 6 / PHOTO_ACROSS;
+  if (vertical) tex.repeat.set(perAcross, perAlong);
+  else { tex.center.set(0.5, 0.5); tex.rotation = Math.PI / 2; tex.repeat.set(perAlong, perAcross); }
+  tex.needsUpdate = true;
+  return { id, map: tex, early: avg(0.6, 0.95), late: avg(0.05, 0.3), vertical };
 }
 
 // Material.clone() doesn't carry shader hooks: call addEndGrain(clone,

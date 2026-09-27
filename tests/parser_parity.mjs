@@ -27,6 +27,7 @@ const VARIANTS = {
   no_namespace: { namespace: '' },
   sketchup2023: { sketchup2023: 1 },
   scaled_instance: { scaled: 1 },
+  painted: { painted: 1 },
 };
 // Optional: PARITY_SAMPLES=/path/to/folder also compares every .dae in it
 // (e.g. real 3D Warehouse / other exporters' files, which aren't in the repo).
