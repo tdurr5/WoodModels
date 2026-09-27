@@ -290,6 +290,18 @@ body.dragging #dropHint { display: flex; }
   #bottombar input[type=range] { width: 56px; min-width: 0; }
   #dimCard { width: auto; left: 8px; right: 8px; bottom: 50px; max-height: 48%; overflow: auto; }
   #toast { bottom: 50px; }
+  .cd-head { gap: 8px 12px; }
+  .cd-prices { justify-content: flex-start; gap: 8px 12px; }
+}
+/* a phone held sideways: model and cut list side by side, not a sliver of
+   model over the list */
+@media (orientation: landscape) and (max-height: 500px) {
+  #app { flex-direction: row; }
+  #viewport { flex: 1 1 auto; }
+  #sidebar { width: 42%; max-width: 390px; flex: none; border-top: none; border-left: 1px solid var(--line); }
+  #toolbar { top: 6px; }
+  #measureHint { top: 44px; }
+  #dimCard { max-height: calc(100% - 100px); }
 }
 /* touch screens: no double-tap zoom or tap delay on controls, bigger targets */
 html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
@@ -379,7 +391,7 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
 }
 body.build-mode #dimCard, body.build-mode #bottombar, body.build-mode #introTip { display: none !important; }
 .bp-top { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-2); }
-.bp-steps { max-width: 55%; background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 5px; padding: 3px 4px; font-weight: 600; }
+.bp-steps { max-width: 55%; min-width: 0; flex: 1 1 auto; background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 5px; padding: 3px 4px; font-weight: 600; }
 .bp-order { white-space: nowrap; }
 .bp-of { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bp-progress { height: 4px; background: var(--track); border-radius: 2px; margin: 8px 0 6px; overflow: hidden; }
@@ -404,6 +416,15 @@ body.build-mode #dimCard, body.build-mode #bottombar, body.build-mode #introTip 
   .bp-of { display: none; }
   #buildPanel { left: 8px; right: 8px; width: auto; bottom: 8px; max-height: 58%; }
   .bp-size { font-size: 24px; }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  /* sideways: the step down the right-hand side, the model to its left */
+  #buildPanel { left: auto; right: 8px; top: 8px; bottom: 8px; width: min(46%, 400px); max-height: none; padding: 8px 12px; }
+  .bp-top { flex-wrap: wrap; }
+  .bp-steps { max-width: 100%; flex: 1 1 100%; }
+  .bp-size { font-size: 20px; }
+  .bp-name { font-size: 17px; }
+  .bp-nav button { padding: 8px; }
 }
 @media print { #buildPanel { display: none !important; } }
 .cd-other { margin: 4px 0; } .cd-other summary { cursor: pointer; font-weight: 600; } .cd-other ul { margin-top: 4px; }

@@ -69,6 +69,14 @@ async function selectPart(name) {
   await page.waitForTimeout(500);
 }
 
+// Runs in the page: where the selected part's middle is on screen.
+function partScreenCenter() {
+  const { THREE, camera, current } = window.__viewer;
+  const c = current.box.getCenter(new THREE.Vector3()).project(camera);
+  const r = document.querySelector('#viewport canvas').getBoundingClientRect();
+  return { x: r.left + (c.x * 0.5 + 0.5) * r.width, y: r.top + (0.5 - c.y * 0.5) * r.height };
+}
+
 // Runs in the page: screen points on `n` visible faces of the selected part
 // that have clearly different normals.
 function visibleFacePoints(n) {
@@ -876,7 +884,7 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     // one piece of a part with several
     await p2.locator('#clList .row', { hasText: 'Bench' }).first().click();
     await p2.waitForTimeout(300);
-    const benchLabels = await p2.locator('#axisLabels .axisLabel').allInnerTexts();
+    const benchLabels = await p2.locator('#axisLabels .axisLabel').allTextContents();
     check(benchLabels.filter((t) => t === '46-3/8"').length === 2, `every piece of a part gets its own dimensions (${benchLabels.join(' ')})`);
     const [pt] = await p2.evaluate(visibleFacePoints, 1);
     await p2.mouse.click(pt.x, pt.y);
@@ -939,6 +947,19 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     const firstCut = await p2.locator('#buildPanel .bp-steps option').first().innerText();
     check(!/Leg Rear/.test(firstCut), `cutting order is different (${firstCut})`);
     await p2.screenshot({ path: path.join(OUT, '45-build-mode.png') });
+    // edits while building: the steps follow
+    const before = await p2.locator('#buildPanel .bp-steps option').count();
+    const gone = await stepName();
+    await p2.keyboard.press('Delete');
+    await p2.waitForTimeout(300);
+    const opts = await p2.locator('#buildPanel .bp-steps option').allInnerTexts();
+    check(opts.length === before - 1 && !opts.some((t) => t.includes(gone)) && await stepName() !== gone, `deleting the step's part drops its step and moves on (${await stepName()})`);
+    await p2.keyboard.press('Control+z');
+    await p2.waitForTimeout(300);
+    check(await p2.locator('#buildPanel .bp-steps option').count() === before, 'undo puts the step back');
+    await p2.locator('#clDiagram').click();
+    await p2.keyboard.press('Escape');
+    check(!(await p2.locator('#diagram').isVisible()) && await p2.locator('#buildPanel').isVisible(), 'Esc closes a dialog opened in build mode, not build mode');
     check(errs.length === 0, `no page errors in build mode (${errs.join('; ')})`);
   } finally {
     await b2.close();
@@ -977,16 +998,52 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     await p2.touchscreen.tap(q.x, q.y);
     await p2.waitForTimeout(300);
     check((await p2.locator('#dimCard .pn-text').innerText().catch(() => '')) === 'Bench', 'tapping a part selects it');
+    const stacked = await p2.evaluate(() => {
+      const shown = [...document.querySelectorAll('#axisLabels .axisLabel')].filter((e) => e.style.display !== 'none' && e.style.visibility !== 'hidden').map((e) => ({ t: e.textContent, r: e.getBoundingClientRect() }));
+      return shown.filter((a, i) => shown.some((b, j) => j > i && a.t === b.t && a.r.left < b.r.right && b.r.left < a.r.right && a.r.top < b.r.bottom && b.r.top < a.r.bottom)).length;
+    });
+    check(stacked === 0, 'the same measurement on two pieces isn\'t stacked on top of itself');
     check(await p2.locator('.group-title .gt-actions').first().isHidden(), 'group buttons stay out of the way on touch (tap the group name instead)');
     await p2.locator('#clBuild').tap();
     const bp = await p2.locator('#buildPanel').boundingBox();
     check(bp && bp.width > 350 && await p2.locator('#sidebar').isHidden(), 'build mode on a phone: full-width panel, cut list out of the way');
+    await p2.waitForTimeout(600);
+    const stepAt = await p2.evaluate(partScreenCenter);
+    check(stepAt.y < bp.y - 20 && stepAt.y > 60, `the step's part is framed above the panel, not under it (at y=${Math.round(stepAt.y)}, panel at ${Math.round(bp.y)})`);
     await p2.screenshot({ path: path.join(OUT, '51-phone-build.png') });
     await p2.locator('#buildPanel .bp-exit').tap();
     await p2.locator('#helpBtn').tap();
     check(await p2.locator('#help .help-touch').isVisible() && !(await p2.locator('#help .if-mouse-block').isVisible()), 'help shows touch gestures instead of keyboard shortcuts');
     await p2.screenshot({ path: path.join(OUT, '50-phone-help.png') });
     check(errs.length === 0, `no page errors on a phone (${errs.join('; ')})`);
+  } finally {
+    await b2.close();
+  }
+}
+
+// ---------- phone held sideways ----------
+{
+  console.log('phone, landscape');
+  const b2 = await chromium.launch(launchOpts);
+  const ctx = await b2.newContext({ ...devices['iPhone 13 landscape'] });
+  const p2 = await ctx.newPage();
+  const errs = [];
+  p2.on('pageerror', (e) => errs.push(e.message));
+  try {
+    await p2.goto(base);
+    await p2.waitForFunction(() => document.getElementById('loading').style.display === 'none', null, { timeout: 30000 });
+    await p2.locator('#introClose').tap();
+    const vp = await p2.locator('#viewport').boundingBox(), sb = await p2.locator('#sidebar').boundingBox();
+    check(sb.x >= vp.x + vp.width - 1 && vp.height > 300, `sideways, the model and the cut list sit side by side (model ${Math.round(vp.width)}×${Math.round(vp.height)})`);
+    await p2.locator('#clBuild').tap();
+    await p2.waitForTimeout(600);
+    const bp = await p2.locator('#buildPanel').boundingBox();
+    const next = await p2.locator('#buildPanel .bp-next').boundingBox();
+    check(bp.x > 300 && next.y + next.height <= bp.y + bp.height, 'build mode sideways: the step down the side, Next on screen');
+    const stepAt = await p2.evaluate(partScreenCenter);
+    check(stepAt.x < bp.x - 20, `the step's part is framed beside the panel (at x=${Math.round(stepAt.x)}, panel at ${Math.round(bp.x)})`);
+    await p2.screenshot({ path: path.join(OUT, '52-phone-landscape-build.png') });
+    check(errs.length === 0, `no page errors sideways (${errs.join('; ')})`);
   } finally {
     await b2.close();
   }

@@ -198,3 +198,44 @@ export function addEndGrain(mat, endMap) {
   mat.customProgramCacheKey = () => 'wood-end-grain';
   return mat;
 }
+
+// UVs that run the grain along each part's length, whatever its orientation
+// in the model (the texture's streaks run along V): one tile is `tile` inches
+// across the grain and 4x that along it. U is whichever cross axis lies in
+// the face. The faces that cut across the length get the endGrain attribute
+// (addEndGrain draws end grain there). Parts without dimension data fall
+// back to world-axis box mapping.
+export function generateGrainUV(geometry, tile, dims, seed = 0) {
+  // each board is cut from its own spot in the log (and never mirrored about its middle)
+  const r1 = ((Math.imul(seed, 2654435761) >>> 0) % 1000) / 1000, r2 = ((Math.imul(seed + 1, 2246822519) >>> 0) % 1000) / 1000;
+  const ou = 0.3 + 0.4 * r1, ov = 0.1 + 3 * r2;
+  if (!geometry.attributes.normal) geometry.computeVertexNormals();
+  const pos = geometry.attributes.position;
+  const norm = geometry.attributes.normal;
+  const uv = new Float32Array(pos.count * 2);
+  const end = new Float32Array(pos.count);
+  const byRole = dims ? Object.fromEntries(dims.axes.map((a) => [a.role, new THREE.Vector3(...a.direction)])) : {};
+  const L = byRole.Length, W = byRole.Width, T = byRole.Thickness;
+  const c = dims ? new THREE.Vector3(...dims.center) : new THREE.Vector3();
+  const p = new THREE.Vector3(), n = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    p.fromBufferAttribute(pos, i);
+    n.fromBufferAttribute(norm, i);
+    let u, v, along = 4;
+    if (L && W && T) {
+      p.sub(c);
+      const nl = Math.abs(n.dot(L)), nw = Math.abs(n.dot(W)), nt = Math.abs(n.dot(T));
+      if (nl > nw && nl > nt) { u = p.dot(W); v = p.dot(T); along = 1; end[i] = 1; } // end grain
+      else { u = nw > nt ? p.dot(T) : p.dot(W); v = p.dot(L); }
+    } else {
+      const ax = Math.abs(n.x), ay = Math.abs(n.y), az = Math.abs(n.z);
+      if (ax >= ay && ax >= az) { u = p.y; v = p.z; }
+      else if (ay >= ax && ay >= az) { u = p.x; v = p.z; }
+      else { u = p.x; v = p.y; }
+    }
+    uv[i * 2] = u / tile + ou;
+    uv[i * 2 + 1] = v / (tile * along) + (along === 1 ? 0.5 : ov);
+  }
+  geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geometry.setAttribute('endGrain', new THREE.BufferAttribute(end, 1));
+}

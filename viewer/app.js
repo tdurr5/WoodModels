@@ -3,7 +3,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { woodMaterial, addEndGrain, endMapOf, speciesFor } from './woodtex.js';
+import { woodMaterial, addEndGrain, endMapOf, speciesFor, generateGrainUV } from './woodtex.js';
+import { classifyOverlaps as classifyOverlapsIn, singleSidedGeometry } from './autofix.js';
 import { formatLength, escapeHtml, toFraction, isCut } from './format.js';
 import { compoundAngle, describeAngle, round1, DEFAULT_AXIS_NAMES } from './angles.js';
 import { initSettings, settings, updateSettings, onSettingsChange, resetSettings } from './settings.js';
@@ -58,6 +59,29 @@ function resize() {
   perspCamera.aspect = w / h;
   perspCamera.updateProjectionMatrix();
   updateOrthoFrustum();
+  updateFreeArea();
+}
+
+// The part of the view the build panel leaves free, where framing centers
+// the model - on a phone the panel covers the bottom (or, sideways, the
+// right) of the screen. Null: the whole view.
+let freeArea = null;
+function updateFreeArea() {
+  const w = viewport.clientWidth, h = viewport.clientHeight;
+  const panel = $('buildPanel');
+  let f = null;
+  if (build && w && h && panel.style.display !== 'none') {
+    const v = viewport.getBoundingClientRect(), p = panel.getBoundingClientRect();
+    const top = 48; // under the toolbar
+    if (p.width > w * 0.6 && p.top - v.top > h * 0.3) f = { x: 0, y: top, w, h: p.top - v.top - top };
+    else if (p.height > h * 0.6 && p.left - v.left > w * 0.35) f = { x: 0, y: top, w: p.left - v.left, h: h - top };
+  }
+  freeArea = f;
+  // shift the picture so the view's center sits in the middle of the free part
+  [perspCamera, orthoCamera].forEach((c) => {
+    if (f) c.setViewOffset(w, h, w / 2 - (f.x + f.w / 2), h / 2 - (f.y + f.h / 2), w, h);
+    else if (c.view?.enabled) c.clearViewOffset();
+  });
 }
 new ResizeObserver(resize).observe(viewport);
 
@@ -152,50 +176,6 @@ let diagram = null; // cutting-diagram modal
 const dimCard = $('dimCard');
 const axisLabelsEl = $('axisLabels');
 const AXIS_COLORS = { Length: '#ff6b4a', Width: '#7ee08a', Thickness: '#6ab7ff' };
-
-// ---------- procedural wood grain (no external texture assets needed) ----------
-// Texture streaks run along the texture's V axis, so map V to the part's own
-// length axis: grain then runs along every board the way it's cut, whatever
-// its orientation in the model. U is whichever cross axis lies in the face.
-// Parts without dimension data fall back to world-axis box mapping.
-// UVs that run the wood texture along each part's length (one tile is
-// `tile` inches across the grain and 4x that along it), and an endGrain
-// attribute marking the faces that cut across the length (woodtex.js shows
-// end grain there).
-function generateGrainUV(geometry, tile, dims, seed = 0) {
-  // each board is cut from its own spot in the log (and never mirrored about its middle)
-  const r1 = ((Math.imul(seed, 2654435761) >>> 0) % 1000) / 1000, r2 = ((Math.imul(seed + 1, 2246822519) >>> 0) % 1000) / 1000;
-  const ou = 0.3 + 0.4 * r1, ov = 0.1 + 3 * r2;
-  if (!geometry.attributes.normal) geometry.computeVertexNormals();
-  const pos = geometry.attributes.position;
-  const norm = geometry.attributes.normal;
-  const uv = new Float32Array(pos.count * 2);
-  const end = new Float32Array(pos.count);
-  const byRole = dims ? Object.fromEntries(dims.axes.map((a) => [a.role, new THREE.Vector3(...a.direction)])) : {};
-  const L = byRole.Length, W = byRole.Width, T = byRole.Thickness;
-  const c = dims ? new THREE.Vector3(...dims.center) : new THREE.Vector3();
-  const p = new THREE.Vector3(), n = new THREE.Vector3();
-  for (let i = 0; i < pos.count; i++) {
-    p.fromBufferAttribute(pos, i);
-    n.fromBufferAttribute(norm, i);
-    let u, v, along = 4;
-    if (L && W && T) {
-      p.sub(c);
-      const nl = Math.abs(n.dot(L)), nw = Math.abs(n.dot(W)), nt = Math.abs(n.dot(T));
-      if (nl > nw && nl > nt) { u = p.dot(W); v = p.dot(T); along = 1; end[i] = 1; } // end grain
-      else { u = nw > nt ? p.dot(T) : p.dot(W); v = p.dot(L); }
-    } else {
-      const ax = Math.abs(n.x), ay = Math.abs(n.y), az = Math.abs(n.z);
-      if (ax >= ay && ax >= az) { u = p.y; v = p.z; }
-      else if (ay >= ax && ay >= az) { u = p.x; v = p.z; }
-      else { u = p.x; v = p.y; }
-    }
-    uv[i * 2] = u / tile + ou;
-    uv[i * 2 + 1] = v / (tile * along) + (along === 1 ? 0.5 : ov);
-  }
-  geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-  geometry.setAttribute('endGrain', new THREE.BufferAttribute(end, 1));
-}
 
 // ---------- loading ----------
 // Which model to show:
@@ -412,81 +392,11 @@ function computeRows() {
   addOverlapNotes(allPartRows);
 }
 
-// ---------- automatic fixes for rough models ----------
-// Same-size pieces lying in the same space (findOverlaps) are looked at
-// closely: sample points in the shared stretch and test whether each is
-// inside both meshes. Both, over most of it: the pieces really fill the same
-// space - one longer piece modeled as two (join them) or a copy left in place
-// (drop it). Each board in only one: a lap joint, real joinery - leave it.
-const insideRay = new THREE.Raycaster();
-const solidCache = new Map();
-function isInside(mesh, p, dirs) {
-  let solid = solidCache.get(mesh);
-  if (!solid) {
-    solid = new THREE.Mesh(singleSidedGeometry(mesh.geometry), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
-    solid.updateMatrixWorld();
-    solidCache.set(mesh, solid);
-  }
-  return dirs.every((d) => {
-    insideRay.set(p, d);
-    let n = 0, last = -1;
-    insideRay.intersectObject(solid, false).forEach((h) => { if (h.distance - last > 1e-4) { n++; last = h.distance; } });
-    return n % 2 === 1;
-  });
-}
-
-function classifyOverlap(o) {
-  const A = baseObjectDims[o.a], B = baseObjectDims[o.b];
-  const ma = meshByName.get(o.a), mb = meshByName.get(o.b);
-  if (!A || !B || !ma || !mb) return 'unsure';
-  const [L, W, T] = A.axes.map((a) => new THREE.Vector3(...a.direction).normalize());
-  const [lenA, wA, tA] = A.axes.map((a) => a.length);
-  const lenB = B.axes[0].length;
-  const cA = new THREE.Vector3(...A.center);
-  const t = new THREE.Vector3(...B.center).sub(cA).dot(L);
-  const lo = Math.max(-lenA / 2, t - lenB / 2), hi = Math.min(lenA / 2, t + lenB / 2);
-  let both = 0, one = 0, total = 0;
-  for (let i = 0; i < 5; i++) {
-    const s = lo + (hi - lo) * (0.1 + 0.2 * i);
-    for (const [fw, ft] of [[0.25, 0.25], [0.25, -0.25], [-0.25, 0.25], [-0.25, -0.25]]) {
-      const p = cA.clone().addScaledVector(L, s).addScaledVector(W, fw * wA).addScaledVector(T, ft * tA);
-      const ia = isInside(ma, p, [W, T]), ib = isInside(mb, p, [W, T]);
-      total++;
-      if (ia && ib) both++; else if (ia || ib) one++;
-    }
-  }
-  if (both / total >= 0.75) return o.span <= Math.max(lenA, lenB) + 1 / 16 ? 'dupe' : 'join';
-  if (both / total <= 0.1 && one / total >= 0.5) return 'lap';
-  return 'unsure';
-}
-
+// ---------- automatic fixes for rough models (autofix.js) ----------
 // Fills overlapKind and autoFixes; true if there's anything to fix.
 function classifyOverlaps() {
-  overlapKind = new Map();
-  const dupes = new Set();
-  const joinPairs = [];
-  overlaps.forEach((o) => {
-    const kind = classifyOverlap(o);
-    overlapKind.set(`${o.a}|${o.b}`, kind);
-    if (kind === 'dupe') {
-      // drop the shorter one (the one inside the other); the second if equal
-      const la = baseObjectDims[o.a].axes[0].length, lb = baseObjectDims[o.b].axes[0].length;
-      dupes.add(la < lb - 1 / 64 ? o.a : o.b);
-    } else if (kind === 'join') joinPairs.push(o);
-  });
-  // chains of overlapping boards become one piece each
-  const parent = new Map();
-  const find = (x) => { while (parent.get(x) !== x) x = parent.get(x); return x; };
-  joinPairs.forEach(({ a, b }) => {
-    if (dupes.has(a) || dupes.has(b)) return;
-    [a, b].forEach((n) => { if (!parent.has(n)) parent.set(n, n); });
-    parent.set(find(a), find(b));
-  });
-  const chains = new Map();
-  [...parent.keys()].forEach((n) => { const r = find(n); if (!chains.has(r)) chains.set(r, []); chains.get(r).push(n); });
-  const joins = [...chains.values()].map((names) => names.sort());
-  autoFixes = { joins, dupes: [...dupes] };
-  return joins.length + dupes.size > 0;
+  ({ kinds: overlapKind, fixes: autoFixes } = classifyOverlapsIn(overlaps, baseObjectDims, (n) => meshByName.get(n)));
+  return autoFixes.joins.length + autoFixes.dupes.length > 0;
 }
 
 // Say what was fixed automatically, once per model (and after it changes).
@@ -533,6 +443,7 @@ function refreshRows() {
       renderGroupCard(groupBox(groupSel));
     } else clearSelection();
   }
+  if (build) refreshBuild();
 }
 
 // Parts drawn in 3D: not deleted, and set-aside ones only when shown.
@@ -649,26 +560,6 @@ function applyMaterials() {
 // children of their part so they follow the exploded view and visibility.
 let capMesh = null;
 const stencilHelpers = [];
-
-const singleSidedCache = new WeakMap();
-function singleSidedGeometry(geo) {
-  if (singleSidedCache.has(geo)) return singleSidedCache.get(geo);
-  const src = geo.index ? geo.toNonIndexed() : geo;
-  const pos = src.attributes.position.array;
-  const seen = new Set();
-  const keep = [];
-  const k = (i) => `${pos[i].toFixed(4)},${pos[i + 1].toFixed(4)},${pos[i + 2].toFixed(4)}`;
-  for (let t = 0; t + 8 < pos.length; t += 9) {
-    const key = [k(t), k(t + 3), k(t + 6)].sort().join('|');
-    if (seen.has(key)) continue;
-    seen.add(key);
-    for (let j = 0; j < 9; j++) keep.push(pos[t + j]);
-  }
-  const out = new THREE.BufferGeometry();
-  out.setAttribute('position', new THREE.Float32BufferAttribute(keep, 3));
-  singleSidedCache.set(geo, out);
-  return out;
-}
 
 // Total wood surface in square inches (one side of each double-sided face),
 // for estimating how much finish to buy.
@@ -840,8 +731,9 @@ function fitDistance(box, dir) {
   const right = new THREE.Vector3().crossVectors(up, dir).normalize();
   const trueUp = new THREE.Vector3().crossVectors(dir, right).normalize();
   const center = box.getCenter(new THREE.Vector3());
-  const tanV = Math.tan(THREE.MathUtils.degToRad(perspCamera.fov / 2));
-  const tanH = tanV * (perspCamera.aspect || 1);
+  const full = Math.tan(THREE.MathUtils.degToRad(perspCamera.fov / 2));
+  const tanV = full * (freeArea ? freeArea.h / viewport.clientHeight : 1);
+  const tanH = full * (perspCamera.aspect || 1) * (freeArea ? freeArea.w / viewport.clientWidth : 1);
   let persp = 1, lateral = 1;
   for (let i = 0; i < 8; i++) {
     const c = new THREE.Vector3(i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : box.min.y, i & 4 ? box.max.z : box.min.z).sub(center);
@@ -1036,7 +928,7 @@ function buildSelectionOverlays() {
     if (spec.differs) el.title = 'Different from the first piece';
     if (spec.cls === 'version') el.title = `Version ${spec.text} of this part - see the part card`;
     axisLabelsEl.appendChild(el);
-    return { pos: spec.pos, el };
+    return { pos: spec.pos, el, text: spec.text };
   });
   renderDimCard();
 }
@@ -1366,8 +1258,7 @@ function mergePositions(geos) {
 // model assembles as you go.
 let build = null; // { order: rows, stepOf: key -> index, i }
 
-function startBuild() {
-  if (!model) return;
+function buildSteps() {
   const boxOf = (r) => {
     const box = new THREE.Box3();
     (r.obj_names || []).forEach((n) => { const m = meshByName.get(n); if (m) box.expandByObject(m); });
@@ -1375,15 +1266,29 @@ function startBuild() {
     const sz = box.getSize(new THREE.Vector3());
     return { minY: box.min.y, volume: sz.x * sz.y * sz.z };
   };
-  const order = buildOrder(rows.filter((r) => r.clickable), boxOf, settings().buildOrder, (r) => roughFor(r)?.thickness || r.dims[2]);
+  return buildOrder(rows.filter((r) => r.clickable), boxOf, settings().buildOrder, (r) => roughFor(r)?.thickness || r.dims[2]);
+}
+const buildState = (order, i) => ({ order, stepOf: new Map(order.map((r, k) => [r.key, k])), i });
+
+function startBuild() {
+  if (!model) return;
+  const order = buildSteps();
   if (!order.length) return;
-  const i = Math.max(0, order.findIndex((r) => r.key === settings().buildStep));
-  build = { order, stepOf: new Map(order.map((r, k) => [r.key, k])), i };
+  build = buildState(order, Math.max(0, order.findIndex((r) => r.key === settings().buildStep)));
   document.body.classList.add('build-mode');
   measure.cancel();
   syncToolButtons();
   dismissIntro();
   showStep(true);
+}
+
+// after an edit (renamed, deleted, set aside): fresh steps, same part if it's still there
+function refreshBuild() {
+  const order = buildSteps();
+  if (!order.length) { exitBuild(); return; }
+  const k = order.findIndex((r) => r.key === build.order[build.i].key);
+  build = buildState(order, k >= 0 ? k : Math.min(build.i, order.length - 1));
+  if (k >= 0 && current) renderBuildPanel(); else showStep(true);
 }
 
 // a part picked in the list: in build mode, go to its step
@@ -1396,6 +1301,7 @@ function exitBuild() {
   build = null;
   document.body.classList.remove('build-mode');
   $('buildPanel').style.display = 'none';
+  updateFreeArea();
   clearSelection();
   frameBox(focusBox(), null);
 }
@@ -1408,9 +1314,12 @@ function stepBuild(delta) {
 
 function showStep(frame) {
   const row = build.order[build.i];
-  selectRow(row, { frame });
+  selectRow(row, { frame: false });
   updateSettings({ buildStep: row.key });
   renderBuildPanel();
+  // frame once the panel is up: its height changes with the step
+  updateFreeArea();
+  if (frame && current?.box) frameBox(current.box, null);
 }
 
 function renderBuildPanel() {
@@ -1985,11 +1894,12 @@ window.addEventListener('keydown', (e) => {
   const k = e.key;
   if (build && ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', ' '].includes(k)) { stepBuild(k === 'ArrowLeft' || k === 'ArrowUp' ? -1 : 1); e.preventDefault(); return; }
   if (k === 'Escape') {
+    // the thing on top first: a dialog, then measuring, then build mode
     if ($('help').style.display === 'flex') toggleHelp(false);
-    else if (build && !measure.mode) exitBuild();
     else if (library.isOpen()) { $('library').style.display = 'none'; $('setup').style.display = 'none'; }
     else if (diagram && diagram.isOpen()) diagram.close();
     else if (measure.cancel()) syncToolButtons();
+    else if (build) exitBuild();
     else clearSelection();
   } else if (k === 'ArrowDown' || k === 'j') { stepSelection(1); e.preventDefault(); }
   else if (k === 'ArrowUp' || k === 'k') { stepSelection(-1); e.preventDefault(); }
@@ -2024,11 +1934,20 @@ function project(worldPos) {
 
 function updateOverlays() {
   if (current) {
-    (current.labels || []).forEach(({ pos, el }) => {
-      const s = project(pos);
-      el.style.display = s.behind ? 'none' : 'block';
-      el.style.left = `${s.x}px`;
-      el.style.top = `${s.y}px`;
+    // The same measurement on several pieces (a pair of legs side by side)
+    // often lands on top of itself: show it once there. A measurement that
+    // differs, or anything else, always shows.
+    const shown = [];
+    (current.labels || []).forEach((l) => {
+      const s = project(l.pos);
+      l.el.style.display = s.behind ? 'none' : 'block';
+      l.el.style.left = `${s.x}px`;
+      l.el.style.top = `${s.y}px`;
+      if (s.behind) return;
+      if (!l.w) { l.w = l.el.offsetWidth; l.h = l.el.offsetHeight; }
+      const dupe = shown.some((o) => o.text === l.text && Math.abs(o.x - s.x) < (o.w + l.w) / 2 && Math.abs(o.y - s.y) < (o.h + l.h) / 2);
+      l.el.style.visibility = dupe ? 'hidden' : '';
+      if (!dupe) shown.push({ text: l.text, x: s.x, y: s.y, w: l.w, h: l.h });
     });
   }
   measure.update(project);

@@ -13,7 +13,8 @@ A 3D cut-list viewer for woodworking plans, starting with the Lie-Nielsen/Brian 
   - `cutlist.js` - sidebar cut list, totals, CSV export, printable cut sheet
   - `diagram.js`, `nesting.js` - shopping list, cost estimate, cutting diagrams
   - `template.js` - printable full-size part templates
-  - `geometry.js` - oriented-box contact tests (what joins what, where holes go)
+  - `geometry.js` - oriented-box contact tests (what joins what, where holes go), overlapping pieces and joining them
+  - `autofix.js` - tells a board modeled as two overlapping pieces, or a stray copy, from a lap joint (automatic fixes on load)
   - `measure.js` - distance / angle / bevel tools with snapping
   - `angles.js`, `format.js` - compound-angle math, fractions, rough stock, board feet (pure, unit-tested)
   - `library.js`, `collada.js`, `zip.js`, `modelstore.js` - uploading models in the browser: COLLADA parser (a port of `parse_dae.py`), zip/KMZ reading, saved models (IndexedDB)
