@@ -65,6 +65,107 @@ export function smoothNormals(geometry, creaseDeg = 35) {
   return geometry;
 }
 
+// ---------- faces that point the wrong way ----------
+// SketchUp writes every face twice, back to back, so a part looks solid from
+// any side. Other exporters (Blender, Fusion, Rhino...) write each face once,
+// and a face wound the wrong way is invisible from outside - a hole in the
+// part. For a part drawn single-sided: turn each face to agree with its
+// neighbours across shared edges, then each connected piece so it faces out
+// (positive volume). Returns true when the part is single-sided, so it can
+// also be drawn from both sides in case it's an open surface.
+export function isBackToBack(geometry) {
+  const pos = geometry.attributes.position;
+  const tris = pos.count / 3 | 0;
+  if (!tris) return true;
+  const q = 1e4;
+  const k = (i) => `${Math.round(pos.getX(i) * q)},${Math.round(pos.getY(i) * q)},${Math.round(pos.getZ(i) * q)}`;
+  const seen = new Map();
+  let paired = 0;
+  for (let t = 0; t < tris; t++) {
+    const key = [k(t * 3), k(t * 3 + 1), k(t * 3 + 2)].sort().join('|');
+    const n = seen.get(key) || 0;
+    if (n % 2 === 1) paired += 2;
+    seen.set(key, n + 1);
+  }
+  return paired >= tris * 0.9;
+}
+
+export function orientFaces(geometry) {
+  if (geometry.index || isBackToBack(geometry)) return false;
+  const pos = geometry.attributes.position;
+  const tris = pos.count / 3 | 0;
+  const q = 1e4;
+  const ids = new Map();
+  const vid = new Int32Array(tris * 3);
+  for (let i = 0; i < tris * 3; i++) {
+    const key = `${Math.round(pos.getX(i) * q)},${Math.round(pos.getY(i) * q)},${Math.round(pos.getZ(i) * q)}`;
+    let id = ids.get(key);
+    if (id === undefined) ids.set(key, (id = ids.size));
+    vid[i] = id;
+  }
+  // undirected edge -> [triangle, direction (+1: a->b with a<b)]
+  const edges = new Map();
+  for (let t = 0; t < tris; t++) {
+    for (let e = 0; e < 3; e++) {
+      const a = vid[t * 3 + e], b = vid[t * 3 + (e + 1) % 3];
+      if (a === b) continue;
+      const key = a < b ? a * 4294967296 + b : b * 4294967296 + a;
+      let list = edges.get(key);
+      if (!list) edges.set(key, (list = []));
+      list.push([t, a < b ? 1 : -1]);
+    }
+  }
+  const flip = new Int8Array(tris); // 0 unvisited, 1 keep, -1 flip
+  const comp = new Int32Array(tris).fill(-1);
+  const volumes = [];
+  const stack = [];
+  const p0 = new THREE.Vector3(), p1 = new THREE.Vector3(), p2 = new THREE.Vector3();
+  for (let start = 0; start < tris; start++) {
+    if (flip[start]) continue;
+    const c = volumes.length;
+    volumes.push(0);
+    flip[start] = 1; comp[start] = c;
+    stack.push(start);
+    while (stack.length) {
+      const t = stack.pop();
+      for (let e = 0; e < 3; e++) {
+        const a = vid[t * 3 + e], b = vid[t * 3 + (e + 1) % 3];
+        if (a === b) continue;
+        const list = edges.get(a < b ? a * 4294967296 + b : b * 4294967296 + a);
+        if (list.length !== 2) continue; // an open edge, or three faces on one edge: no clear neighbour
+        const mine = (a < b ? 1 : -1) * flip[t];
+        const [u, dirU] = list[0][0] === t ? list[1] : list[0];
+        if (u === t || flip[u]) continue;
+        // neighbours agree when they run along their shared edge in opposite directions
+        flip[u] = dirU === mine ? -1 : 1;
+        comp[u] = c;
+        stack.push(u);
+      }
+    }
+  }
+  for (let t = 0; t < tris; t++) {
+    p0.fromBufferAttribute(pos, t * 3); p1.fromBufferAttribute(pos, t * 3 + 1); p2.fromBufferAttribute(pos, t * 3 + 2);
+    volumes[comp[t]] += flip[t] * p0.dot(p1.cross(p2));
+  }
+  let changed = false;
+  for (let t = 0; t < tris; t++) {
+    if (flip[t] * (volumes[comp[t]] < 0 ? -1 : 1) > 0) continue;
+    changed = true;
+    // swap corners 1 and 2
+    const i = t * 3 + 1, j = t * 3 + 2;
+    for (const attr of Object.values(geometry.attributes)) {
+      for (let c = 0; c < attr.itemSize; c++) {
+        const v = attr.getComponent(i, c);
+        attr.setComponent(i, c, attr.getComponent(j, c));
+        attr.setComponent(j, c, v);
+      }
+      attr.needsUpdate = true;
+    }
+  }
+  if (changed) geometry.computeVertexNormals(); // flat: one normal per face, now facing out
+  return true;
+}
+
 // ---------- materials for what isn't wood ----------
 // What a material most likely is, from its names: metal (and which), glass,
 // leather, rubber, paint - else plain. Several languages, like woodtex.js.

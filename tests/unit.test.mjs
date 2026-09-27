@@ -798,3 +798,54 @@ test('a photo is taken for wood when it is streaky and wood-coloured', () => {
   assert.equal(looksLikeWood(100, 40, '#808080'), false); // brushed steel
   assert.equal(looksLikeWood(40, 100, '#5a3d28'), true); // walnut, grain the other way
 });
+
+import { orientFaces, isBackToBack } from '../viewer/look.js';
+
+// signed volume of a closed triangle soup (positive: faces point out)
+function volumeOf(g) {
+  const p = g.attributes.position, a = new THREE3.Vector3(), b = new THREE3.Vector3(), c = new THREE3.Vector3();
+  let v = 0;
+  for (let i = 0; i < p.count; i += 3) {
+    a.fromBufferAttribute(p, i); b.fromBufferAttribute(p, i + 1); c.fromBufferAttribute(p, i + 2);
+    v += a.dot(b.cross(c)) / 6;
+  }
+  return v;
+}
+
+test('faces drawn inside-out are turned to face out', () => {
+  const g = new THREE3.BoxGeometry(2, 3, 4).toNonIndexed();
+  g.translate(500, -300, 40); // far from the origin, like many SketchUp models
+  const pos = g.attributes.position;
+  // flip every third triangle, and the whole thing once more for good measure
+  for (let t = 0; t < pos.count / 3; t += 3) {
+    for (let c = 0; c < 3; c++) {
+      const v = pos.getComponent(t * 3 + 1, c);
+      pos.setComponent(t * 3 + 1, c, pos.getComponent(t * 3 + 2, c));
+      pos.setComponent(t * 3 + 2, c, v);
+    }
+  }
+  assert.equal(orientFaces(g), true);
+  near(volumeOf(g), 24, 1e-3);
+  // and every face agrees: turning the whole box inside out gives -24
+  const inside = g.clone();
+  const ip = inside.attributes.position;
+  for (let t = 0; t < ip.count / 3; t++) {
+    for (let c = 0; c < 3; c++) {
+      const v = ip.getComponent(t * 3 + 1, c);
+      ip.setComponent(t * 3 + 1, c, ip.getComponent(t * 3 + 2, c));
+      ip.setComponent(t * 3 + 2, c, v);
+    }
+  }
+  near(volumeOf(inside), -24, 1e-3);
+  orientFaces(inside);
+  near(volumeOf(inside), 24, 1e-3);
+});
+
+test("SketchUp's back-to-back faces are left alone", () => {
+  const g = flatCylinder(24, true);
+  const before = g.attributes.position.array.slice();
+  assert.equal(isBackToBack(g), true);
+  assert.equal(orientFaces(g), false);
+  assert.deepEqual([...g.attributes.position.array], [...before]);
+  assert.equal(isBackToBack(flatCylinder(24, false)), false);
+});

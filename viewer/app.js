@@ -24,7 +24,7 @@ import { initLibrary, modelZip } from './library.js';
 import { getModelFiles, lastOpened, rememberOpened, putModelFile, addPhoto, listPhotos, deletePhoto } from './modelstore.js';
 import { obbFromDims, partsTouch, findOverlaps, applyJoins, endJoints } from './geometry.js';
 import { glueUpStrips } from './nesting.js';
-import { createStage, smoothNormals, materialKind, surfaceMaterial } from './look.js';
+import { createStage, smoothNormals, orientFaces, materialKind, surfaceMaterial } from './look.js';
 
 const $ = (id) => document.getElementById(id);
 const viewport = $('viewport');
@@ -534,6 +534,8 @@ function prepareMeshes(materialNames) {
     const mtlName = materialNames[child.material && child.material.name];
     const realName = mtlName === 'default' && config.materials?.['(none)'] ? '(none)' : mtlName;
     const mc = config.materials?.[realName];
+    // not SketchUp's back-to-back faces: turn any face drawn inside-out
+    const singleSided = orientFaces(child.geometry);
     if (mc?.texture || mc?.species) {
       // wood: the species set in Set up, else guessed from the material's names
       const seed = [...child.name].reduce((h, ch) => (Math.imul(h, 31) + ch.charCodeAt(0)) | 0, 17);
@@ -556,6 +558,7 @@ function prepareMeshes(materialNames) {
       }
     }
     smoothNormals(child.geometry); // round parts shade round, square edges stay crisp
+    if (singleSided) child.material.side = THREE.DoubleSide; // an open surface still shows from behind
     child.castShadow = child.receiveShadow = true;
     const orig = child.material;
     const endMap = endMapOf(orig);
