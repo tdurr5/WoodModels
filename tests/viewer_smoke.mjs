@@ -658,7 +658,8 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     await p2.locator('#libFile').setInputFiles(warehouseZip);
     await p2.waitForURL(/\?model=local%3A\w+&setup=1/, { timeout: 30000 });
     await loaded();
-    check(await p2.locator('#setup').isVisible(), 'a new upload opens straight into its setup');
+    // (it opens once the saved model has been read back, which can lag the page on a slow machine)
+    check(await p2.locator('#setup').waitFor({ state: 'visible', timeout: 15000 }).then(() => true, () => false), 'a new upload opens straight into its setup');
     check(!new URL(p2.url()).searchParams.has('setup'), 'the setup flag leaves the URL (a reload will not reopen it)');
     check((await p2.locator('#setup [name=title]').inputValue()) === 'Shaker Side Table', 'model is named after the uploaded file');
     const mats = await p2.locator('#setup select[data-mat]').evaluateAll((els) => els.map((e) => [e.dataset.mat, e.value]));
