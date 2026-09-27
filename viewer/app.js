@@ -23,6 +23,7 @@ import { buildTemplate } from './template.js';
 import { initLibrary, modelZip } from './library.js';
 import { getModelFiles, lastOpened, rememberOpened, putModelFile, addPhoto, listPhotos, deletePhoto } from './modelstore.js';
 import { obbFromDims, partsTouch, findOverlaps, applyJoins, endJoints } from './geometry.js';
+import { glueUpStrips } from './nesting.js';
 
 const $ = (id) => document.getElementById(id);
 const viewport = $('viewport');
@@ -1317,9 +1318,12 @@ function modelCheckItems() {
       items.push({ kind: 'Floating', row: r, text: `touches no other part${r.count > 1 ? ' (none of its pieces)' : ''}: a leftover, or drawn in the wrong place?` });
     }
     if (r.overlapPairs?.length) items.push({ kind: 'Overlap', row: r, text: 'has a piece overlapping another: a copy, or one piece drawn as two (see its card).' });
-    if (r.category === 'Wood' && r.dims[1] > stockW + 1 / 32) {
-      const n = Math.ceil(r.dims[1] / stockW);
-      items.push({ kind: 'Glue-up', row: r, text: `is ${f(r.dims[1])} wide: glue it up from ${n} boards of your ${f(stockW)} stock${r.count > 1 ? `, for each of ${r.count}` : ''}.`, info: true });
+    const roughW = r.category === 'Wood' ? (roughFor(r)?.width || r.dims[1]) : 0;
+    if (roughW && r.dims[1] > stockW + 1 / 32) {
+      const glue = glueUpStrips(roughW, stockW);
+      items.push({ kind: 'Glue-up', row: r, info: true, text: glue
+        ? `is ${f(r.dims[1])} wide: glue it up from ${glue.n} strips of your ${f(stockW)} boards${r.count > 1 ? `, for each of ${r.count}` : ''} (laid out that way in the cutting diagram).`
+        : `is ${f(r.dims[1])} wide, just over your ${f(stockW)} boards: buy a wider board, or glue it up from 2.` });
     }
   });
   return items;

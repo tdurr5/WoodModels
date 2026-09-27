@@ -677,3 +677,19 @@ test('My boards: quantity 0 means none left; species and thickness must match', 
   assert.equal(ownedFor(list, 'Cherry', '8/4').length, 1);
   assert.equal(ownedFor(list, 'Walnut', '4/4').length, 3);
 });
+
+import { glueUpStrips } from '../viewer/nesting.js';
+
+test('a part much wider than your boards is laid out as glue-up strips', () => {
+  assert.equal(glueUpStrips(8.125, 8), null); // just over: buy a wider board
+  assert.equal(glueUpStrips(9.5, 8), null);
+  const g = glueUpStrips(20.25, 8); // a table top on 8" stock
+  assert.equal(g.n, 3);
+  assert.ok(g.width <= 8 && Math.abs(g.width - (20.25 / 3 + 0.25)) < 1e-9);
+  const rows = [{ key: 'top', name: 'Top', letter: 'A', count: 2, materialLabel: 'Oak', dims: [40, 20, 0.75] }];
+  const [grp] = piecesByStock(rows, (r) => roughStock(r.dims), { maxWidth: 8 });
+  assert.equal(grp.pieces.length, 6); // 3 strips x 2 tops
+  assert.match(grp.pieces[0].label, /A Top \(strip 1\/3\)/);
+  const packed = packBoards(grp.pieces, { length: 96, width: 8 });
+  assert.ok(packed.boards.every((b) => !b.oversize), 'strips fit ordinary boards');
+});

@@ -33,7 +33,7 @@ const PART_COLORS = ['#e0b27a', '#c99b62', '#d6a56b', '#b98a55', '#e8c08e', '#cf
 export function computeLayouts(rows) {
   const stock = { ...STOCK_DEFAULTS, ...(settings().stock || {}) };
   const inventory = getInventory();
-  return piecesByStock(rows.filter((r) => r.category === 'Wood'), roughFor).map((g) => {
+  return piecesByStock(rows.filter((r) => r.category === 'Wood'), roughFor, { maxWidth: stock.width }).map((g) => {
     // your own boards first (inventory.js), then boards to buy for the rest
     const { owned, boards } = packWithOwned(g.pieces, ownedFor(inventory, g.material, g.thicknessLabel), stock);
     const bf = boards.reduce((a, b) => a + boardFeet(b.length, b.width, g.thickness), 0);
@@ -195,7 +195,7 @@ export function layoutsHTML(layouts, { pxPerInch, units, colorFor, hardware = nu
             ${boardSVG(b, g, { pxPerInch, units, colorFor })}
           </div>`).join('')}
       </div>`).join('')}
-    ${layouts.length ? `<p class="muted small">Cut sequence per board: crosscut at each section line, rip each section into strips, then crosscut parts from the strips. Parts are rough size (finished + your allowances); ${formatLength(layouts[0]?.stock.kerf ?? STOCK_DEFAULTS.kerf, units)} kerf between cuts. Hatched = offcut.</p>` : ''}
+    ${layouts.length ? `<p class="muted small">Cut sequence per board: crosscut at each section line, rip each section into strips, then crosscut parts from the strips. Parts are rough size (finished + your allowances); ${formatLength(layouts[0]?.stock.kerf ?? STOCK_DEFAULTS.kerf, units)} kerf between cuts. Hatched = offcut.${layouts.some((g) => g.pieces.some((p) => p.glueUp)) ? ' Parts wider than your boards are laid out as strips (1/4" extra each for jointing): joint and glue them up, then cut the panel to size.' : ''}</p>` : ''}
   `;
 }
 
