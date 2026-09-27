@@ -133,6 +133,7 @@ try {
   await page.screenshot({ path: path.join(OUT, '01-loaded.png') });
   await page.locator('#introClose').click();
   check(!(await page.locator('#introTip').isVisible()), 'tips can be dismissed');
+  check(/✓ Model check/.test(await page.locator('#clCheck').innerText()), 'the model check finds nothing wrong with the built-in model');
   await page.waitForTimeout(1500);
   const frames = await page.evaluate(async () => {
     const info = window.__viewer.renderer.info.render;
@@ -687,6 +688,13 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     const front = await p2.evaluate(() => window.__viewer.config.views.front.dir);
     check(JSON.stringify(front) === '[0,0,1]', `setup saves which way is front (${front})`);
     await p2.screenshot({ path: path.join(OUT, '41-uploaded.png') });
+    // (the test model's parts are spaced apart, not assembled)
+    const mc = await p2.locator('#clCheck').innerText();
+    check(/Model check: 2 things to look at/.test(mc), `the model check flags parts that touch nothing (${mc.split('\n')[0]})`);
+    await p2.locator('#clCheck summary').click();
+    await p2.locator('#clCheck a', { hasText: 'Leg' }).click();
+    check(await p2.locator('#dimCard .pn-text').innerText() === 'Leg', 'its links go to the part');
+    await p2.keyboard.press('Escape');
 
     // select a part, tick it, then come back without any ?model=
     await p2.locator('#clList .row', { hasText: 'Board' }).first().click();

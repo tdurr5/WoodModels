@@ -111,6 +111,8 @@ Uploads are saved in this browser (nothing is sent anywhere), and the page reope
 
 ### Cleaning up a rough model
 
+**Model check** (under the totals in the cut list) looks over a new model for you: wood that touches no other part (a leftover, or drawn in the wrong place), parts drawn as a flat face with nothing to cut, pieces still overlapping, and parts wider than your boards (glue it up from N boards). Each links to the part. Parts that are a standard dimensional-lumber size say so on their card ("a standard 2×4") - buy those surfaced, no milling.
+
 Plenty of Warehouse models weren't drawn with a cut list in mind: nothing is named, boards are drawn as loose faces, parts are scaled copies, and there are tools, people or props in the scene. The importer handles what it can on its own:
 
 - **Unnamed parts** (`group_12`, `Component#3`...) are named by shape - *Board*, *Panel*, *Square stock*, *Dowel*, *Block*, *Strip*, *Sheet* - and identical ones become one row with a quantity. Unnamed groups are shown as *Group 1*, *Group 2*...

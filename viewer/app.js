@@ -5,7 +5,7 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { woodMaterial, addEndGrain, endMapOf, speciesFor, generateGrainUV } from './woodtex.js';
 import { classifyOverlaps as classifyOverlapsIn, singleSidedGeometry } from './autofix.js';
-import { formatLength, escapeHtml, toFraction, isCut } from './format.js';
+import { formatLength, escapeHtml, toFraction, isCut, dimensionalSize } from './format.js';
 import { compoundAngle, describeAngle, round1, DEFAULT_AXIS_NAMES } from './angles.js';
 import { initSettings, settings, updateSettings, onSettingsChange, resetSettings } from './settings.js';
 import {
@@ -17,7 +17,7 @@ import {
   normalizeEdits, withStatus, withName, withGroupName, withPieceStatus, withJoin, withSplit, withAutoFixes, joinKey,
 } from './edits.js';
 import { initMeasure } from './measure.js';
-import { initDiagramModal, computeLayouts, layoutsHTML } from './diagram.js';
+import { initDiagramModal, computeLayouts, layoutsHTML, STOCK_DEFAULTS } from './diagram.js';
 import { buildTemplate } from './template.js';
 import { initLibrary } from './library.js';
 import { getModelFiles, lastOpened, rememberOpened, putModelFile } from './modelstore.js';
@@ -267,6 +267,7 @@ async function init() {
   rememberOpened(LOCAL_ID ? `local:${LOCAL_ID}` : MODEL_REF);
   applySettingsToScene();
   announceAutoFixes();
+  renderModelCheck();
   selectFromHash();
   if (new URLSearchParams(location.search).has('setup') && LOCAL_ID) {
     history.replaceState(null, '', `${location.pathname}?model=${encodeURIComponent(MODEL_REF)}${location.hash}`); // a reload shouldn't reopen it
@@ -457,6 +458,7 @@ function refreshRows() {
     } else clearSelection();
   }
   if (build) refreshBuild();
+  renderModelCheck();
 }
 
 // Parts drawn in 3D: not deleted, and set-aside ones only when shown.
@@ -728,6 +730,7 @@ onSettingsChange((s, patch) => {
   if ('units' in patch || 'showRough' in patch || 'allowance' in patch || 'cut' in patch || 'hiddenCategories' in patch || 'userNotes' in patch || 'showAside' in patch) renderRows();
   if ('showAside' in patch && model) updateModelBox();
   if ('units' in patch && model && overlaps.length) refreshRows(); // overlap notes are written in the units shown
+  else if (('units' in patch || 'stock' in patch) && model) renderModelCheck();
   // typing a note mustn't rebuild the card it's being typed into
   if (Object.keys(patch).every((k) => k === 'userNotes')) return;
   if ('hiddenCategories' in patch && current && settings().hiddenCategories.includes(current.row.category)) clearSelection();
@@ -1248,6 +1251,48 @@ function joineryPrintHtml() {
   return lines.length ? `<h2>Joinery</h2><table class="ps-table ps-joinery"><tbody>${lines.join('')}</tbody></table>` : '';
 }
 
+// "2×4" when a wood part is a dimensional-lumber size (buy it, no milling)
+const stdSize = (row) => (row.category === 'Wood' && !row.customDims && row.dims?.length === 3 ? dimensionalSize(row.dims[2], row.dims[1]) : null);
+
+// ---------- model check: things in a downloaded model worth a look ----------
+// Wood that touches nothing (a leftover, or drawn in the wrong place), parts
+// drawn as a flat face (no thickness to cut), pieces still overlapping, and
+// parts wider than your boards (glue-ups), each with a link to the part.
+let checkOpen = false;
+function modelCheckItems() {
+  const units = settings().units, f = (x) => formatLength(x, units);
+  const stockW = { ...STOCK_DEFAULTS, ...(settings().stock || {}) }.width;
+  const items = [];
+  rows.filter((r) => isCut(r) && r.clickable).forEach((r) => {
+    const pieces = r.obj_names.map((n) => meshByName.get(n)).filter(Boolean);
+    if (r.dims[2] < 1 / 32) items.push({ kind: 'Flat', row: r, text: 'is drawn as a flat face with no thickness: nothing to cut. Delete it, or set it aside if it\'s a guide.' });
+    else if (pieces.length && pieces.every((m) => ![...contactsOf(m)].some((o) => { const or = rowByMeshName.get(o.name); return or && !or.status; }))) {
+      items.push({ kind: 'Floating', row: r, text: `touches no other part${r.count > 1 ? ' (none of its pieces)' : ''}: a leftover, or drawn in the wrong place?` });
+    }
+    if (r.overlapPairs?.length) items.push({ kind: 'Overlap', row: r, text: 'has a piece overlapping another: a copy, or one piece drawn as two (see its card).' });
+    if (r.category === 'Wood' && r.dims[1] > stockW + 1 / 32) {
+      const n = Math.ceil(r.dims[1] / stockW);
+      items.push({ kind: 'Glue-up', row: r, text: `is ${f(r.dims[1])} wide: glue it up from ${n} boards of your ${f(stockW)} stock${r.count > 1 ? `, for each of ${r.count}` : ''}.`, info: true });
+    }
+  });
+  return items;
+}
+function renderModelCheck() {
+  const el = $('clCheck');
+  if (!el || !model) return;
+  const items = modelCheckItems();
+  const problems = items.filter((i) => !i.info).length, info = items.length - problems;
+  if (!items.length) { el.innerHTML = '<div class="model-check ok">✓ Model check: every part touches another, nothing overlaps, no paper-thin parts.</div>'; return; }
+  const title = [problems && `${problems} thing${problems > 1 ? 's' : ''} to look at`, info && `${info} glue-up${info > 1 ? 's' : ''}`].filter(Boolean).join(' · ');
+  el.innerHTML = `<details class="model-check${problems ? ' warn' : ''}"${checkOpen ? ' open' : ''}><summary>${problems ? '⚠' : 'ℹ'} Model check: ${title}</summary><ul>${items.map((i) => `<li><span class="mc-kind">${i.kind}</span> <a href="#" data-key="${escapeHtml(i.row.key)}">${i.row.letter ? `${i.row.letter} ` : ''}${escapeHtml(i.row.name)}</a> ${escapeHtml(i.text)}</li>`).join('')}</ul></details>`;
+  el.querySelector('details').addEventListener('toggle', (e) => { checkOpen = e.target.open; });
+  el.querySelectorAll('a[data-key]').forEach((a) => a.addEventListener('click', (e) => {
+    e.preventDefault();
+    const r = rows.find((x) => x.key === a.dataset.key);
+    if (r) pickRow(r);
+  }));
+}
+
 // Contacts of one piece of the selected row, grouped by the row they belong to.
 function pieceContacts(mesh, row) {
   const byRow = new Map();
@@ -1469,7 +1514,7 @@ function renderBuildPanel() {
     <div class="bp-progress"><div style="width:${Math.round(((build.i + 1) / n) * 100)}%"></div></div>
     <div class="bp-name"><span class="letter">${row.letter}</span>${escapeHtml(row.name)} <span class="bp-qty">×${row.count}</span></div>
     <div class="bp-size">${escapeHtml(finishedDims(row, units))}</div>
-    <div class="bp-sub">${row.customDims ? '' : 'Thickness × Width × Length'}${rough ? ` · rough <b>${escapeHtml(rough)}</b>` : ''} · ${escapeHtml(row.materialLabel)}</div>
+    <div class="bp-sub">${row.customDims ? '' : 'Thickness × Width × Length'}${stdSize(row) ? ` · a standard <b>${stdSize(row)}</b>` : rough ? ` · rough <b>${escapeHtml(rough)}</b>` : ''} · ${escapeHtml(row.materialLabel)}</div>
     ${contactHtml(row)}
     ${joineryHtml(row, current?.meshes[0])}
     ${row.notes.map((t) => `<div class="card-note${row.warn ? ' warn' : ''}">${escapeHtml(t)}</div>`).join('')}
@@ -1521,7 +1566,7 @@ function renderDimCard() {
     <div class="part-name">${row.letter ? `<span class="letter">${row.letter}</span>` : ''}<span class="pn-text">${escapeHtml(row.name)}</span><button class="pn-edit" title="Rename this part (F2)">✎</button></div>
     ${row.status === 'aside' ? '<div class="card-aside">Set aside - not in the build (not counted in totals, shopping list or prints)</div>' : ''}
     <div class="dim-big">${escapeHtml(finishedDims(row))}</div>
-    <div class="dim-axes">${row.customDims ? '' : 'Thickness × Width × Length'}</div>
+    <div class="dim-axes">${row.customDims ? '' : 'Thickness × Width × Length'}${stdSize(row) ? ` · <span class="card-std" title="Dimensional lumber: buy it surfaced to this size, no milling">a standard ${stdSize(row)}</span>` : ''}</div>
     ${settings().showPartAngles ? angleHtml(data) : ''}
     ${angleHtml(data) ? `<button class="card-btn angle-toggle" data-act="angles" title="The part's lean / splay angles, worked out from the model">${settings().showPartAngles ? 'Hide angles' : '∠ Show angles'}</button>` : ''}
     <div class="meta">qty ${row.count} · ${escapeHtml(row.materialLabel)} · ${escapeHtml(row.groupName)}</div>

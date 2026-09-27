@@ -593,3 +593,15 @@ test('a board crossing another or sitting on it is not a tenon', () => {
   const big = jbox([0, 0, 0], [20, 4, 2]), small = jbox([0, 0, 0], [18, 3, 1]);
   assert.deepEqual(endJoints(obbOf(small.dims), small.tris, [{ name: 'big', box: obbOf(big.dims) }]), []);
 });
+
+import { dimensionalSize } from '../viewer/format.js';
+
+test('dimensional lumber is recognised by its actual size', () => {
+  assert.equal(dimensionalSize(1.5, 3.5), '2×4');
+  assert.equal(dimensionalSize(0.75, 5.5), '1×6');
+  assert.equal(dimensionalSize(3.5, 3.5), '4×4');
+  assert.equal(dimensionalSize(1.5, 11.25), '2×12');
+  assert.equal(dimensionalSize(1.52, 3.49), '2×4'); // modeling slop
+  assert.equal(dimensionalSize(1.625, 3.5), null); // 1-5/8": milled hardwood
+  assert.equal(dimensionalSize(0.75, 4), null);
+});
