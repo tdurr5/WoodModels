@@ -208,19 +208,21 @@ export function initLibrary({ current, onOpen, builtIn }) {
   async function render() {
     let models = [];
     try { models = await listModels(); } catch (e) { status(e.message, 'error'); }
-    const row = (ref, name, sub, actions) => `
+    const thumb = (src) => (src && /^data:image\/jpeg;base64,[\w+/=]+$/.test(src) ? `<img class="lib-thumb" src="${src}" alt="">` : '<span class="lib-thumb"></span>');
+    const row = (ref, name, sub, actions, pic) => `
       <div class="lib-item${ref === current ? ' current' : ''}" data-ref="${escapeHtml(ref)}">
+        ${thumb(pic)}
         <div class="lib-name"><b>${escapeHtml(name)}</b>${ref === current ? ' <span class="lib-badge">open</span>' : ''}<div class="muted small">${sub}</div></div>
         <div class="lib-actions">${actions}</div>
       </div>`;
     const btn = (act, label, title) => `<button class="card-btn" data-act="${act}" title="${title}">${label}</button>`;
-    listEl.innerHTML = row('', escapeHtml(builtIn.title), 'Built-in model', ref0Actions())
+    listEl.innerHTML = row('', escapeHtml(builtIn.title), 'Built-in model', ref0Actions(), builtIn.thumb)
       + (models.length ? models.map((m) => row(`local:${m.id}`, m.name,
         `${m.parts} parts · uploaded ${new Date(m.createdAt).toLocaleDateString()} · ${escapeHtml(m.source || '')}`,
         (`local:${m.id}` === current ? '' : btn('open', 'Open', 'Open this model'))
         + btn('setup', 'Set up', 'Title, which materials are wood, which way is front')
         + btn('export', 'Download', 'Save this model as a zip (to keep, share, or add to the repo)')
-        + btn('delete', 'Delete', 'Remove from this browser'))).join('')
+        + btn('delete', 'Delete', 'Remove from this browser'), m.thumb)).join('')
         : '<div class="muted small lib-empty">No uploaded models yet.</div>');
     function ref0Actions() { return current === '' ? '' : btn('open', 'Open', 'Open this model'); }
   }

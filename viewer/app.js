@@ -21,7 +21,7 @@ import { initDiagramModal, computeLayouts, layoutsHTML, STOCK_DEFAULTS, shopping
 import { initShare } from './share.js';
 import { buildTemplate } from './template.js';
 import { initLibrary, modelZip } from './library.js';
-import { getModelFiles, lastOpened, rememberOpened, putModelFile, addPhoto, listPhotos, deletePhoto } from './modelstore.js';
+import { getModelFiles, getModelMeta, lastOpened, rememberOpened, putModelFile, addPhoto, listPhotos, deletePhoto, setThumbnail } from './modelstore.js';
 import { obbFromDims, partsTouch, findOverlaps, applyJoins, endJoints } from './geometry.js';
 import { glueUpStrips } from './nesting.js';
 import { createStage, smoothNormals, orientFaces, materialKind, surfaceMaterial, featureEdges, edgeMaterial } from './look.js';
@@ -312,6 +312,41 @@ async function init() {
     library.openSetup(LOCAL_ID);
   }
   else if (!settings().seenIntro && !seenIntroAnywhere()) $('introTip').style.display = 'block';
+  scheduleThumbnail();
+}
+
+// A small picture of the model for the Models list: made once the page has
+// been idle a moment after opening (not while you're busy with it), and made
+// again after the model changes (an upload's edits, Set up).
+const THUMB_KEY = 'woodmodels:thumb:builtin';
+async function scheduleThumbnail() {
+  if (!LOCAL_ID && MODEL_BASE) return; // a model folder: not in the Models list
+  if (LOCAL_ID) {
+    const meta = await getModelMeta(LOCAL_ID).catch(() => null);
+    if (!meta || (meta.thumb && meta.thumbAt >= meta.updatedAt)) return;
+  } else {
+    try { if (localStorage.getItem(THUMB_KEY)) return; } catch { return; }
+  }
+  const idle = window.requestIdleCallback || ((f) => setTimeout(f, 200));
+  setTimeout(() => idle(() => saveThumbnail().catch(() => { /* just no picture */ })), 2500);
+}
+async function saveThumbnail() {
+  if (!model || build || printingTemplate) return;
+  const url = captureOverview({ width: 480, height: 320 });
+  renderer.render(scene, camera); // straight back to the view, no blank frame
+  if (!url) return;
+  const img = new window.Image();
+  await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = url; });
+  const c = document.createElement('canvas');
+  const s = Math.min(1, 200 / Math.max(img.width, img.height));
+  c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+  const g = c.getContext('2d');
+  g.fillStyle = '#fff';
+  g.fillRect(0, 0, c.width, c.height);
+  g.drawImage(img, 0, 0, c.width, c.height);
+  const jpg = c.toDataURL('image/jpeg', 0.82);
+  if (LOCAL_ID) await setThumbnail(LOCAL_ID, jpg);
+  else try { localStorage.setItem(THUMB_KEY, jpg); } catch { /* storage full or off */ }
 }
 
 // Share: this model on your phone, the shopping list as text (share.js)
@@ -327,7 +362,10 @@ const share = initShare({
 // model starts from a clean scene.
 const library = initLibrary({
   current: LOCAL_ID ? `local:${LOCAL_ID}` : '',
-  builtIn: { get title() { return builtInTitle; } },
+  builtIn: {
+    get title() { return builtInTitle; },
+    get thumb() { try { return localStorage.getItem(THUMB_KEY); } catch { return null; } },
+  },
   onOpen: (ref, { setup = false } = {}) => {
     rememberOpened(ref);
     location.href = `${location.pathname}?model=${encodeURIComponent(ref)}${setup ? '&setup=1' : ''}`;
@@ -2166,13 +2204,15 @@ window.addEventListener('afterprint', () => { printingTemplate = false; });
 // no highlight/ghosting/labels, on white - independent of the current view.
 // With `exploded`, parts are pulled apart and tagged with their cut-list
 // letters, like a plan's exploded assembly drawing.
-function captureOverview({ exploded = 0 } = {}) {
+function captureOverview({ exploded = 0, width = 1800, height = 1200 } = {}) {
   const saved = {
     camera, pos: camera.position.clone(), target: controls.target.clone(), zoom: camera.zoom,
     bg: scene.background, current, gizmoVisible: current?.gizmo?.visible,
     size: renderer.getSize(new THREE.Vector2()), aspect: perspCamera.aspect,
   };
-  const W = 1800, H = 1200;
+  const W = width, H = height;
+  const savedHover = hoverRow;
+  hoverRow = null; // no orange outline on whatever the pointer rests on
   camera = perspCamera;
   controls.object = camera;
   renderer.setSize(W, H, false);
@@ -2202,6 +2242,7 @@ function captureOverview({ exploded = 0 } = {}) {
     url = cropToContent(renderer.domElement, 24, exploded ? drawCallouts : null);
   } catch { /* tainted canvas etc. */ }
   scene.background = saved.bg;
+  hoverRow = savedHover;
   stage.ground.visible = true;
   stage.invalidateShadows(); // and back as they were
   current = saved.current;

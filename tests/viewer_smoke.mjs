@@ -792,6 +792,12 @@ with zipfile.ZipFile(${JSON.stringify(zipPath)}, 'w', zipfile.ZIP_DEFLATED) as z
     check(look.drawn === look.segments, `and every outline is drawn (${look.drawn} of ${look.segments} segments)`);
     check(look.shadows, 'parts cast shadows');
     await p2.locator('#viewport').screenshot({ path: path.join(OUT, '44-new-model-look.png') });
+    // once the page has been idle a moment, the Models list gets a picture of it
+    await p2.waitForTimeout(4000);
+    await p2.locator('#clLibrary').click();
+    const thumb = await p2.locator('#library .lib-item.current img.lib-thumb').evaluate((img) => img.naturalWidth).catch(() => 0);
+    check(thumb > 50, `the Models list shows a picture of the new model (${thumb}px wide)`);
+    await p2.keyboard.press('Escape');
     check(errs.length === 0, `no page errors (${errs.join('; ')})`);
   } finally {
     await b2.close();

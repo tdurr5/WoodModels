@@ -103,6 +103,15 @@ export async function putModelFile(id, fileName, content, metaPatch = {}) {
   });
 }
 
+// a small picture of the model for the Models list (app.js saveThumbnail);
+// doesn't count as a change to the model
+export async function setThumbnail(id, thumb) {
+  await tx(['meta'], 'readwrite', async (meta) => {
+    const m = await req2p(meta.get(id));
+    if (m) meta.put({ ...m, thumb, thumbAt: Date.now() });
+  });
+}
+
 export async function deleteModel(id) {
   await tx(['meta', 'files', 'config', 'photos'], 'readwrite', (meta, fs, c, photos) => {
     meta.delete(id); fs.delete(id); c.delete(id);
