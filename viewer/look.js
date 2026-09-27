@@ -439,19 +439,22 @@ export function createStage(scene, renderer) {
   // the next frame redraws the shadows whatever changed (after a one-off render)
   stage.invalidateShadows = () => { lastSig = NaN; renderer.shadowMap.needsUpdate = true; };
 
-  // Lay the stage out around `box` (world): the ground at its foot (or at
-  // `floor`, lower, when exploded parts hang below it), lights aimed from
-  // `viewDir` (the model's 3D preset, so the key light comes from over the
-  // viewer's shoulder and its shadow falls behind and to the side).
-  stage.fit = (box, viewDir = [0.7, 0.5, 0.7], floor = box?.min.y) => {
+  // Lay the stage out around `box` (world, the model as built): the ground
+  // at its foot, lights aimed from `viewDir` (the model's 3D preset, so the
+  // key light comes from over the viewer's shoulder and its shadow falls
+  // behind and to the side). `reach`: where the parts are now, when exploded
+  // - the floor drops below the lowest and the shadows cover them all, while
+  // the grid keeps the squares it has for the model as built.
+  stage.fit = (box, viewDir = [0.7, 0.5, 0.7], reach = box) => {
     if (!box || box.isEmpty()) return;
+    const all = box.clone().union(reach && !reach.isEmpty() ? reach : box);
     stage.box = box.clone();
     const size = box.getSize(new THREE.Vector3());
     const center = box.getCenter(new THREE.Vector3());
     const R = Math.max(size.length() / 2, 0.5);
     stage.size = R;
     const footprint = Math.max(size.x, size.z, size.y * 0.5, 1);
-    const y = Math.min(floor, box.min.y) - R * 0.0005; // just under the feet, so they don't z-fight
+    const y = all.min.y - R * 0.0005; // just under the feet, so they don't z-fight
 
     const [cell, major] = gridSpacing(footprint);
     const extent = Math.max(footprint * 3.2, R * 4);
@@ -474,9 +477,10 @@ export function createStage(scene, renderer) {
     const around = (deg, elev) => v.clone().applyAxisAngle(up, THREE.MathUtils.degToRad(deg))
       .multiplyScalar(Math.cos(THREE.MathUtils.degToRad(elev))).setY(Math.sin(THREE.MathUtils.degToRad(elev))).normalize();
     const kDir = around(-50, 52), fDir = around(70, 25), rDir = around(170, 40);
+    const far = Math.max(R, all.getSize(new THREE.Vector3()).length() / 2) * 4; // lights outside everything
     [[key, kDir], [fill, fDir], [rim, rDir]].forEach(([l, d]) => {
       l.target.position.copy(center);
-      l.position.copy(center).addScaledVector(d, R * 4);
+      l.position.copy(center).addScaledVector(d, far);
       l.target.updateMatrixWorld();
       l.updateMatrixWorld();
     });
@@ -488,7 +492,7 @@ export function createStage(scene, renderer) {
     const lb = new THREE.Box3();
     const p = new THREE.Vector3();
     for (let i = 0; i < 8; i++) {
-      p.set(i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : y, i & 4 ? box.max.z : box.min.z);
+      p.set(i & 1 ? all.max.x : all.min.x, i & 2 ? all.max.y : y, i & 4 ? all.max.z : all.min.z);
       lb.expandByPoint(p.clone().sub(key.position).applyMatrix4(inv));
       // where that corner's shadow lands on the ground
       const drop = (p.y - y) / Math.max(kDir.y, 0.1);
