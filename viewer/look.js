@@ -262,10 +262,11 @@ export function edgeMaterial(color, opacity) {
 }
 
 // ---------- materials for what isn't wood ----------
-// What a material most likely is, from its names: metal (and which), glass,
+// What a material most likely is, from its names (the material's, not the
+// part's: "Top or bottom rail" isn't gold): metal (and which), glass,
 // leather, rubber, paint - else plain. Several languages, like woodtex.js.
 const KINDS = [
-  { kind: 'brass', words: ['brass', 'laiton', 'messing', 'laton', 'bronze', 'gold', 'or'] },
+  { kind: 'brass', words: ['brass', 'laiton', 'messing', 'laton', 'bronze', 'gold', 'golden', 'dore'] },
   { kind: 'copper', words: ['copper', 'cuivre', 'kupfer', 'cobre'] },
   { kind: 'blackMetal', words: ['black iron', 'cast iron', 'wrought', 'blackened', 'fonte', 'gusseisen', 'oxide', 'anthracite'] },
   { kind: 'metal', words: ['steel', 'stainless', 'iron', 'metal', 'metallic', 'chrome', 'aluminum', 'aluminium', 'zinc', 'nickel', 'galvanized', 'acier', 'metal', 'stahl', 'eisen', 'acero', 'hierro', 'inox', 'bolt', 'screw', 'nut', 'washer', 'rod', 'hinge', 'nail', 'hardware'] },

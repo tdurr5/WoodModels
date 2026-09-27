@@ -772,8 +772,9 @@ test('non-wood materials are recognised from their names', () => {
   assert.equal(materialKind('Hardware', '_____Metal'), 'metal');
   assert.equal(materialKind('Hardware', 'Thing'), 'metal'); // hardware defaults to steel
   assert.equal(materialKind('Other', 'Material12'), 'plain');
-  assert.equal(materialKind('Other', 'Or'), 'brass'); // French gold
-  assert.equal(materialKind('Other', 'Coral'), 'plain'); // not "or" inside a word
+  assert.equal(materialKind('Other', 'Doré'), 'brass'); // French gilt
+  assert.equal(materialKind('Other', 'Top or bottom'), 'plain'); // "or" is just a word
+  assert.equal(materialKind('Other', 'Coral'), 'plain');
 });
 
 import { applySetup } from '../viewer/library.js';

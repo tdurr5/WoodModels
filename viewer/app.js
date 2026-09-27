@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { woodMaterial, addEndGrain, endMapOf, speciesFor, generateGrainUV, photoWood, paletteFromColor, SPECIES } from './woodtex.js';
+import { woodMaterial, addEndGrain, endMapOf, speciesFor, generateGrainUV, photoWood, paletteFromColor, PHOTO_ACROSS, SPECIES } from './woodtex.js';
 import { classifyOverlaps as classifyOverlapsIn, singleSidedGeometry } from './autofix.js';
 import { formatLength, escapeHtml, toFraction, isCut, dimensionalSize } from './format.js';
 import { compoundAngle, describeAngle, round1, DEFAULT_AXIS_NAMES } from './angles.js';
@@ -547,21 +547,30 @@ function prepareMeshes(materialNames) {
       generateGrainUV(child.geometry, 6, objectDims[child.name], seed); // on the flat normals: one grain direction per face
       // the model's own photo of the wood, unless you picked how it looks in Set up
       const photo = !mc.species && woodPhotos.get(mc.texture?.image);
-      // no look picked in Set up: the grain in the colour the model painted it
-      const tex = mc.species ? mc.texture : paletteFromColor(mc.texture, mc.color);
-      child.material = woodMaterial(mc.species || speciesFor(mc.label, realName), tex, photo || null);
+      const species = mc.species || speciesFor(mc.label, realName);
+      // no look picked or named, no photo: the grain in the colour the model painted it
+      const tex = species || photo ? mc.texture : paletteFromColor(mc.texture, mc.color);
+      child.material = woodMaterial(species, tex, photo || null);
       child.material.color.multiplyScalar(0.9 + 0.14 * (((seed >>> 0) % 97) / 97)); // no two boards quite the same shade
     } else {
       // steel, brass, paint, leather... lit the same way as the wood (look.js)
-      const kind = materialKind(mc?.category, mc?.label, realName, rowByMeshName.get(child.name)?.name);
+      const kind = materialKind(mc?.category, mc?.label, realName);
       const name = child.material.name;
-      const photo = woodPhotos.get(mc?.photo);
-      child.material = surfaceMaterial(kind, photo ? 0xffffff : child.material.color);
+      // its own photo (fabric, stone, a textured finish): from model.json, or
+      // for a model folder converted before photos were listed there, the
+      // texture scene.mtl names (map_Kd)
+      let map = woodPhotos.get(mc?.photo)?.map;
+      if (!map && child.material.map) {
+        map = child.material.map;
+        map.wrapS = map.wrapT = THREE.RepeatWrapping;
+        map.colorSpace = THREE.SRGBColorSpace;
+        map.repeat.set(6 / PHOTO_ACROSS, 24 / PHOTO_ACROSS); // generateGrainUV: 6" across, 24" along per tile
+      }
+      child.material = surfaceMaterial(kind, map ? 0xffffff : child.material.color);
       child.material.name = name;
-      if (photo) {
-        // its own photo (fabric, stone, a textured finish), laid on like the wood's
-        generateGrainUV(child.geometry, 6, objectDims[child.name]);
-        child.material.map = photo.map;
+      if (map) {
+        generateGrainUV(child.geometry, 6, objectDims[child.name]); // laid on like the wood's
+        child.material.map = map;
       }
     }
     smoothNormals(child.geometry); // round parts shade round, square edges stay crisp
