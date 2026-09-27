@@ -944,7 +944,8 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     check(ghosts.hl && ghosts.ghosted && ghosts.solid, 'the model assembles as you go: earlier parts solid, this one highlighted, later ones ghosted');
     const name2 = await stepName();
     await p2.locator('#buildPanel .bp-cut input').click(); // (check() would re-tick the next step's box)
-    await p2.waitForTimeout(500);
+    // the panel re-renders (a fresh <select> each time), so poll fresh queries rather than watch a node
+    await p2.waitForFunction(() => document.querySelector('#buildPanel .bp-steps')?.value === '2', null, { timeout: 3000 }).catch(() => {});
     check(await stepNo() === '2', 'ticking "Cut" moves on to the next part');
     check(await p2.locator('#clList .row', { hasText: name2 }).first().locator('.cut-box').isChecked(), 'and ticks it off in the cut list');
     await p2.keyboard.press('ArrowLeft');
