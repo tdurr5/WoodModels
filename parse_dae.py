@@ -945,11 +945,13 @@ def starter_config(dae_path, mat_key_to_name, material_info):
     return {
         'title': title,
         'subtitle': '',
-        'axisNames': {'x': 'front-to-back', 'y': 'vertical', 'z': 'side-to-side'},
+        # SketchUp's front (its Front view looks at the model from -Y, Z up)
+        # is +Z here, Y up; Set up can change it
+        'axisNames': {'x': 'side-to-side', 'y': 'vertical', 'z': 'front-to-back'},
         'views': {
             'iso': {'label': '3D', 'dir': [0.7, 0.5, 0.7]},
-            'front': {'label': 'Front', 'dir': [1, 0, 0]},
-            'side': {'label': 'Side', 'dir': [0, 0, 1]},
+            'front': {'label': 'Front', 'dir': [0, 0, 1]},
+            'side': {'label': 'Side', 'dir': [-1, 0, 0]},
             'top': {'label': 'Top', 'dir': [0, 1, 0.0001]},
         },
         'materials': materials,

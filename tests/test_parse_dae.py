@@ -313,6 +313,9 @@ class StarterConfig(unittest.TestCase):
             self.assertEqual(cfg['title'], 'My Work Bench')
             self.assertEqual(cfg['materials']['Wood']['category'], 'Wood')
             self.assertEqual(cfg['materials']['Wood']['color'], '#e6b280')  # diffuse 0.9 0.7 0.5
+            # Front shows SketchUp's front (looking from -Y, Z up = +Z here), not its side
+            self.assertEqual(cfg['views']['front']['dir'], [0, 0, 1])
+            self.assertEqual(cfg['axisNames']['z'], 'front-to-back')
             # an edited config is never overwritten
             cfg['title'] = 'Edited'
             with open(os.path.join(out, 'model.json'), 'w') as f:
