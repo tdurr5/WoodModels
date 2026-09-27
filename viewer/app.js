@@ -24,7 +24,7 @@ import { initLibrary, modelZip } from './library.js';
 import { getModelFiles, lastOpened, rememberOpened, putModelFile, addPhoto, listPhotos, deletePhoto } from './modelstore.js';
 import { obbFromDims, partsTouch, findOverlaps, applyJoins, endJoints } from './geometry.js';
 import { glueUpStrips } from './nesting.js';
-import { createStage, smoothNormals, orientFaces, materialKind, surfaceMaterial } from './look.js';
+import { createStage, smoothNormals, orientFaces, materialKind, surfaceMaterial, featureEdges, edgeMaterial } from './look.js';
 
 const $ = (id) => document.getElementById(id);
 const viewport = $('viewport');
@@ -147,6 +147,9 @@ scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnviron
 // lights, ground grid and soft shadows, laid out around whatever model is
 // loaded (look.js; the model is exported Y-up, standard three.js convention)
 const stage = createStage(scene, renderer);
+// every part's outline, SketchUp-style (look.js featureEdges); one material
+// for plain parts and one for the highlighted part, recoloured with the theme
+const edgeMats = { plain: edgeMaterial(0x000000, 0.4), hl: edgeMaterial(0x5a1a00, 0.55) };
 
 // ---------- state ----------
 let config = {};
@@ -559,6 +562,11 @@ function prepareMeshes(materialNames) {
     }
     smoothNormals(child.geometry); // round parts shade round, square edges stay crisp
     if (singleSided) child.material.side = THREE.DoubleSide; // an open surface still shows from behind
+    const edgeGeo = new THREE.BufferGeometry();
+    edgeGeo.setAttribute('position', new THREE.BufferAttribute(featureEdges(child.geometry), 3));
+    const edges = new THREE.LineSegments(edgeGeo, edgeMats.plain);
+    edges.raycast = () => {}; // never picked or measured
+    child.add(edges); // follows the part: exploded, hidden, set aside
     child.castShadow = child.receiveShadow = true;
     const orig = child.material;
     const endMap = endMapOf(orig);
@@ -578,7 +586,7 @@ function prepareMeshes(materialNames) {
     meshes.push(child);
     meshByName.set(child.name, child);
     child.geometry.computeBoundingBox();
-    meshInfo.set(child, { orig, dim, hl, hlPiece, row, baseCenter: child.geometry.boundingBox.getCenter(new THREE.Vector3()) });
+    meshInfo.set(child, { orig, dim, hl, hlPiece, row, edges, baseCenter: child.geometry.boundingBox.getCenter(new THREE.Vector3()) });
   });
   updateModelBox();
 
@@ -620,6 +628,7 @@ function applyMaterials() {
       m.visible = now || (isShownPart(m) && !catHidden);
       m.material = now ? info.hl : done ? info.orig : info.dim;
       m.castShadow = !m.material.transparent; // ghosts and glass throw no shadow
+      showEdges(m, info);
       return;
     }
     const inGroup = !current && groupSel !== null && info.row?.top_group === groupSel;
@@ -627,7 +636,13 @@ function applyMaterials() {
     m.visible = isSel || (isShownPart(m) && !catHidden && !(s.isolate && (current || groupSel !== null) && !isSel));
     m.material = !current && groupSel === null ? info.orig : isSel ? (current?.piece === m && current.meshes.length > 1 ? info.hlPiece : info.hl) : info.dim;
     m.castShadow = !m.material.transparent;
+    showEdges(m, info);
   });
+}
+// Outlines on solid parts only: a ghosted part is just a hint, and wireframe draws its own
+function showEdges(m, info) {
+  info.edges.visible = !wireOn && m.material !== info.dim;
+  info.edges.material = m.material === info.hl || m.material === info.hlPiece ? edgeMats.hl : edgeMats.plain;
 }
 
 // Section caps: solid cut faces instead of hollow shells. Each part gets an
@@ -730,6 +745,7 @@ function applySection() {
     mat.clipShadows = on; // the part cut away throws no shadow either
     mat.needsUpdate = true;
   });
+  Object.values(edgeMats).forEach((mat) => { mat.clippingPlanes = on ? [clipPlane] : []; mat.needsUpdate = true; });
   showSectionCaps(on);
   if (on) placeCap();
 }
@@ -738,6 +754,7 @@ function setWireframe(on) {
   wireOn = on;
   allMaterials().forEach((m) => { m.wireframe = on; });
   $('wireBtn').classList.toggle('on', on);
+  if (model) applyMaterials();
 }
 
 function setExplodePositions(f) {

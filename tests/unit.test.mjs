@@ -849,3 +849,22 @@ test("SketchUp's back-to-back faces are left alone", () => {
   assert.deepEqual([...g.attributes.position.array], [...before]);
   assert.equal(isBackToBack(flatCylinder(24, false)), false);
 });
+
+import { featureEdges } from '../viewer/look.js';
+
+test('outlines: a board has its 12 edges, not the diagonals across its faces', () => {
+  const g = new THREE3.BoxGeometry(0.75, 3.5, 30).toNonIndexed();
+  assert.equal(featureEdges(g).length / 6, 12);
+  // SketchUp's back-to-back copy of every face changes nothing
+  const both = new THREE3.BufferGeometry();
+  const p = g.attributes.position.array, rev = [];
+  for (let i = 0; i < p.length; i += 9) rev.push(p[i], p[i + 1], p[i + 2], p[i + 6], p[i + 7], p[i + 8], p[i + 3], p[i + 4], p[i + 5]);
+  both.setAttribute('position', new THREE3.Float32BufferAttribute([...p, ...rev], 3));
+  assert.equal(featureEdges(both).length / 6, 12);
+});
+
+test("outlines: a dowel shows its end's rim, not the seams between its facets", () => {
+  // side + top cap only; the open bottom rim counts as an edge too
+  assert.equal(featureEdges(flatCylinder(24)).length / 6, 48);
+  assert.equal(featureEdges(flatCylinder(24, true)).length / 6, 48);
+});

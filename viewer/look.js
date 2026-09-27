@@ -10,6 +10,39 @@
 
 import * as THREE from 'three';
 
+// ---------- corners ----------
+// Corners that are the same point in the model (to 1/10000", so float
+// rounding doesn't split them) get one id: `vid` per corner, `pts` per id.
+// Worked out once per part and shared by the passes below; orientFaces keeps
+// it in step when it turns faces.
+const welds = new WeakMap();
+function weld(geometry) {
+  const pos = geometry.attributes.position;
+  let w = welds.get(geometry);
+  if (w && w.vid.length === pos.count) return w;
+  const q = 1e4;
+  const ids = new Map();
+  const pts = [];
+  const vid = new Int32Array(pos.count);
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const key = `${Math.round(x * q)},${Math.round(y * q)},${Math.round(z * q)}`;
+    let id = ids.get(key);
+    if (id === undefined) { ids.set(key, (id = ids.size)); pts.push(x, y, z); }
+    vid[i] = id;
+  }
+  w = { vid, pts, n: ids.size };
+  welds.set(geometry, w);
+  return w;
+}
+// the same triangle whichever way round its corners are listed
+function faceKey(a, b, c) {
+  if (a > b) [a, b] = [b, a];
+  if (b > c) [b, c] = [c, b];
+  if (a > b) [a, b] = [b, a];
+  return `${a},${b},${c}`;
+}
+
 // ---------- smooth shading ----------
 // The OBJ has no normals, so every triangle is shaded flat and a dowel shows
 // its 24 facets. Average each corner's normal with the neighbouring faces
@@ -28,17 +61,14 @@ export function smoothNormals(geometry, creaseDeg = 35) {
     c.sub(b); a.sub(b); c.cross(a); // |c| = 2 x area
     fn[t * 3] = c.x; fn[t * 3 + 1] = c.y; fn[t * 3 + 2] = c.z;
   }
-  // corners by position (quantised, so corners that are "the same point" in
-  // the model meet even after float rounding)
-  const q = 1e4;
-  const key = (i) => `${Math.round(pos.getX(i) * q)},${Math.round(pos.getY(i) * q)},${Math.round(pos.getZ(i) * q)}`;
-  const byPoint = new Map();
-  for (let i = 0; i < tris * 3; i++) {
-    const k = key(i);
-    let list = byPoint.get(k);
-    if (!list) byPoint.set(k, (list = []));
-    list.push(i);
-  }
+  // the corners at each point
+  const { vid, n: points } = weld(geometry);
+  const start = new Int32Array(points + 1);
+  for (let i = 0; i < tris * 3; i++) start[vid[i] + 1]++;
+  for (let p = 0; p < points; p++) start[p + 1] += start[p];
+  const fill = start.slice(0, points);
+  const corners = new Int32Array(tris * 3);
+  for (let i = 0; i < tris * 3; i++) corners[fill[vid[i]]++] = i;
   const cosCrease = Math.cos(THREE.MathUtils.degToRad(creaseDeg));
   const out = new Float32Array(n * 3);
   const units = new Array(tris);
@@ -47,20 +77,20 @@ export function smoothNormals(geometry, creaseDeg = 35) {
     const l = Math.hypot(x, y, z) || 1;
     units[t] = [x / l, y / l, z / l];
   }
-  byPoint.forEach((list) => {
-    list.forEach((i) => {
-      const ti = i / 3 | 0, ni = units[ti];
+  for (let p = 0; p < points; p++) {
+    for (let ci = start[p]; ci < start[p + 1]; ci++) {
+      const i = corners[ci], ni = units[i / 3 | 0];
       let x = 0, y = 0, z = 0;
-      list.forEach((j) => {
-        const tj = j / 3 | 0, nj = units[tj];
-        if (ni[0] * nj[0] + ni[1] * nj[1] + ni[2] * nj[2] < cosCrease) return;
+      for (let cj = start[p]; cj < start[p + 1]; cj++) {
+        const tj = corners[cj] / 3 | 0, nj = units[tj];
+        if (ni[0] * nj[0] + ni[1] * nj[1] + ni[2] * nj[2] < cosCrease) continue;
         x += fn[tj * 3]; y += fn[tj * 3 + 1]; z += fn[tj * 3 + 2];
-      });
+      }
       const l = Math.hypot(x, y, z);
       if (l > 1e-12) { out[i * 3] = x / l; out[i * 3 + 1] = y / l; out[i * 3 + 2] = z / l; }
       else { out[i * 3] = ni[0]; out[i * 3 + 1] = ni[1]; out[i * 3 + 2] = ni[2]; }
-    });
-  });
+    }
+  }
   geometry.setAttribute('normal', new THREE.BufferAttribute(out, 3));
   return geometry;
 }
@@ -77,12 +107,11 @@ export function isBackToBack(geometry) {
   const pos = geometry.attributes.position;
   const tris = pos.count / 3 | 0;
   if (!tris) return true;
-  const q = 1e4;
-  const k = (i) => `${Math.round(pos.getX(i) * q)},${Math.round(pos.getY(i) * q)},${Math.round(pos.getZ(i) * q)}`;
+  const { vid } = weld(geometry);
   const seen = new Map();
   let paired = 0;
   for (let t = 0; t < tris; t++) {
-    const key = [k(t * 3), k(t * 3 + 1), k(t * 3 + 2)].sort().join('|');
+    const key = faceKey(vid[t * 3], vid[t * 3 + 1], vid[t * 3 + 2]);
     const n = seen.get(key) || 0;
     if (n % 2 === 1) paired += 2;
     seen.set(key, n + 1);
@@ -94,15 +123,7 @@ export function orientFaces(geometry) {
   if (geometry.index || isBackToBack(geometry)) return false;
   const pos = geometry.attributes.position;
   const tris = pos.count / 3 | 0;
-  const q = 1e4;
-  const ids = new Map();
-  const vid = new Int32Array(tris * 3);
-  for (let i = 0; i < tris * 3; i++) {
-    const key = `${Math.round(pos.getX(i) * q)},${Math.round(pos.getY(i) * q)},${Math.round(pos.getZ(i) * q)}`;
-    let id = ids.get(key);
-    if (id === undefined) ids.set(key, (id = ids.size));
-    vid[i] = id;
-  }
+  const { vid } = weld(geometry);
   // undirected edge -> [triangle, direction (+1: a->b with a<b)]
   const edges = new Map();
   for (let t = 0; t < tris; t++) {
@@ -153,6 +174,7 @@ export function orientFaces(geometry) {
     changed = true;
     // swap corners 1 and 2
     const i = t * 3 + 1, j = t * 3 + 2;
+    [vid[i], vid[j]] = [vid[j], vid[i]];
     for (const attr of Object.values(geometry.attributes)) {
       for (let c = 0; c < attr.itemSize; c++) {
         const v = attr.getComponent(i, c);
@@ -164,6 +186,71 @@ export function orientFaces(geometry) {
   }
   if (changed) geometry.computeVertexNormals(); // flat: one normal per face, now facing out
   return true;
+}
+
+// ---------- edge lines ----------
+// The part's outline, like SketchUp draws it: every edge where two faces meet
+// at more than `creaseDeg` (a board's corners, a chamfer, a tenon's
+// shoulder), and the edge of an open surface - but not the diagonals across
+// a flat face or the seams between a dowel's facets. Returns line-segment
+// positions (x,y,z pairs) for THREE.LineSegments.
+export function featureEdges(geometry, creaseDeg = 30) {
+  const pos = geometry.attributes.position;
+  const tris = pos.count / 3 | 0;
+  const { vid, pts } = weld(geometry);
+  // each face once (SketchUp's back-to-back copies share their corners), with its unit normal
+  const faces = new Map();
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  for (let t = 0; t < tris; t++) {
+    const v = [vid[t * 3], vid[t * 3 + 1], vid[t * 3 + 2]];
+    if (v[0] === v[1] || v[1] === v[2] || v[0] === v[2]) continue;
+    const key = faceKey(v[0], v[1], v[2]);
+    if (faces.has(key)) continue;
+    a.fromBufferAttribute(pos, t * 3); b.fromBufferAttribute(pos, t * 3 + 1); c.fromBufferAttribute(pos, t * 3 + 2);
+    const n = c.sub(b).cross(a.sub(b));
+    if (n.lengthSq() < 1e-20) continue;
+    faces.set(key, { v, n: n.normalize().clone() });
+  }
+  const edges = new Map();
+  faces.forEach((f) => {
+    for (let e = 0; e < 3; e++) {
+      const i = f.v[e], j = f.v[(e + 1) % 3];
+      const key = i < j ? i * 4294967296 + j : j * 4294967296 + i;
+      let list = edges.get(key);
+      if (!list) edges.set(key, (list = { i, j, normals: [] }));
+      list.normals.push(f.n);
+    }
+  });
+  const cos = Math.cos(THREE.MathUtils.degToRad(creaseDeg));
+  const out = [];
+  edges.forEach(({ i, j, normals }) => {
+    // faces may face either way here (one of each back-to-back pair was
+    // kept), so compare the planes, not the directions
+    let crease = normals.length === 1;
+    for (let m = 0; m < normals.length && !crease; m++) {
+      for (let n = m + 1; n < normals.length; n++) if (Math.abs(normals[m].dot(normals[n])) < cos) { crease = true; break; }
+    }
+    if (crease) out.push(pts[i * 3], pts[i * 3 + 1], pts[i * 3 + 2], pts[j * 3], pts[j * 3 + 1], pts[j * 3 + 2]);
+  });
+  return new Float32Array(out);
+}
+
+// Lines drawn exactly on a part's edges lose the depth test to its faces half
+// the time (flicker). Pull them a hair towards the camera in the vertex
+// shader - the picture doesn't move, only the depth. (Polygon offset can't do
+// it: the logarithmic depth buffer writes its own depth.)
+export function edgeMaterial(color, opacity) {
+  const m = new THREE.LineBasicMaterial({ color, transparent: true, opacity, depthWrite: false });
+  m.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>
+      if (isPerspectiveMatrix(projectionMatrix)) {
+        gl_Position = projectionMatrix * vec4(mvPosition.xyz * 0.9985, 1.0);
+      } else {
+        gl_Position = projectionMatrix * vec4(mvPosition.xy, mvPosition.z + 0.02, 1.0);
+      }`);
+  };
+  m.customProgramCacheKey = () => 'edge-nudge';
+  return m;
 }
 
 // ---------- materials for what isn't wood ----------
@@ -263,7 +350,7 @@ const GRID_FRAG = /* glsl */`
 
 const GROUND_THEMES = {
   dark: { minor: 0x34363b, major: 0x4b4e55, shadow: 0.55 },
-  light: { minor: 0xe0d9ce, major: 0xc4bbad, shadow: 0.2 },
+  light: { minor: 0xe6e0d6, major: 0xcdc5b8, shadow: 0.2 },
 };
 
 // Grid squares that suit the model's size: inches for a box, a foot for
