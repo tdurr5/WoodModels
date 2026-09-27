@@ -300,7 +300,7 @@ export function surfaceMaterial(kind, color) {
       break;
     case 'blackMetal': Object.assign(opts, { roughness: 0.55, metalness: 0.7, envMapIntensity: 0.9 }); break;
     case 'brass': case 'copper': Object.assign(opts, { roughness: 0.32, metalness: 0.9, envMapIntensity: 1.2 }); break;
-    case 'glass': Object.assign(opts, { roughness: 0.05, transparent: true, opacity: 0.3, envMapIntensity: 1.5, depthWrite: false }); break;
+    case 'glass': Object.assign(opts, { roughness: 0.08, transparent: true, opacity: 0.18, envMapIntensity: 0.7, depthWrite: false }); break; // see through it to the shelves
     case 'leather': Object.assign(opts, { roughness: 0.62, envMapIntensity: 0.4 }); break;
     case 'rubber': Object.assign(opts, { roughness: 0.85, envMapIntensity: 0.25 }); break;
     case 'fabric': Object.assign(opts, { roughness: 0.95, envMapIntensity: 0.15 }); break;
