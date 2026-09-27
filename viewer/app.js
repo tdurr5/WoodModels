@@ -2008,7 +2008,7 @@ window.addEventListener('beforeprint', () => {
   // print-sized diagrams: 7.5" printable width at 96 css px per inch
   const layouts = computeLayouts(rows);
   const sheets = sheetLayouts(rows);
-  const longest = Math.max(...layouts.flatMap((g) => g.boards.map((b) => b.length)), ...sheets.flatMap((g) => g.sheets.map((b) => b.length)), 1);
+  const longest = Math.max(...layouts.flatMap((g) => [...g.owned, ...g.boards].map((b) => b.length)), ...sheets.flatMap((g) => g.sheets.map((b) => b.length)), 1);
   const diagrams = layouts.length || sheets.length
     ? `<div class="ps-diagrams"><h2>Shopping list &amp; cutting diagrams</h2>${layoutsHTML(layouts, { pxPerInch: 700 / longest, units: settings().units, colorFor: diagram.colorFor, hardware: rows, finishArea: woodSurfaceArea(), sheets })}</div>`
     : '';

@@ -459,3 +459,15 @@ body.build-mode #dimCard, body.build-mode #bottombar, body.build-mode #introTip 
 .mc-kind { display: inline-block; min-width: 54px; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
 @media print { #clCheck { display: none; } }
 #dimCard .card-std { color: var(--rough); font-weight: 600; }
+/* cutting diagram: boards you already have */
+.cd-inv { margin: 0 0 10px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12.5px; }
+.cd-inv summary { cursor: pointer; font-weight: 600; }
+.cd-inv-table { border-collapse: collapse; margin: 6px 0; }
+.cd-inv-table th { text-align: left; font-weight: normal; color: var(--muted); padding: 2px 6px 2px 0; }
+.cd-inv-table td { padding: 2px 6px 2px 0; }
+.cd-inv-table input, .cd-inv-table select { background: var(--input-bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 2px 4px; }
+.cd-inv-table input { width: 64px; }
+.cd-inv-del { background: none; border: none; color: var(--muted); font-size: 16px; cursor: pointer; }
+.cd-board.owned .cd-board-title { color: var(--rough); font-weight: 600; }
+@media print { .cd-inv { display: none; } }
+@media (max-width: 600px) { .cd-inv-table thead { display: none; } .cd-inv-table tr { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; padding: 6px 0; border-bottom: 1px solid var(--line); } .cd-inv-table input, .cd-inv-table select { width: 100%; box-sizing: border-box; } }

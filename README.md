@@ -11,7 +11,7 @@ A 3D cut-list viewer for woodworking plans, starting with the Lie-Nielsen/Brian 
 - `viewer/` - the browser app (three.js, no build step)
   - `index.html`, `style.css`, `app.js` - page, styles, 3D scene and selection
   - `cutlist.js` - sidebar cut list, totals, CSV export, printable cut sheet
-  - `diagram.js`, `nesting.js` - shopping list, cost estimate, cutting diagrams
+  - `diagram.js`, `nesting.js`, `inventory.js` - shopping list, cost estimate, cutting diagrams, boards you already have
   - `template.js` - printable full-size part templates
   - `geometry.js` - oriented-box contact tests (what joins what, where holes go), tenons and mortises, overlapping pieces and joining them
   - `autofix.js` - tells a board modeled as two overlapping pieces, or a stray copy, from a lap joint (automatic fixes on load)
@@ -66,6 +66,7 @@ On a phone the layout follows how you hold it (model above the list upright, sid
   - **Sheet goods** (plywood, MDF, OSB, Masonite/hardboard, particle board, melamine...) are laid out on full sheets instead - 4×8 by default, or 5×10, 5×5, 4×4 or 2×4 - per material and thickness, at finished size. Materials whose name says what they are are detected automatically; otherwise pick **Sheet goods** in **Set up**.
   - Hardware is totalled per size, e.g. rod pieces and the stock length to buy. Anything that is neither wood nor hardware is folded away under *Other parts*.
   - Enter a price per board foot for a lumber cost estimate.
+  - **My boards**: list the boards you already have (species, thickness, width, length, how many). Parts are laid out on your boards first, marked *Your board* in the diagram, and the shopping list only counts what's left to buy. The list is kept in this browser for every project.
 - **Your notes**: add a note to any part from its card; it shows in the list, CSV and printout.
 - ⚠ notes flag known problems in the source model (e.g. rods whose name says 8-1/4" but are modeled 6-7/8").
 

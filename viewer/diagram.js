@@ -2,7 +2,8 @@
 // laid out on them (see nesting.js), as SVG. Shown in a modal and appended to
 // the printed cut sheet.
 
-import { packBoards, boardParts, boardYield, piecesByStock } from './nesting.js';
+import { packWithOwned, boardParts, boardYield, piecesByStock } from './nesting.js';
+import { getInventory, setInventory, ownedFor } from './inventory.js';
 import { formatLength, boardFeet, escapeHtml, SHEET } from './format.js';
 import { settings, updateSettings } from './settings.js';
 import { roughFor, isRod, finishedDims, millingPlanHTML, sheetLayouts, sheetLine } from './cutlist.js';
@@ -13,11 +14,15 @@ const PART_COLORS = ['#e0b27a', '#c99b62', '#d6a56b', '#b98a55', '#e8c08e', '#cf
 
 export function computeLayouts(rows) {
   const stock = { ...STOCK_DEFAULTS, ...(settings().stock || {}) };
+  const inventory = getInventory();
   return piecesByStock(rows.filter((r) => r.category === 'Wood'), roughFor).map((g) => {
-    const { boards } = packBoards(g.pieces, stock);
+    // your own boards first (inventory.js), then boards to buy for the rest
+    const { owned, boards } = packWithOwned(g.pieces, ownedFor(inventory, g.material, g.thicknessLabel), stock);
     const bf = boards.reduce((a, b) => a + boardFeet(b.length, b.width, g.thickness), 0);
-    const partsBf = g.pieces.reduce((a, p) => a + boardFeet(p.length, p.width, g.thickness), 0);
-    return { ...g, stock, boards, bf, partsBf };
+    const ownedBf = owned.reduce((a, b) => a + boardFeet(b.length, b.width, g.thickness), 0);
+    const boughtParts = g.pieces.filter((p) => !owned.some((b) => boardParts(b).some((q) => q.id === p.id)));
+    const partsBf = boughtParts.reduce((a, p) => a + boardFeet(p.length, p.width, g.thickness), 0);
+    return { ...g, stock, owned, boards, bf, ownedBf, partsBf };
   });
 }
 
@@ -42,6 +47,8 @@ function buyInfo(g) {
 export function shoppingList(layouts) {
   const prices = settings().prices || {};
   return layouts.map((g) => {
+    const mine = g.owned.length ? `${g.owned.length} of your boards` : '';
+    if (!g.boards.length) return { label: `${g.thicknessLabel} ${g.material}`, material: g.material, list: `all from ${mine}`, bf: 0, yield: 1, cost: null, none: true };
     const sizes = new Map();
     g.boards.forEach((b) => {
       const k = `${feetInches(b.length)} × ${formatLength(b.width, 'in8')}${b.oversize ? ' (oversize)' : ''}`;
@@ -52,6 +59,7 @@ export function shoppingList(layouts) {
     if (partial) {
       list += ` — only ${feetInches(partial)} of ${g.boards.length > 1 ? 'the last one' : 'it'} is used; a shorter board or an offcut will do`;
     }
+    if (mine) list += `, plus ${mine}`;
     const price = prices[g.material];
     return { label: `${g.thicknessLabel} ${g.material}`, material: g.material, list, bf, yield: g.partsBf / g.bf, cost: price > 0 ? bf * price : null };
   });
@@ -124,7 +132,7 @@ export function layoutsHTML(layouts, { pxPerInch, units, colorFor, hardware = nu
   const hwOther = hw.other.filter((o) => o.category === 'Other');
   return `
     <div class="cd-shop">${shop.length ? `<b>Lumber to buy</b> (rough, before the ~20% defect allowance):
-      <ul>${shop.map((s) => `<li><b>${escapeHtml(s.label)}</b>: ${escapeHtml(s.list)} — ${s.bf.toFixed(1)} bf${s.cost != null ? ` ≈ ${money(s.cost)}` : ''}, ${Math.round(s.yield * 100)}% used</li>`).join('')}</ul>` : ''}
+      <ul>${shop.map((s) => `<li><b>${escapeHtml(s.label)}</b>: ${escapeHtml(s.list)}${s.none ? ' - nothing to buy' : ` — ${s.bf.toFixed(1)} bf${s.cost != null ? ` ≈ ${money(s.cost)}` : ''}, ${Math.round(s.yield * 100)}% used`}</li>`).join('')}</ul>` : ''}
       ${sheets.length ? `<b>Sheet goods to buy</b>:
         <ul>${sheets.map((g) => `<li><b>${escapeHtml(sheetLine(g))}</b> — ${Math.round((g.sheets.reduce((a, b) => a + boardYield(b), 0) / g.sheets.length) * 100)}% used${g.sheets.some((b) => b.oversize) ? ' <span class="warn">⚠ a part is bigger than the sheet</span>' : ''}</li>`).join('')}</ul>` : ''}
       ${totalCost ? `<div>Lumber estimate: <b>${money(totalCost)}</b> (${money(totalCost * 1.2)} with 20% extra)</div>` : ''}
@@ -147,7 +155,13 @@ export function layoutsHTML(layouts, { pxPerInch, units, colorFor, hardware = nu
       </div>`).join('')}
     ${layouts.map((g) => `
       <div class="cd-group">
-        <h3>${escapeHtml(g.thicknessLabel)} ${escapeHtml(g.material)} <span class="muted">— ${g.boards.length} board${g.boards.length === 1 ? '' : 's'}, ${g.pieces.length} part${g.pieces.length === 1 ? '' : 's'}</span></h3>
+        <h3>${escapeHtml(g.thicknessLabel)} ${escapeHtml(g.material)} <span class="muted">— ${g.owned.length ? `${g.owned.length} of your board${g.owned.length === 1 ? '' : 's'}, ` : ''}${g.boards.length} board${g.boards.length === 1 ? '' : 's'}${g.owned.length ? ' to buy' : ''}, ${g.pieces.length} part${g.pieces.length === 1 ? '' : 's'}</span></h3>
+        ${g.owned.map((b, i) => `
+          <div class="cd-board owned">
+            <div class="cd-board-title">Your board ${i + 1}: ${feetInches(b.length)} × ${formatLength(b.width, units)}
+              · ${boardFeet(b.length, b.width, g.thickness).toFixed(1)} bf · ${Math.round(boardYield(b) * 100)}% used</div>
+            ${boardSVG(b, g, { pxPerInch, units, colorFor })}
+          </div>`).join('')}
         ${g.boards.map((b, i) => `
           <div class="cd-board">
             <div class="cd-board-title">Board ${i + 1}: ${feetInches(b.length)} × ${formatLength(b.width, units)}
@@ -195,15 +209,60 @@ export function initDiagramModal({ rows, onSelectRow, finishArea = () => 0 }) {
     sheetSel.closest('label').style.display = sheets.length ? '' : 'none';
     sheetSel.value = `${sheets[0]?.stock.length || stock.sheetLength || 96}x${sheets[0]?.stock.width || stock.sheetWidth || 48}`;
     const avail = Math.max(320, body.clientWidth - 24);
-    const longest = Math.max(...layouts.flatMap((g) => g.boards.map((b) => b.length)), ...sheets.flatMap((g) => g.sheets.map((b) => b.length)), stock.length);
+    const longest = Math.max(...layouts.flatMap((g) => [...g.owned, ...g.boards].map((b) => b.length)), ...sheets.flatMap((g) => g.sheets.map((b) => b.length)), stock.length);
     renderPrices(layouts);
-    body.innerHTML = layoutsHTML(layouts, { pxPerInch: avail / longest, units: s.units, colorFor, hardware: rows, finishArea: finishArea(), sheets })
+    body.innerHTML = inventoryHTML(layouts) + layoutsHTML(layouts, { pxPerInch: avail / longest, units: s.units, colorFor, hardware: rows, finishArea: finishArea(), sheets })
       + `<details class="cd-mill" open><summary>Milling plan: parts that share a machine setting</summary>${millingPlanHTML(rows, s.units)}</details>`;
     body.querySelectorAll('.part').forEach((el) => el.addEventListener('click', () => {
       const row = rows.find((r) => r.key === el.dataset.row);
       if (row) { close(); onSelectRow(row); }
     }));
   }
+
+  // "My boards": boards you already have, used before any are bought
+  let invOpen = false;
+  const THICK = ['4/4', '5/4', '6/4', '8/4', '10/4', '12/4', '16/4'];
+  function inventoryHTML(layouts) {
+    const list = getInventory();
+    const mats = [...new Set([...layouts.map((g) => g.material), ...list.map((b) => b.material).filter(Boolean)])];
+    const used = layouts.reduce((n, g) => n + g.owned.length, 0);
+    const opt = (v, cur, text = v) => `<option value="${escapeHtml(v)}"${v === cur ? ' selected' : ''}>${escapeHtml(text)}</option>`;
+    return `<details class="cd-inv"${invOpen || list.length ? ' open' : ''}><summary>My boards${list.length ? ` (${list.length} kind${list.length > 1 ? 's' : ''}${used ? `, ${used} used here` : ''})` : ''} <span class="muted">- boards you already have are used first; you only buy the rest</span></summary>
+      <table class="cd-inv-table">${list.length ? '<thead><tr><th>Species</th><th>Thickness</th><th>Width (in)</th><th>Length (in)</th><th>Qty</th><th></th></tr></thead>' : ''}<tbody>
+      ${list.map((b, i) => `<tr data-i="${i}">
+        <td><select data-k="material">${opt('', b.material, 'Any species')}${mats.map((m) => opt(m, b.material)).join('')}</select></td>
+        <td><select data-k="thickness">${THICK.map((t) => opt(t, b.thickness)).join('')}</select></td>
+        <td><input data-k="width" type="number" min="1" step="0.25" value="${b.width}" /></td>
+        <td><input data-k="length" type="number" min="1" step="1" value="${b.length}" /></td>
+        <td><input data-k="count" type="number" min="1" step="1" value="${b.count || 1}" /></td>
+        <td><button class="cd-inv-del" title="Remove">×</button></td></tr>`).join('')}
+      </tbody></table>
+      <button class="card-btn cd-inv-add">+ Add a board</button></details>`;
+  }
+  body.addEventListener('toggle', (e) => { if (e.target.classList?.contains('cd-inv')) invOpen = e.target.open; }, true);
+  body.addEventListener('change', (e) => {
+    const tr = e.target.closest('.cd-inv-table tr[data-i]');
+    if (!tr) return;
+    const list = getInventory();
+    const b = list[+tr.dataset.i];
+    const k = e.target.dataset.k;
+    b[k] = k === 'material' || k === 'thickness' ? e.target.value : Math.max(0, parseFloat(e.target.value) || 0);
+    setInventory(list);
+    render();
+  });
+  body.addEventListener('click', (e) => {
+    if (e.target.classList.contains('cd-inv-add')) {
+      const layouts = computeLayouts(rows);
+      const g = layouts[0];
+      setInventory([...getInventory(), { material: g?.material || '', thickness: g?.thicknessLabel || '4/4', width: 6, length: 72, count: 1 }]);
+      invOpen = true;
+      render();
+    } else if (e.target.classList.contains('cd-inv-del')) {
+      const i = +e.target.closest('tr').dataset.i;
+      setInventory(getInventory().filter((_, k) => k !== i));
+      render();
+    }
+  });
 
   // $/bf per species; blank = no cost estimate
   const pricesEl = modal.querySelector('.cd-prices');

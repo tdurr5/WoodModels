@@ -605,3 +605,25 @@ test('dimensional lumber is recognised by its actual size', () => {
   assert.equal(dimensionalSize(1.625, 3.5), null); // 1-5/8": milled hardwood
   assert.equal(dimensionalSize(0.75, 4), null);
 });
+
+import { packWithOwned } from '../viewer/nesting.js';
+
+test('boards you own are used first; only the rest is bought', () => {
+  const pieces = [
+    { id: 'a', length: 30, width: 5 }, { id: 'b', length: 30, width: 5 },
+    { id: 'c', length: 60, width: 7 }, { id: 'd', length: 20, width: 3 },
+  ];
+  const stock = { length: 96, width: 8, kerf: 0.125 };
+  // one 5' x 6" board on the rack: takes the two 30" x 5" parts, not the 7" wide one
+  const r = packWithOwned(pieces, [{ length: 64, width: 6, label: 'rack' }], stock);
+  assert.equal(r.owned.length, 1);
+  assert.equal(r.owned[0].owned, true);
+  assert.deepEqual(boardParts(r.owned[0]).map((p) => p.id).sort(), ['a', 'b']);
+  assert.deepEqual(r.boards.flatMap(boardParts).map((p) => p.id).sort(), ['c', 'd']);
+  // enough owned boards: nothing to buy
+  const all = packWithOwned(pieces, [{ length: 96, width: 12 }, { length: 96, width: 12 }], stock);
+  assert.equal(all.boards.length, 0);
+  assert.equal(all.owned.flatMap(boardParts).length, 4);
+  // an owned board nothing fits on isn't used
+  assert.equal(packWithOwned(pieces, [{ length: 10, width: 2 }], stock).owned.length, 0);
+});

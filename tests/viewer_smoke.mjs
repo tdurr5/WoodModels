@@ -515,6 +515,23 @@ try {
   check(boardsWide <= boards, `wider stock needs no more boards (${boards} -> ${boardsWide})`);
   await page.fill('#cdWidth', '8');
   await page.locator('#cdWidth').dispatchEvent('change');
+  // a board already on the rack: used first, and the shopping list shrinks
+  const buyBefore = await page.locator('#diagram .cd-board:not(.owned)').count();
+  await page.locator('#diagram .cd-inv summary').click();
+  await page.locator('#diagram .cd-inv-add').click();
+  const inv = page.locator('#diagram .cd-inv-table tr[data-i="0"]');
+  await inv.locator('[data-k="thickness"]').selectOption('8/4');
+  await inv.locator('[data-k="width"]').fill('9');
+  await inv.locator('[data-k="width"]').dispatchEvent('change');
+  await inv.locator('[data-k="length"]').fill('96');
+  await inv.locator('[data-k="length"]').dispatchEvent('change');
+  const owned = await page.locator('#diagram .cd-board.owned').count();
+  const buyAfter = await page.locator('#diagram .cd-board:not(.owned)').count();
+  const shop8 = (await page.locator('#diagram .cd-shop li', { hasText: '8/4 Wood:' }).innerText()).trim();
+  check(owned === 1 && buyAfter === buyBefore - 1 && /plus 1 of your boards/.test(shop8), `a board you already have is used first and not bought (${buyBefore} -> ${buyAfter} to buy; ${shop8})`);
+  check(await page.locator('#diagram .cd-board.owned .part').count() > 0, 'parts are laid out on your board');
+  await page.locator('#diagram .cd-inv-del').click();
+  check(await page.locator('#diagram .cd-board.owned').count() === 0, 'removing it plans to buy them all again');
   await page.locator('#diagram .part').first().click();
   check(!(await page.locator('#diagram').isVisible()) && await page.locator('#clList .row.active').count() === 1, 'clicking a piece in the diagram selects that part');
 

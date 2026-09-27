@@ -115,3 +115,24 @@ export function piecesByStock(rows, roughFor) {
   // thinnest stock first, the order you'd list it on a lumber order
   return [...groups.values()].sort((a, b) => a.material.localeCompare(b.material) || a.thickness - b.thickness);
 }
+
+// Boards you already have first, then stock to buy for the rest. owned:
+// [{ length, width, label }] (one entry per board). Each owned board, biggest
+// first, takes what fits on it; the rest goes onto `stock` boards as usual.
+// Returns { owned: [board...] (only the ones used, each with `owned` and
+// `label`), boards: [board...] (to buy) }.
+export function packWithOwned(pieces, owned, stock) {
+  let rest = [...pieces];
+  const used = [];
+  const boards = [...owned].sort((a, b) => b.length * b.width - a.length * a.width);
+  for (const ob of boards) {
+    const fits = rest.filter((p) => p.length <= ob.length + 1e-9 && p.width <= ob.width + 1e-9);
+    if (!fits.length) continue;
+    const [board] = packBoards(fits, { ...stock, length: ob.length, width: ob.width }).boards;
+    const placed = new Set(boardParts(board).map((p) => p.id));
+    rest = rest.filter((p) => !placed.has(p.id));
+    used.push({ ...board, owned: true, label: ob.label || '' });
+    if (!rest.length) break;
+  }
+  return { owned: used, boards: rest.length ? packBoards(rest, stock).boards : [] };
+}
