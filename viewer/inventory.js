@@ -21,5 +21,6 @@ export function ownedFor(list, material, thicknessLabel) {
   const m = (material || '').trim().toLowerCase();
   return list
     .filter((b) => b.thickness === thicknessLabel && (!b.material || b.material.trim().toLowerCase() === m) && b.width > 0 && b.length > 0)
-    .flatMap((b, i) => Array.from({ length: Math.max(1, Math.min(50, Math.round(b.count || 1))) }, (_, k) => ({ length: +b.length, width: +b.width, label: `${i}.${k}` })));
+    // (a count of 0: used up; no count at all: one board)
+    .flatMap((b, i) => Array.from({ length: Math.max(0, Math.min(200, Math.round(b.count ?? 1) || 0)) }, (_, k) => ({ length: +b.length, width: +b.width, label: `${i}.${k}` })));
 }

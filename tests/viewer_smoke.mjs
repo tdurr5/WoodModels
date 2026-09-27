@@ -133,6 +133,7 @@ try {
   await page.screenshot({ path: path.join(OUT, '01-loaded.png') });
   await page.locator('#introClose').click();
   check(!(await page.locator('#introTip').isVisible()), 'tips can be dismissed');
+  await page.waitForFunction(() => !/checking/.test(document.getElementById('clCheck').textContent), null, { timeout: 15000 }).catch(() => {});
   check(/✓ Model check/.test(await page.locator('#clCheck').innerText()), 'the model check finds nothing wrong with the built-in model');
   await page.waitForTimeout(1500);
   const frames = await page.evaluate(async () => {
@@ -774,6 +775,7 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     check(JSON.stringify(front) === '[0,0,1]', `setup saves which way is front (${front})`);
     await p2.screenshot({ path: path.join(OUT, '41-uploaded.png') });
     // (the test model's parts are spaced apart, not assembled)
+    await p2.waitForFunction(() => !/checking/.test(document.getElementById('clCheck').textContent), null, { timeout: 15000 }).catch(() => {});
     const mc = await p2.locator('#clCheck').innerText();
     check(/Model check: 2 things to look at/.test(mc), `the model check flags parts that touch nothing (${mc.split('\n')[0]})`);
     await p2.locator('#clCheck summary').click();
@@ -1091,6 +1093,10 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     check(/Assemble Jaw Lower Assy[\s\S]*Parts:.*Jaw Lower[\s\S]*Dry-fit/.test(asm), 'the assemble step lists its parts and says how to glue it up');
     const lit = await p2.evaluate(() => { const v = window.__viewer; return v.meshesOf('Jaw Support').every((m) => m.material.emissiveIntensity > 0); });
     check(lit, 'and highlights the whole sub-assembly');
+    const stepsHere = await p2.locator('#buildPanel .bp-steps option').count();
+    await p2.keyboard.press('Delete');
+    await p2.waitForTimeout(300);
+    check(await p2.locator('#buildPanel .bp-steps option').count() === stepsHere, 'Delete on an assemble step doesn\'t delete the whole sub-assembly');
     // a photo of the step, kept with the model
     const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFklEQVQImWP4z8DwnwEIGBgYGBgAAAgOAQFSSSQjAAAAAElFTkSuQmCC', 'base64');
     await p2.locator('#buildPanel .bp-photo-add input').setInputFiles({ name: 'step.png', mimeType: 'image/png', buffer: png });

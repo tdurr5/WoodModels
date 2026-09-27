@@ -104,13 +104,13 @@ def get_series(series_id):
 
 
 def factor_since(values, base_month):
-    """Latest value over the value in base_month (or the nearest month after it)."""
-    if not values:
+    """Latest value over the value in base_month; (None, None) if the series
+    doesn't have that month (e.g. a source that only keeps recent years) -
+    a guess from another month would move every price."""
+    base = dict(values).get(base_month)
+    if not values or not base:
         return None, None
-    base = next((v for m, v in values if m >= base_month), None)
     latest_month, latest = values[-1]
-    if not base:
-        return None, None
     return latest / base, latest_month
 
 
@@ -156,6 +156,10 @@ def main():
         print('No price index data (sources unreachable); leaving prices.json as it is.')
         return 0
     data = build(indexes)
+    missing = [k for k, v in data['indexes'].items() if not v['asOf']]
+    if missing:
+        print(f"No {BASE_MONTH} value for {', '.join(missing)} lumber; leaving prices.json as it is.")
+        return 0
     text = json.dumps(data, indent=2) + '\n'
     if args.dry_run:
         print(text)

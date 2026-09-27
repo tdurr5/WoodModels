@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { woodMaterial, addEndGrain, endMapOf, speciesFor, generateGrainUV, photoWood } from './woodtex.js';
+import { woodMaterial, addEndGrain, endMapOf, speciesFor, generateGrainUV, photoWood, SPECIES } from './woodtex.js';
 import { classifyOverlaps as classifyOverlapsIn, singleSidedGeometry } from './autofix.js';
 import { formatLength, escapeHtml, toFraction, isCut, dimensionalSize } from './format.js';
 import { compoundAngle, describeAngle, round1, DEFAULT_AXIS_NAMES } from './angles.js';
@@ -17,7 +17,7 @@ import {
   normalizeEdits, withStatus, withName, withGroupName, withPieceStatus, withJoin, withSplit, withAutoFixes, joinKey,
 } from './edits.js';
 import { initMeasure } from './measure.js';
-import { initDiagramModal, computeLayouts, layoutsHTML, STOCK_DEFAULTS, shoppingText } from './diagram.js';
+import { initDiagramModal, computeLayouts, layoutsHTML, STOCK_DEFAULTS, shoppingText, setSpeciesLookup } from './diagram.js';
 import { initShare } from './share.js';
 import { buildTemplate } from './template.js';
 import { initLibrary, modelZip } from './library.js';
@@ -273,6 +273,11 @@ async function init() {
     onShare: () => share.open(),
   });
   diagram = initDiagramModal({ rows, onSelectRow: (r) => selectRow(r), finishArea: () => (model ? woodSurfaceArea() : 0) });
+  // typical prices follow the species picked in Set up (materials are grouped by their label)
+  setSpeciesLookup((label) => {
+    const hit = Object.entries(cfg.materials || {}).find(([name, m]) => (m.label || name.replace(/^_+/, '')) === label && m.species);
+    return hit ? hit[1].species : null;
+  });
   buildViewButtons();
 
   $('loading').textContent = 'Building 3D model…';
@@ -289,7 +294,7 @@ async function init() {
   rememberOpened(LOCAL_ID ? `local:${LOCAL_ID}` : MODEL_REF);
   applySettingsToScene();
   announceAutoFixes();
-  renderModelCheck();
+  scheduleModelCheck();
   selectFromHash();
   if (new URLSearchParams(location.search).has('setup') && LOCAL_ID) {
     history.replaceState(null, '', `${location.pathname}?model=${encodeURIComponent(MODEL_REF)}${location.hash}`); // a reload shouldn't reopen it
@@ -489,7 +494,7 @@ function refreshRows() {
     } else clearSelection();
   }
   if (build) refreshBuild();
-  renderModelCheck();
+  scheduleModelCheck();
 }
 
 // Parts drawn in 3D: not deleted, and set-aside ones only when shown.
@@ -763,7 +768,7 @@ onSettingsChange((s, patch) => {
   if ('units' in patch || 'showRough' in patch || 'allowance' in patch || 'cut' in patch || 'hiddenCategories' in patch || 'userNotes' in patch || 'showAside' in patch) renderRows();
   if ('showAside' in patch && model) updateModelBox();
   if ('units' in patch && model && overlaps.length) refreshRows(); // overlap notes are written in the units shown
-  else if (('units' in patch || 'stock' in patch) && model) renderModelCheck();
+  else if (('units' in patch || 'stock' in patch) && model) scheduleModelCheck();
   // typing a note mustn't rebuild the card it's being typed into
   if (Object.keys(patch).every((k) => k === 'userNotes')) return;
   if ('hiddenCategories' in patch && current && settings().hiddenCategories.includes(current.row.category)) clearSelection();
@@ -1241,7 +1246,7 @@ function joineryText(jy, link, units) {
   const size = (j) => `${f(Math.min(j.width, j.thick))} × ${f(Math.max(j.width, j.thick))}`;
   const out = {};
   if (jy.cuts.length) {
-    const texts = jy.cuts.map((j) => `${j.kind === 'tenon' ? `tenon ${size(j)}, ${f(j.depth)} long` : `goes ${f(j.depth)} in`}${j.through ? ' (through)' : ''} into ${link(j.row)}`);
+    const texts = jy.cuts.map((j) => `${j.kind === 'tenon' ? `tenon ${size(j)}, ${f(j.depth)} long` : `goes ${f(j.depth)} in`}${j.through ? ` (through${j.proud ? `, ${f(j.proud)} proud` : ''})` : ''} into ${link(j.row)}`);
     const both = texts.length === 2 && texts[0] === texts[1];
     out.ends = `${both ? `${texts[0]}, each end` : texts.join('; ')}. ${jy.loose
       ? 'It sits almost wholly inside the parts it joins, like a loose tenon or dowel.'
@@ -1284,8 +1289,17 @@ function joineryPrintHtml() {
   return lines.length ? `<h2>Joinery</h2><table class="ps-table ps-joinery"><tbody>${lines.join('')}</tbody></table>` : '';
 }
 
-// "2×4" when a wood part is a dimensional-lumber size (buy it, no milling)
-const stdSize = (row) => (row.category === 'Wood' && !row.customDims && row.dims?.length === 3 ? dimensionalSize(row.dims[2], row.dims[1]) : null);
+// "2×4" when a wood part is a dimensional-lumber size (buy it, no milling) -
+// construction lumber is softwood: a 3/4" x 3-1/2" walnut rail isn't a 1x4
+const SOFTWOODS = new Set(['pine', 'larch', 'fir', 'cedar']);
+function stdSize(row) {
+  if (row.category !== 'Wood' || row.customDims || row.dims?.length !== 3) return null;
+  const mc = config.materials?.[row.material] || {};
+  if (mc.species === 'hardwood') return null;
+  const sp = SPECIES[mc.species] ? mc.species : speciesFor(row.materialLabel, row.material);
+  if (sp && !SOFTWOODS.has(sp)) return null;
+  return dimensionalSize(row.dims[2], row.dims[1]);
+}
 
 // ---------- model check: things in a downloaded model worth a look ----------
 // Wood that touches nothing (a leftover, or drawn in the wrong place), parts
@@ -1309,6 +1323,17 @@ function modelCheckItems() {
     }
   });
   return items;
+}
+// It measures what touches what, all parts against all: once the model is on
+// screen, not before (a big model on a phone). The results are cached, so
+// after an edit it's quick.
+let checkPending = false;
+function scheduleModelCheck() {
+  if (checkPending || !$('clCheck')) return;
+  checkPending = true;
+  if (!$('clCheck').textContent) $('clCheck').innerHTML = '<div class="model-check ok">Model check: checking…</div>';
+  const later = window.requestIdleCallback ? (f) => window.requestIdleCallback(f, { timeout: 1500 }) : (f) => setTimeout(f, 200);
+  later(() => { checkPending = false; renderModelCheck(); });
 }
 function renderModelCheck() {
   const el = $('clCheck');
@@ -2254,7 +2279,8 @@ window.addEventListener('keydown', (e) => {
     // removes the last measuring point first; otherwise deletes the selected part
     if (measure.undo()) e.preventDefault();
     else if (current && k === 'Delete') { setPartStatus([current.row], 'deleted'); e.preventDefault(); }
-    else if (groupSel !== null && k === 'Delete') { setPartStatus(allPartRows.filter((r) => r.top_group === groupSel), 'deleted'); e.preventDefault(); }
+    // (not in build mode, where an Assemble step shows a whole sub-assembly)
+    else if (groupSel !== null && k === 'Delete' && !build) { setPartStatus(allPartRows.filter((r) => r.top_group === groupSel), 'deleted'); e.preventDefault(); }
   } else if (k === 'F2' && current) { renameSelected(); e.preventDefault(); }
   else if (k === '/') { focusSearch(); e.preventDefault(); }
   else if (k === '?') toggleHelp();

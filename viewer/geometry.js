@@ -199,61 +199,74 @@ export function applyJoins(rawRows, joins, dims, toLabel = (x) => `${x}`) {
 export function endJoints(A, tris, others, { tol = 1 / 32, minDepth = 1 / 8 } = {}) {
   const [L, W, T] = A.axes;
   const len = A.half[0] * 2;
+  const maxProud = Math.min(1, len * 0.1); // a through tenon left long past the far face
   const out = [];
   for (const s of [1, -1]) {
     const end = A.center.map((c, k) => c + s * L[k] * A.half[0]);
     const back = L.map((v) => -s * v); // from the end back into A
     let best = null;
     for (const { name, box } of others) {
-      if (!pointInObb(end, box, tol)) continue;
-      // back along A from its end to where it leaves B: B's surface
-      const exitT = rayExit(end, back, box);
-      if (exitT === null) continue;
-      const depth = exitT;
+      // where the line from A's end back along A is inside B: [t0, t1]
+      const span = raySpan(end, back, box);
+      if (!span) {
+        // stops at B's surface: a butt joint, if A's end face lies against B
+        if (!best && pointInObb(end, box, tol)) best = { name, depth: 0, kind: 'butt' };
+        continue;
+      }
+      const [t0, t1] = span;
+      // B is further along A, or A only crosses it near its end (a peg through
+      // a beam): a through tenon stands proud by a little of what's inside
+      if (t0 > maxProud || t0 > (t1 - t0) * 0.25) continue;
+      const depth = t1; // A's end to B's near face: all that goes in (and through)
       // mostly inside B isn't a joint (a copy, a part drawn inside another)
       if (depth > len * 0.6) continue;
       if (depth < minDepth) {
-        // stops at B's surface: a butt joint, if A's end face lies against B
-        if (!best && Math.abs(depth) <= tol * 2) best = { name, depth: 0, kind: 'butt' };
+        if (!best && depth <= tol * 2) best = { name, depth: 0, kind: 'butt' };
         continue;
       }
       if (best && best.kind !== 'butt' && best.depth >= depth) continue;
-      // the size of what goes in: A's vertices between its end and B's surface
-      let w0 = Infinity, w1 = -Infinity, t0 = Infinity, t1 = -Infinity;
+      // the size of what goes in: A's vertices between its end and B's near face
+      let w0 = Infinity, w1 = -Infinity, u0 = Infinity, u1 = -Infinity;
       for (let i = 0; i + 2 < tris.length; i += 3) {
         const d = [tris[i] - end[0], tris[i + 1] - end[1], tris[i + 2] - end[2]];
         if (dot(d, back) > depth - tol) continue;
         const w = dot(d, W), t = dot(d, T);
-        w0 = Math.min(w0, w); w1 = Math.max(w1, w); t0 = Math.min(t0, t); t1 = Math.max(t1, t);
+        w0 = Math.min(w0, w); w1 = Math.max(w1, w); u0 = Math.min(u0, t); u1 = Math.max(u1, t);
       }
       if (w0 === Infinity) continue;
-      const width = w1 - w0, thick = t1 - t0;
+      const width = w1 - w0, thick = u1 - u0;
       if (width < 1 / 16 || thick < 1 / 16) continue;
       // a tenon or housed end sits within B's outline all round (the mortise
       // or dado has walls); a board crossing B, or sitting on it, sticks out
-      const mid = end.map((c, k) => c + back[k] * depth / 2);
+      const mid = end.map((c, k) => c + back[k] * (t0 + t1) / 2);
       const corner = (w, t) => mid.map((c, k) => c + W[k] * w + T[k] * t);
-      if (![[w0, t0], [w0, t1], [w1, t0], [w1, t1]].every(([w, t]) => pointInObb(corner(w, t), box, tol))) continue;
+      if (![[w0, u0], [w0, u1], [w1, u0], [w1, u1]].every(([w, t]) => pointInObb(corner(w, t), box, tol))) continue;
       const fullW = A.half[1] * 2, fullT = A.half[2] * 2;
       const shouldered = width < fullW - 1 / 16 || thick < fullT - 1 / 16;
-      // out the far side: A's end is at B's surface on the other side too
-      const through = !pointInObb(end.map((c, k) => c + back[k] * -tol * 2), box, 0);
-      best = { name, depth, kind: shouldered ? 'tenon' : 'housed', width, thick, through };
+      // out the far side: A's end stands proud of B, or is flush with its far face
+      const through = t0 > tol || !pointInObb(end.map((c, k) => c + back[k] * -tol * 2), box, 0);
+      best = { name, depth, kind: shouldered ? 'tenon' : 'housed', width, thick, through, proud: t0 > tol ? t0 : 0 };
     }
     if (best) out.push({ end: s, ...best });
   }
   return out;
 }
 
-// Distance along the ray from p (inside box B) to where it leaves B.
-function rayExit(p, dir, B) {
+// The stretch [t0, t1] (t0 >= 0) of the ray p + t*dir that lies inside box
+// B, or null if it misses it.
+function raySpan(p, dir, B) {
   const d = sub(p, B.center);
-  let tExit = Infinity;
+  let t0 = 0, t1 = Infinity;
   for (let i = 0; i < 3; i++) {
     const a = dot(d, B.axes[i]), v = dot(dir, B.axes[i]);
-    if (Math.abs(v) < 1e-9) continue;
-    const t = ((v > 0 ? B.half[i] : -B.half[i]) - a) / v;
-    tExit = Math.min(tExit, t);
+    if (Math.abs(v) < 1e-9) {
+      if (Math.abs(a) > B.half[i] + 1e-9) return null;
+      continue;
+    }
+    let lo = (-B.half[i] - a) / v, hi = (B.half[i] - a) / v;
+    if (lo > hi) [lo, hi] = [hi, lo];
+    t0 = Math.max(t0, lo); t1 = Math.min(t1, hi);
+    if (t1 < t0) return null;
   }
-  return tExit === Infinity ? null : Math.max(0, tExit);
+  return t1 > 1e-9 ? [t0, t1] : null;
 }

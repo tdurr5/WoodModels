@@ -584,6 +584,18 @@ test('through tenons, housed ends and butt joints are told apart', () => {
   assert.equal(endJoints(obbOf(butt.dims), butt.tris, others).find((x) => x.end === 1)?.kind, 'butt');
 });
 
+test('a through tenon left standing proud of the far face is still found', () => {
+  const leg = jbox([10, 0, 0], [2, 2, 30]); // x 9..11
+  // rail body to the leg's face (x 9), tenon 1/2" x 2" on to x 11.25: 1/4" proud
+  const body = jbox([0, 0, 5], [18, 1, 3]);
+  const tenon = jbox([10.125, 0, 5], [2.25, 0.5, 2]);
+  const all = jbox([1.125, 0, 5], [20.25, 1, 3]);
+  const j = endJoints(obbOf(all.dims), [...body.tris, ...tenon.tris], [{ name: 'leg', box: obbOf(leg.dims) }]).find((x) => x.end === 1);
+  assert.equal(j?.kind, 'tenon');
+  assert.equal(j.through, true);
+  assert.ok(Math.abs(j.depth - 2.25) < 1e-6 && Math.abs(j.proud - 0.25) < 1e-6, `depth ${j.depth}, proud ${j.proud}`);
+});
+
 test('a board crossing another or sitting on it is not a tenon', () => {
   // treadle beam over a peg: the beam is wider than the peg it crosses
   const peg = jbox([0, 0, 0], [1, 3, 16]);
@@ -650,4 +662,18 @@ test('a QR code is offered only for pages a phone can open', () => {
   assert.equal(reachableUrl(at('file:///home/me/viewer/index.html')), null);
   const svg = qrSvg('https://tdurr5.github.io/WoodModels/');
   assert.match(svg, /^<svg[\s\S]*<path d="M/);
+});
+
+import { ownedFor } from '../viewer/inventory.js';
+
+test('My boards: quantity 0 means none left; species and thickness must match', () => {
+  const list = [
+    { material: 'Walnut', thickness: '8/4', width: 7, length: 72, count: 2 },
+    { material: '', thickness: '8/4', width: 5, length: 60 }, // any species, one board (no count)
+    { material: 'Walnut', thickness: '8/4', width: 9, length: 96, count: 0 }, // used up
+    { material: 'Walnut', thickness: '4/4', width: 9, length: 96, count: 3 },
+  ];
+  assert.equal(ownedFor(list, 'walnut', '8/4').length, 3);
+  assert.equal(ownedFor(list, 'Cherry', '8/4').length, 1);
+  assert.equal(ownedFor(list, 'Walnut', '4/4').length, 3);
 });

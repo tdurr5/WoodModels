@@ -830,6 +830,10 @@ def build_report(instances, geoms, material_info):
         if dims[2] < 1 / 64:
             rep['flat'] = True  # a loose face with no thickness: not a piece of wood
         rep['count'] += 1
+        # the material it's shown with (pick_material), so the list and the 3D view agree
+        picked = material_info.get(pick_material(inst['material_bindings'], material_info, geo.get('material_area')), {}).get('name')
+        if 'material' not in rep and picked and not picked.startswith('edge_color'):
+            rep['material'] = picked
         rep['materials'].update(nm for nm in mat_names if nm and not nm.startswith('edge_color'))
         rep['paths'].append(inst['path'])
         if inst.get('in_obj'):

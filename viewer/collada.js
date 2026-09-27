@@ -713,6 +713,9 @@ function buildReport(instances, geoms, info) {
     if (auto) rep.auto_name = true;
     if (dims[2] < 1 / 64) rep.flat = true; // a loose face with no thickness: not a piece of wood
     rep.count += 1;
+    // the material it's shown with (pickMaterial), so the list and the 3D view agree
+    const picked = (info.get(pickMaterial(inst.material_bindings, info, geo.materialArea)) || {}).name;
+    if (!('material' in rep) && picked && !picked.startsWith('edge_color')) rep.material = picked;
     for (const t of inst.material_bindings.values()) {
       const nm = (info.get(t) || {}).name;
       if (nm && !nm.startsWith('edge_color')) rep.materials.add(nm);

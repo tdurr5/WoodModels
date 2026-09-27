@@ -104,7 +104,10 @@ export async function putModelFile(id, fileName, content, metaPatch = {}) {
 }
 
 export async function deleteModel(id) {
-  await tx(['meta', 'files', 'config'], 'readwrite', (meta, fs, c) => { meta.delete(id); fs.delete(id); c.delete(id); });
+  await tx(['meta', 'files', 'config', 'photos'], 'readwrite', (meta, fs, c, photos) => {
+    meta.delete(id); fs.delete(id); c.delete(id);
+    photos.delete(IDBKeyRange.bound(`local-${id}|`, `local-${id}|\uffff`)); // its build log (app.js modelKey)
+  });
   // its preferences, ticks, notes and quick-saved edits (see settings.js, app.js)
   try { ['settings', 'edits'].forEach((k) => localStorage.removeItem(`woodmodels:local-${id}:${k}`)); } catch { /* ignore */ }
   if (lastOpened() === `local:${id}`) rememberOpened('');

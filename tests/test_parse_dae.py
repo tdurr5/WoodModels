@@ -214,11 +214,16 @@ class PaintedPart(unittest.TestCase):
             parse_dae.main([dae, '-o', tmp, '-q'])
             cls.cfg = load_json(tmp, 'model.json')
             cls.mats = load_json(tmp, 'materials.json')
+            cls.rows = load_json(tmp, 'parts_report.json')
 
     def test_shown_with_the_material_covering_most_of_it(self):
         # the OBJ material for the rail is the walnut, not the default listed first
         self.assertIn('Walnut_-_Long_Grain', self.mats.values())
         self.assertNotIn('material', self.mats.values())
+
+    def test_the_cut_list_row_names_the_same_material(self):
+        rail = next(r for r in self.rows if r['label'] == 'Painted_rail')
+        self.assertEqual(rail['material'], 'Walnut_-_Long_Grain')
 
     def test_its_photo_is_recorded(self):
         self.assertEqual(self.cfg['materials']['Walnut_-_Long_Grain']['texture']['image'], 'Walnut_-_Long_Grain.jpg')
