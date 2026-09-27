@@ -168,6 +168,25 @@ function paletteSpecies(tex, grain = 'softwood') {
   return { ...g, early, late };
 }
 
+// The palette every new model's wood starts with (collada.js starterConfig).
+// Left like that, the grain is drawn in the colour the model painted the
+// wood instead: its colour for the earlywood, a darker latewood, so on
+// average it reads as that colour - a dark stained top stays dark, pale
+// legs pale. Each palette is a generated texture (a few MB), so a model with
+// dozens of browns shares the nearest of at most `max`.
+export const STOCK_TEXTURE = { base: '#c9975c', streak: '#a06f3b', ring: '#8a5a2c' };
+const issued = [];
+export function paletteFromColor(tex, color, max = 8) {
+  if (!tex || !/^#[0-9a-f]{6}$/i.test(color || '') || tex.base !== STOCK_TEXTURE.base || tex.ring !== STOCK_TEXTURE.ring) return tex;
+  let c = rgb(color);
+  if (issued.length >= max && !issued.some((i) => i.join() === c.join())) {
+    const d = (a) => (a[0] - c[0]) ** 2 + (a[1] - c[1]) ** 2 + (a[2] - c[2]) ** 2;
+    c = issued.reduce((best, i) => (d(i) < d(best) ? i : best));
+  } else if (!issued.some((i) => i.join() === c.join())) issued.push(c);
+  const hex = (k) => `#${c.map((v) => Math.max(0, Math.min(255, Math.round(v * k))).toString(16).padStart(2, '0')).join('')}`;
+  return { ...tex, base: hex(1), streak: hex(0.85), ring: hex(0.68) };
+}
+
 const cache = new Map();
 function texturesFor(key, sp) {
   if (!cache.has(key)) {
@@ -244,7 +263,17 @@ export function photoWood(img, id) {
   if (vertical) tex.repeat.set(perAcross, perAlong);
   else { tex.center.set(0.5, 0.5); tex.rotation = Math.PI / 2; tex.repeat.set(perAlong, perAcross); }
   tex.needsUpdate = true;
-  return { id, map: tex, early: avg(0.6, 0.95), late: avg(0.05, 0.3), vertical };
+  const mean = avg(0, 1);
+  return { id, map: tex, early: avg(0.6, 0.95), late: avg(0.05, 0.3), mean, vertical, woody: looksLikeWood(gx, gy, mean) };
+}
+
+// Does a photo look like wood? Streaky one way (grain) and wood-coloured:
+// a brown-orange-yellow hue, not grey, not near-white or black. gx, gy: how
+// much the picture changes across x and y; mean: its average colour.
+export function looksLikeWood(gx, gy, mean) {
+  const streaky = Math.max(gx, gy) / Math.max(1e-9, Math.min(gx, gy));
+  const hsl = new THREE.Color(mean).getHSL({}, THREE.SRGBColorSpace);
+  return streaky > 1.3 && hsl.h > 0.02 && hsl.h < 0.15 && hsl.s > 0.12 && hsl.l > 0.1 && hsl.l < 0.85;
 }
 
 // Material.clone() doesn't carry shader hooks: call addEndGrain(clone,

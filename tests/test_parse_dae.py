@@ -313,12 +313,28 @@ class StarterConfig(unittest.TestCase):
             self.assertEqual(cfg['title'], 'My Work Bench')
             self.assertEqual(cfg['materials']['Wood']['category'], 'Wood')
             self.assertEqual(cfg['materials']['Wood']['color'], '#e6b280')  # diffuse 0.9 0.7 0.5
+            # Front shows SketchUp's front (looking from -Y, Z up = +Z here), not its side
+            self.assertEqual(cfg['views']['front']['dir'], [0, 0, 1])
+            self.assertEqual(cfg['axisNames']['z'], 'front-to-back')
             # an edited config is never overwritten
             cfg['title'] = 'Edited'
             with open(os.path.join(out, 'model.json'), 'w') as f:
                 json.dump(cfg, f)
             parse_dae.main([dae, '-o', out, '-q'])
             self.assertEqual(load_json(out, 'model.json')['title'], 'Edited')
+
+    def test_photo_of_a_material_that_is_not_wood_is_kept(self):
+        info = {
+            'm1': {'name': 'Walnut', 'color': None, 'image': 'textures/walnut.jpg'},
+            'm2': {'name': 'Fabric_Blue', 'color': None, 'image': 'textures\\fabric.png'},
+            'm3': {'name': 'Steel', 'color': (0.5, 0.5, 0.5, 1), 'image': None},
+        }
+        cfg = parse_dae.starter_config('x.dae', {'m1': 'Walnut', 'm2': 'Fabric_Blue', 'm3': 'Steel'}, info)
+        self.assertEqual(cfg['materials']['Walnut']['texture']['image'], 'walnut.jpg')
+        self.assertNotIn('photo', cfg['materials']['Walnut'])
+        self.assertEqual(cfg['materials']['Fabric_Blue']['photo'], 'fabric.png')
+        self.assertNotIn('texture', cfg['materials']['Fabric_Blue'])
+        self.assertNotIn('photo', cfg['materials']['Steel'])
 
     def test_guess_category(self):
         self.assertEqual(parse_dae.guess_category('White_Oak'), 'Wood')

@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "viewer2",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd viewer2 && npm start"],
+      "port": 8080
+    },
+    {
+      "name": "shavehorse-viewer",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd viewer && python3 -m http.server 8743"],
+      "port": 8743
+    }
+  ]
+}

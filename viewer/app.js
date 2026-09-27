@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { woodMaterial, addEndGrain, endMapOf, speciesFor, generateGrainUV, photoWood, SPECIES } from './woodtex.js';
+import { woodMaterial, addEndGrain, endMapOf, speciesFor, generateGrainUV, photoWood, paletteFromColor, PHOTO_ACROSS, SPECIES } from './woodtex.js';
 import { classifyOverlaps as classifyOverlapsIn, singleSidedGeometry } from './autofix.js';
 import { formatLength, escapeHtml, toFraction, isCut, dimensionalSize } from './format.js';
 import { compoundAngle, describeAngle, round1, DEFAULT_AXIS_NAMES } from './angles.js';
@@ -21,10 +21,11 @@ import { initDiagramModal, computeLayouts, layoutsHTML, STOCK_DEFAULTS, shopping
 import { initShare } from './share.js';
 import { buildTemplate } from './template.js';
 import { initLibrary, modelZip } from './library.js';
-import { getModelFiles, lastOpened, rememberOpened, putModelFile, addPhoto, listPhotos, deletePhoto } from './modelstore.js';
+import { getModelFiles, getModelMeta, lastOpened, rememberOpened, putModelFile, addPhoto, listPhotos, deletePhoto, setThumbnail } from './modelstore.js';
 import { obbFromDims, partsTouch, findOverlaps, applyJoins, endJoints, pointInObb } from './geometry.js';
 import { cutFeatures } from './features.js';
 import { glueUpStrips } from './nesting.js';
+import { createStage, smoothNormals, orientFaces, materialKind, surfaceMaterial, featureEdges, edgeMaterial } from './look.js';
 
 const $ = (id) => document.getElementById(id);
 const viewport = $('viewport');
@@ -75,7 +76,9 @@ function resize() {
 
 // The part of the view the build panel leaves free, where framing centers
 // the model - on a phone the panel covers the bottom (or, sideways, the
-// right) of the screen. Null: the whole view.
+// right) of the screen. Outside build mode: between the toolbar and the
+// bottom bar, so a tall model isn't framed under the buttons. Null: the
+// whole view.
 let freeArea = null;
 function updateFreeArea() {
   const w = viewport.clientWidth, h = viewport.clientHeight;
@@ -86,6 +89,11 @@ function updateFreeArea() {
     const top = 48; // under the toolbar
     if (p.width > w * 0.6 && p.top - v.top > h * 0.3) f = { x: 0, y: top, w, h: p.top - v.top - top };
     else if (p.height > h * 0.6 && p.left - v.left > w * 0.35) f = { x: 0, y: top, w: p.left - v.left, h: h - top };
+  } else if (w && h) {
+    const v = viewport.getBoundingClientRect();
+    const top = $('toolbar').getBoundingClientRect().bottom - v.top + 4;
+    const bottom = $('bottombar').getBoundingClientRect().top - v.top - 4;
+    if (top > 0 && bottom - top > h * 0.5) f = { x: 0, y: top, w, h: bottom - top };
   }
   freeArea = f;
   // shift the picture so the view's center sits in the middle of the free part
@@ -144,17 +152,26 @@ renderer.domElement.addEventListener('wheel', (e) => {
 
 // soft studio light for reflections, so finished wood has some life to it
 scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(renderer), 0.04).texture;
-scene.add(new THREE.AmbientLight(0xffffff, 0.45));
-const sun1 = new THREE.DirectionalLight(0xffffff, 1.1);
-sun1.position.set(1, 2, 1.5);
-scene.add(sun1);
-const sun2 = new THREE.DirectionalLight(0xffffff, 0.5);
-sun2.position.set(-1.2, 1, -1);
-scene.add(sun2);
-
-// ground grid (model is exported Y-up, standard three.js convention); 5" squares
-const grid = new THREE.GridHelper(120, 24, 0x444444, 0x2a2a2a);
-scene.add(grid);
+// lights, ground grid and soft shadows, laid out around whatever model is
+// loaded (look.js; the model is exported Y-up, standard three.js convention)
+const stage = createStage(scene, renderer);
+// every part's outline, SketchUp-style (look.js featureEdges): one material
+// each for plain, highlighted, hovered and ghosted parts (the ghost's colour
+// follows the theme)
+const edgeMats = { plain: edgeMaterial(0x000000, 0.4), hl: edgeMaterial(0x5a1a00, 0.55), hover: edgeMaterial(0xffa640, 0.95), ghost: edgeMaterial(0xffffff, 0.14) };
+let hoverRow = null; // the part under the pointer: its outline lights up
+// All the outlines of one style are drawn as one object - four draw calls
+// however many parts, which keeps a 2000-part timber frame quick to orbit on
+// a phone. Rebuilt when a part moves, shows, hides or changes style
+// (updateEdges, checked every frame like the shadows).
+const edgeLayers = Object.fromEntries(Object.keys(edgeMats).map((style) => {
+  const l = new THREE.LineSegments(new THREE.BufferGeometry(), edgeMats[style]);
+  l.frustumCulled = false; // its bounds change with every rebuild
+  l.raycast = () => {}; // never picked or measured
+  l.renderOrder = 1;
+  scene.add(l);
+  return [style, l];
+}));
 
 // ---------- state ----------
 let config = {};
@@ -195,7 +212,7 @@ const AXIS_COLORS = { Length: '#ff6b4a', Width: '#7ee08a', Thickness: '#6ab7ff' 
 let woodPhotos = new Map();
 async function loadWoodPhotos(cfg, files) {
   const out = new Map();
-  const wanted = [...new Set(Object.values(cfg.materials || {}).map((m) => m.texture?.image).filter(Boolean))];
+  const wanted = [...new Set(Object.values(cfg.materials || {}).flatMap((m) => [m.texture?.image, m.photo]).filter(Boolean))];
   await Promise.all(wanted.map(async (name) => {
     try {
       let blob = files.images?.[name] ? new Blob([files.images[name]]) : null;
@@ -303,6 +320,41 @@ async function init() {
     library.openSetup(LOCAL_ID);
   }
   else if (!settings().seenIntro && !seenIntroAnywhere()) $('introTip').style.display = 'block';
+  scheduleThumbnail();
+}
+
+// A small picture of the model for the Models list: made once the page has
+// been idle a moment after opening (not while you're busy with it), and made
+// again after the model changes (an upload's edits, Set up).
+const THUMB_KEY = 'woodmodels:thumb:builtin';
+async function scheduleThumbnail() {
+  if (!LOCAL_ID && MODEL_BASE) return; // a model folder: not in the Models list
+  if (LOCAL_ID) {
+    const meta = await getModelMeta(LOCAL_ID).catch(() => null);
+    if (!meta || (meta.thumb && meta.thumbAt >= meta.updatedAt)) return;
+  } else {
+    try { if (localStorage.getItem(THUMB_KEY)) return; } catch { return; }
+  }
+  const idle = window.requestIdleCallback || ((f) => setTimeout(f, 200));
+  setTimeout(() => idle(() => saveThumbnail().catch(() => { /* just no picture */ })), 2500);
+}
+async function saveThumbnail() {
+  if (!model || build || printingTemplate) return;
+  const url = captureOverview({ width: 480, height: 320 });
+  renderer.render(scene, camera); // straight back to the view, no blank frame
+  if (!url) return;
+  const img = new window.Image();
+  await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = url; });
+  const c = document.createElement('canvas');
+  const s = Math.min(1, 200 / Math.max(img.width, img.height));
+  c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+  const g = c.getContext('2d');
+  g.fillStyle = '#fff';
+  g.fillRect(0, 0, c.width, c.height);
+  g.drawImage(img, 0, 0, c.width, c.height);
+  const jpg = c.toDataURL('image/jpeg', 0.82);
+  if (LOCAL_ID) await setThumbnail(LOCAL_ID, jpg);
+  else try { localStorage.setItem(THUMB_KEY, jpg); } catch { /* storage full or off */ }
 }
 
 // Share: this model on your phone, the shopping list as text (share.js)
@@ -318,7 +370,10 @@ const share = initShare({
 // model starts from a clean scene.
 const library = initLibrary({
   current: LOCAL_ID ? `local:${LOCAL_ID}` : '',
-  builtIn: { get title() { return builtInTitle; } },
+  builtIn: {
+    get title() { return builtInTitle; },
+    get thumb() { try { return localStorage.getItem(THUMB_KEY); } catch { return null; } },
+  },
   onOpen: (ref, { setup = false } = {}) => {
     rememberOpened(ref);
     location.href = `${location.pathname}?model=${encodeURIComponent(ref)}${setup ? '&setup=1' : ''}`;
@@ -510,7 +565,20 @@ function updateModelBox() {
   meshes.forEach((m) => { if (isShownPart(m)) b.expandByPoint(m.geometry.boundingBox.min).expandByPoint(m.geometry.boundingBox.max); });
   modelBox = b.isEmpty() ? new THREE.Box3().setFromObject(model) : b;
   modelCenter = modelBox.getCenter(new THREE.Vector3());
+  fitStage();
   if (explode) setExplodePositions(explode);
+}
+// The ground, lights and camera limits follow the model's size: a 6" box
+// and a 20' shed both get a grid to scale and room to orbit.
+function fitStage(reach) {
+  stage.fit(modelBox, config.views?.iso?.dir, reach);
+  const R = stage.size;
+  controls.maxDistance = Math.max(400, R * 12);
+  perspCamera.far = Math.max(2000, R * 40);
+  perspCamera.updateProjectionMatrix();
+  orthoCamera.near = -Math.max(2000, R * 20);
+  orthoCamera.far = Math.max(4000, R * 40);
+  orthoCamera.updateProjectionMatrix();
 }
 
 let toastTimer = null;
@@ -530,17 +598,44 @@ function prepareMeshes(materialNames) {
     const mtlName = materialNames[child.material && child.material.name];
     const realName = mtlName === 'default' && config.materials?.['(none)'] ? '(none)' : mtlName;
     const mc = config.materials?.[realName];
+    // not SketchUp's back-to-back faces: turn any face drawn inside-out
+    const singleSided = orientFaces(child.geometry);
     if (mc?.texture || mc?.species) {
       // wood: the species set in Set up, else guessed from the material's names
       const seed = [...child.name].reduce((h, ch) => (Math.imul(h, 31) + ch.charCodeAt(0)) | 0, 17);
-      generateGrainUV(child.geometry, 6, objectDims[child.name], seed);
+      generateGrainUV(child.geometry, 6, objectDims[child.name], seed); // on the flat normals: one grain direction per face
       // the model's own photo of the wood, unless you picked how it looks in Set up
       const photo = !mc.species && woodPhotos.get(mc.texture?.image);
-      child.material = woodMaterial(mc.species || speciesFor(mc.label, realName), mc.texture, photo || null);
+      const species = mc.species || speciesFor(mc.label, realName);
+      // no look picked or named, no photo: the grain in the colour the model painted it
+      const tex = species || photo ? mc.texture : paletteFromColor(mc.texture, mc.color);
+      child.material = woodMaterial(species, tex, photo || null);
       child.material.color.multiplyScalar(0.9 + 0.14 * (((seed >>> 0) % 97) / 97)); // no two boards quite the same shade
     } else {
-      child.material = child.material.clone(); // own copy so clipping/wireframe flags are per mesh
+      // steel, brass, paint, leather... lit the same way as the wood (look.js)
+      const kind = materialKind(mc?.category, mc?.label, realName);
+      const name = child.material.name;
+      // its own photo (fabric, stone, a textured finish): from model.json, or
+      // for a model folder converted before photos were listed there, the
+      // texture scene.mtl names (map_Kd)
+      let map = woodPhotos.get(mc?.photo)?.map;
+      if (!map && child.material.map) {
+        map = child.material.map;
+        map.wrapS = map.wrapT = THREE.RepeatWrapping;
+        map.colorSpace = THREE.SRGBColorSpace;
+        map.repeat.set(6 / PHOTO_ACROSS, 24 / PHOTO_ACROSS); // generateGrainUV: 6" across, 24" along per tile
+      }
+      child.material = surfaceMaterial(kind, map ? 0xffffff : child.material.color);
+      child.material.name = name;
+      if (map) {
+        generateGrainUV(child.geometry, 6, objectDims[child.name]); // laid on like the wood's
+        child.material.map = map;
+      }
     }
+    smoothNormals(child.geometry); // round parts shade round, square edges stay crisp
+    if (singleSided) child.material.side = THREE.DoubleSide; // an open surface still shows from behind
+    const edges = featureEdges(child.geometry); // its outline (drawn by updateEdges)
+    child.castShadow = child.receiveShadow = true;
     const orig = child.material;
     const endMap = endMapOf(orig);
     const dim = addEndGrain(orig.clone(), endMap);
@@ -554,11 +649,12 @@ function prepareMeshes(materialNames) {
     const hlPiece = addEndGrain(hl.clone(), endMap); // the one piece clicked of a part with several
     hlPiece.emissive = new THREE.Color(0xffb020);
     if (!hlPiece.map) hlPiece.color = new THREE.Color(0xffc266);
+    if (orig.metalness) hl.metalness = hlPiece.metalness = 0.2; // a highlighted bolt reads orange, not dark bronze
     const row = rowByMeshName.get(child.name);
     meshes.push(child);
     meshByName.set(child.name, child);
     child.geometry.computeBoundingBox();
-    meshInfo.set(child, { orig, dim, hl, hlPiece, row, baseCenter: child.geometry.boundingBox.getCenter(new THREE.Vector3()) });
+    meshInfo.set(child, { orig, dim, hl, hlPiece, row, edges, baseCenter: child.geometry.boundingBox.getCenter(new THREE.Vector3()) });
   });
   updateModelBox();
 
@@ -574,6 +670,54 @@ function prepareMeshes(materialNames) {
   meshes.forEach((m) => {
     const info = meshInfo.get(m);
     info.groupCenter = groupBoxes.get(info.row?.top_group || '?').getCenter(new THREE.Vector3());
+  });
+  explodeUnits();
+}
+
+// What comes apart in the exploded view. Pieces of one part that touch are
+// one thing drawn in pieces - a bolt head modeled as six facets, a roller
+// modeled as segments - and move as one. Hardware (a bolt with its head and
+// nut) rides with the wood it's fastened through instead of flying off on
+// its own. Pieces of a part that don't touch (a pair of legs) still come
+// apart.
+function explodeUnits() {
+  const box = (m) => m.geometry.boundingBox.clone().expandByScalar(0.03);
+  const parent = new Map(meshes.map((m) => [m, m]));
+  const find = (m) => { while (parent.get(m) !== m) m = parent.get(m); return m; };
+  const join = (a, b) => parent.set(find(a), find(b));
+  const hw = (m) => meshInfo.get(m).row?.category === 'Hardware';
+  const boxes = new Map(meshes.map((m) => [m, box(m)]));
+  meshes.forEach((a, i) => {
+    for (let j = i + 1; j < meshes.length; j++) {
+      const b = meshes[j];
+      const sameRow = meshInfo.get(a).row && meshInfo.get(a).row === meshInfo.get(b).row;
+      if ((sameRow || (hw(a) && hw(b))) && boxes.get(a).intersectsBox(boxes.get(b))) join(a, b);
+    }
+  });
+  const units = new Map();
+  meshes.forEach((m) => {
+    const r = find(m);
+    if (!units.has(r)) units.set(r, []);
+    units.get(r).push(m);
+  });
+  units.forEach((list) => {
+    const b = new THREE.Box3();
+    list.forEach((m) => b.union(m.geometry.boundingBox));
+    const center = b.getCenter(new THREE.Vector3());
+    // hardware: the wood it overlaps most carries it
+    let anchor = null;
+    if (list.every(hw)) {
+      let best = 0;
+      meshes.forEach((o) => {
+        if (hw(o)) return;
+        const ov = boxes.get(o).clone().intersect(b.clone().expandByScalar(0.03));
+        if (ov.isEmpty()) return;
+        const s = ov.getSize(new THREE.Vector3());
+        const vol = (s.x + 0.01) * (s.y + 0.01) * (s.z + 0.01);
+        if (vol > best) { best = vol; anchor = o; }
+      });
+    }
+    list.forEach((m) => { const info = meshInfo.get(m); info.unitCenter = center; info.anchor = anchor; });
   });
 }
 
@@ -599,13 +743,57 @@ function applyMaterials() {
       const now = selected.has(m) || (!current && groupSel !== null && info.row?.top_group === groupSel);
       m.visible = now || (isShownPart(m) && !catHidden);
       m.material = now ? info.hl : done ? info.orig : info.dim;
+      m.castShadow = !m.material.transparent; // ghosts and glass throw no shadow
       return;
     }
     const inGroup = !current && groupSel !== null && info.row?.top_group === groupSel;
     const isSel = selected.has(m) || inGroup;
     m.visible = isSel || (isShownPart(m) && !catHidden && !(s.isolate && (current || groupSel !== null) && !isSel));
     m.material = !current && groupSel === null ? info.orig : isSel ? (current?.piece === m && current.meshes.length > 1 ? info.hlPiece : info.hl) : info.dim;
+    m.castShadow = !m.material.transparent;
   });
+}
+// Which outline a part gets for how it's drawn: none when hidden, or in
+// wireframe (which draws its own)
+const EDGE_STYLES = Object.keys(edgeMats);
+function edgeStyle(m, info) {
+  if (!m.visible || wireOn || !info.edges.length) return null;
+  if (hoverRow && info.row === hoverRow) return 'hover';
+  if (m.material === info.dim) return 'ghost';
+  return m.material === info.hl || m.material === info.hlPiece ? 'hl' : 'plain';
+}
+let edgeSig = NaN;
+function updateEdges() {
+  let h = 17;
+  const mix = (v) => { h = Math.imul(h ^ Math.round(v * 1024), 16777619); };
+  const styles = meshes.map((m, i) => {
+    const st = edgeStyle(m, meshInfo.get(m));
+    mix(i + 1); mix(st ? EDGE_STYLES.indexOf(st) : -1);
+    if (st) { mix(m.position.x); mix(m.position.y); mix(m.position.z); }
+    return st;
+  });
+  if (h === edgeSig) return;
+  edgeSig = h;
+  EDGE_STYLES.forEach((style) => {
+    let n = 0;
+    meshes.forEach((m, i) => { if (styles[i] === style) n += meshInfo.get(m).edges.length; });
+    const arr = new Float32Array(n);
+    let o = 0;
+    meshes.forEach((m, i) => {
+      if (styles[i] !== style) return;
+      const src = meshInfo.get(m).edges, { x, y, z } = m.position; // exploded offset
+      for (let k = 0; k < src.length; k += 3) { arr[o++] = src[k] + x; arr[o++] = src[k + 1] + y; arr[o++] = src[k + 2] + z; }
+    });
+    const layer = edgeLayers[style];
+    layer.geometry.dispose();
+    layer.geometry = new THREE.BufferGeometry();
+    layer.geometry.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+  });
+}
+function setHoverRow(row) {
+  if (row === hoverRow) return;
+  hoverRow = row;
+  requestRender();
 }
 
 // Section caps: solid cut faces instead of hollow shells. Each part gets an
@@ -705,8 +893,10 @@ function applySection() {
   }
   allMaterials().forEach((mat) => {
     mat.clippingPlanes = on ? [clipPlane] : [];
+    mat.clipShadows = on; // the part cut away throws no shadow either
     mat.needsUpdate = true;
   });
+  Object.values(edgeMats).forEach((mat) => { mat.clippingPlanes = on ? [clipPlane] : []; mat.needsUpdate = true; });
   showSectionCaps(on);
   if (on) placeCap();
 }
@@ -715,15 +905,20 @@ function setWireframe(on) {
   wireOn = on;
   allMaterials().forEach((m) => { m.wireframe = on; });
   $('wireBtn').classList.toggle('on', on);
+  if (model) applyMaterials();
 }
 
 function setExplodePositions(f) {
   requestRender();
+  const reach = new THREE.Box3();
+  const offset = (info) => info.groupCenter.clone().sub(modelCenter).multiplyScalar(f)
+    .add(info.unitCenter.clone().sub(info.groupCenter).multiplyScalar(f * 0.6));
   meshes.forEach((m) => {
-    const { baseCenter, groupCenter } = meshInfo.get(m);
-    m.position.copy(groupCenter).sub(modelCenter).multiplyScalar(f)
-      .add(baseCenter.clone().sub(groupCenter).multiplyScalar(f * 0.6));
+    const info = meshInfo.get(m);
+    m.position.copy(offset(info.anchor ? meshInfo.get(info.anchor) : info)); // hardware moves with its wood
+    if (isShownPart(m)) reach.union(m.geometry.boundingBox.clone().translate(m.position));
   });
+  fitStage(reach); // the floor drops with parts pulled below it, and shadows follow them out
 }
 
 function setExplode(f) {
@@ -736,25 +931,17 @@ function setExplode(f) {
 }
 
 const THEMES = {
-  dark: { bg: 0x1b1c1f, grid: [0x444444, 0x2a2a2a] },
-  light: { bg: 0xf4f1ec, grid: [0xb5ada0, 0xddd6cb] },
+  dark: { bg: 0x1b1c1f },
+  light: { bg: 0xf4f1ec },
 };
 function applyTheme() {
   const name = settings().theme === 'light' ? 'light' : 'dark';
   document.documentElement.dataset.theme = name;
   const t = THEMES[name];
   scene.background = new THREE.Color(t.bg);
-  const [c1, c2] = t.grid;
-  const colors = grid.geometry.attributes.color;
-  // GridHelper bakes its two colours into vertex colours: centre lines first
-  const center = new THREE.Color(c1), other = new THREE.Color(c2);
-  const n = colors.count, divisions = 24, perLine = 4;
-  for (let i = 0; i < n; i++) {
-    const line = Math.floor(i / perLine);
-    const c = line === divisions / 2 ? center : other;
-    colors.setXYZ(i, c.r, c.g, c.b);
-  }
-  colors.needsUpdate = true;
+  stage.setTheme(name);
+  // a ghosted part's outline is seen against the background, not the part
+  edgeMats.ghost.color.set(name === 'light' ? 0x000000 : 0xffffff);
   $('themeBtn').textContent = name === 'light' ? 'Dark' : 'Light';
 }
 
@@ -1099,18 +1286,22 @@ function buildDimensionGizmo(group, data, labelSpecs, offset, ref = null) {
   // box (rather than all three converging on one corner), so the lines and
   // labels spread out around the part instead of overlapping.
   const CORNER_SIGNS = [[1, 1], [-1, 1], [1, -1]];
+  // a beam in a shed frame gets its lines stood off (and ticked) in proportion,
+  // not hugging it; anything furniture-sized (up to 2') as drawn
+  const s = THREE.MathUtils.clamp(Math.max(...axes.map((a) => a.length)) / 24, 1, 8);
+  const margin = MARGIN * s, tick = TICK_LEN * s;
   for (let i = 0; i < 3; i++) {
     const j = (i + 1) % 3, k = (i + 2) % 3;
     const [sj, sk] = CORNER_SIGNS[i];
     const lineCenter = center.clone()
-      .addScaledVector(axes[j].dir, sj * (axes[j].length / 2 + MARGIN))
-      .addScaledVector(axes[k].dir, sk * (axes[k].length / 2 + MARGIN));
+      .addScaledVector(axes[j].dir, sj * (axes[j].length / 2 + margin))
+      .addScaledVector(axes[k].dir, sk * (axes[k].length / 2 + margin));
     const half = axes[i].dir.clone().multiplyScalar(axes[i].length / 2);
     const p1 = lineCenter.clone().sub(half), p2 = lineCenter.clone().add(half);
     const mat = new THREE.LineBasicMaterial({ color: new THREE.Color(AXIS_COLORS[axes[i].role] || '#ffffff') });
     group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([p1, p2]), mat));
     [p1, p2].forEach((p) => {
-      const t = axes[j].dir.clone().multiplyScalar(TICK_LEN / 2);
+      const t = axes[j].dir.clone().multiplyScalar(tick / 2);
       group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([p.clone().sub(t), p.clone().add(t)]), mat));
     });
     const text = formatLength(axes[i].length, units);
@@ -1164,7 +1355,7 @@ function buildAngleGizmo(group, data, labelSpecs, offset) {
   const half = lengthAxis.length / 2;
   const pivot = center.clone().addScaledVector(dir, -half); // the end the reference is drawn from
   const otherEnd = center.clone().addScaledVector(dir, half);
-  const radius = Math.max(3, Math.min(lengthAxis.length * 0.4, 10));
+  const radius = Math.max(3, Math.min(lengthAxis.length * 0.4, Math.max(10, lengthAxis.length * 0.15))); // 10" on furniture, in proportion on a rafter
 
   const refLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([pivot, pivot.clone().addScaledVector(ref, radius * 1.35)]), xrayLineMaterial(0xcccccc));
   refLine.renderOrder = 999;
@@ -2099,16 +2290,17 @@ renderer.domElement.addEventListener('pointerup', (e) => {
 
 let pendingMove = null;
 renderer.domElement.addEventListener('pointermove', (e) => { if (e.buttons === 0) pendingMove = e; });
-renderer.domElement.addEventListener('pointerleave', () => { pendingMove = null; hoverTip.style.display = 'none'; });
+renderer.domElement.addEventListener('pointerleave', () => { pendingMove = null; hoverTip.style.display = 'none'; setHoverRow(null); });
 function processHover() {
   const e = pendingMove;
   pendingMove = null;
   if (!e || !model) return;
   measure.handleMove(e);
-  if (measure.mode) { hoverTip.style.display = 'none'; renderer.domElement.style.cursor = 'crosshair'; return; }
+  if (measure.mode) { hoverTip.style.display = 'none'; renderer.domElement.style.cursor = 'crosshair'; setHoverRow(null); return; }
   const hit = raycastAt(e.clientX, e.clientY, meshes.filter((m) => m.visible));
   const row = hit && rowByMeshName.get(hit.object.name);
   renderer.domElement.style.cursor = row ? 'pointer' : '';
+  setHoverRow(row || null);
   if (!row) { hoverTip.style.display = 'none'; return; }
   const r = viewport.getBoundingClientRect();
   hoverTip.innerHTML = `<b>${row.letter} · ${escapeHtml(row.name)}</b> <span>${escapeHtml(finishedDims(row))}</span>`;
@@ -2194,13 +2386,18 @@ window.addEventListener('afterprint', () => { printingTemplate = false; });
 // no highlight/ghosting/labels, on white - independent of the current view.
 // With `exploded`, parts are pulled apart and tagged with their cut-list
 // letters, like a plan's exploded assembly drawing.
-function captureOverview({ exploded = 0 } = {}) {
+function captureOverview({ exploded = 0, width = 1800, height = 1200 } = {}) {
   const saved = {
     camera, pos: camera.position.clone(), target: controls.target.clone(), zoom: camera.zoom,
     bg: scene.background, current, gizmoVisible: current?.gizmo?.visible,
     size: renderer.getSize(new THREE.Vector2()), aspect: perspCamera.aspect,
   };
-  const W = 1800, H = 1200;
+  const W = width, H = height;
+  const savedHover = hoverRow;
+  hoverRow = null; // no orange outline on whatever the pointer rests on
+  const savedFree = freeArea;
+  freeArea = null; // its own picture: framed in the middle, not around the toolbars
+  perspCamera.clearViewOffset();
   camera = perspCamera;
   controls.object = camera;
   renderer.setSize(W, H, false);
@@ -2218,17 +2415,22 @@ function captureOverview({ exploded = 0 } = {}) {
   renderer.localClippingEnabled = false; // ignore any section cut
   const capsOn = section.axis !== 'off';
   if (capsOn) showSectionCaps(false);
-  grid.visible = false;
+  stage.ground.visible = false;
   scene.background = new THREE.Color(0xffffff);
   const box = exploded ? meshes.reduce((b, m) => (m.visible ? b.expandByObject(m) : b), new THREE.Box3()) : modelBox;
   frameBox(box, config.views?.iso?.dir || [0.7, 0.5, 0.7], false);
   let url = null;
+  stage.invalidateShadows(); // parts set aside or exploded for the picture
+  updateEdges();
   try {
     renderer.render(scene, camera);
     url = cropToContent(renderer.domElement, 24, exploded ? drawCallouts : null);
   } catch { /* tainted canvas etc. */ }
   scene.background = saved.bg;
-  grid.visible = true;
+  hoverRow = savedHover;
+  freeArea = savedFree;
+  stage.ground.visible = true;
+  stage.invalidateShadows(); // and back as they were
   current = saved.current;
   if (current?.gizmo) current.gizmo.visible = saved.gizmoVisible;
   applyMaterials();
@@ -2241,6 +2443,7 @@ function captureOverview({ exploded = 0 } = {}) {
   renderer.setSize(saved.size.x, saved.size.y, false);
   perspCamera.aspect = saved.aspect;
   perspCamera.updateProjectionMatrix();
+  updateFreeArea(); // the view's offset around the toolbars again
   camera = saved.camera;
   controls.object = camera;
   camera.position.copy(saved.pos);
@@ -2478,6 +2681,9 @@ function animate(now) {
   if (camera.isOrthographicCamera) updateOrthoFrustumIfNeeded();
   processHover();
   updateOverlays();
+  const on = section.axis !== 'off';
+  stage.updateShadows(meshes, [on ? 1 : 0, on ? clipPlane.constant : 0, on ? clipPlane.normal.x + 2 * clipPlane.normal.y + 4 * clipPlane.normal.z : 0]);
+  updateEdges();
   renderer.render(scene, camera);
 }
 let lastOrthoDist = 0;
@@ -2520,4 +2726,6 @@ window.__viewer = {
   guideAxes: () => selectionGuideAxes(),
   contactsOf: (name) => [...contactsOf(meshByName.get(name))].map((m) => m.name),
   endTemplate: () => { printingTemplate = false; },
+  outlineOf: (m) => meshInfo.get(m)?.edges.length / 6 || 0, // a part's outline segments
+  outlinesDrawn: () => Object.fromEntries(Object.entries(edgeLayers).map(([k, l]) => [k, (l.geometry.attributes.position?.count || 0) / 2])),
 };

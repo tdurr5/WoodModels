@@ -694,6 +694,212 @@ test('a part much wider than your boards is laid out as glue-up strips', () => {
   assert.ok(packed.boards.every((b) => !b.oversize), 'strips fit ordinary boards');
 });
 
+import * as THREE3 from 'three';
+import { smoothNormals, gridSpacing, materialKind } from '../viewer/look.js';
+
+// a cylinder's side and caps as separate flat triangles, the way OBJLoader
+// hands them over (no shared vertices)
+function flatCylinder(n = 24, backToBack = false) {
+  const pts = [];
+  const ring = (k, y) => [Math.cos((2 * Math.PI * k) / n), y, Math.sin((2 * Math.PI * k) / n)];
+  for (let k = 0; k < n; k++) {
+    const a0 = ring(k, 0), a1 = ring(k + 1, 0), b0 = ring(k, 1), b1 = ring(k + 1, 1);
+    pts.push(a0, b0, a1, a1, b0, b1); // side, outward
+    pts.push([0, 1, 0], b1, b0); // top cap
+  }
+  if (backToBack) for (let i = pts.length - 3; i >= 0; i -= 3) pts.push(pts[i], pts[i + 2], pts[i + 1]);
+  const g = new THREE3.BufferGeometry();
+  g.setAttribute('position', new THREE3.Float32BufferAttribute(pts.flat(), 3));
+  return g;
+}
+
+test('round parts shade smooth, square edges stay crisp', () => {
+  const g = smoothNormals(flatCylinder(24));
+  const pos = g.attributes.position, nrm = g.attributes.normal;
+  const p = new THREE3.Vector3(), nv = new THREE3.Vector3();
+  let sideChecked = 0, capChecked = 0;
+  for (let i = 0; i < pos.count; i++) {
+    p.fromBufferAttribute(pos, i); nv.fromBufferAttribute(nrm, i);
+    const onSide = i % 9 < 6;
+    if (onSide) {
+      // side corners point straight out from the axis, like a real cylinder
+      const radial = new THREE3.Vector3(p.x, 0, p.z).normalize();
+      near(nv.dot(radial), 1, 1e-3);
+      sideChecked++;
+    } else {
+      near(nv.y, 1, 1e-6); // the cap stays flat: 90° from the side is a crease
+      capChecked++;
+    }
+  }
+  assert.ok(sideChecked > 0 && capChecked > 0);
+});
+
+test('smooth shading never mixes the two sides of a back-to-back face', () => {
+  const g = smoothNormals(flatCylinder(24, true));
+  const nrm = g.attributes.normal;
+  // the reversed copies are added last-first: triangle 0's twin is the last
+  // one, starting at the same corner
+  const front = new THREE3.Vector3().fromBufferAttribute(nrm, 0);
+  const back = new THREE3.Vector3().fromBufferAttribute(nrm, nrm.count - 3);
+  assert.equal(g.attributes.position.getX(0), g.attributes.position.getX(nrm.count - 3));
+  assert.ok(front.dot(back) < -0.99, `front ${front.toArray()} vs back ${back.toArray()}`);
+});
+
+test('a box keeps its flat faces', () => {
+  const g = new THREE3.BoxGeometry(3, 1, 10).toNonIndexed();
+  g.deleteAttribute('normal');
+  smoothNormals(g);
+  const nrm = g.attributes.normal;
+  for (let i = 0; i < nrm.count; i++) {
+    const v = new THREE3.Vector3().fromBufferAttribute(nrm, i);
+    near(Math.max(Math.abs(v.x), Math.abs(v.y), Math.abs(v.z)), 1, 1e-6);
+  }
+});
+
+test('the ground grid is scaled to the model', () => {
+  assert.deepEqual(gridSpacing(6), [0.25, 4]); // a keepsake box: quarter inches
+  assert.deepEqual(gridSpacing(40), [1, 12]); // a table: inches and feet
+  assert.deepEqual(gridSpacing(240), [6, 8]); // a shed: 6" and 4'
+  assert.ok(gridSpacing(5000)[0] >= 12);
+});
+
+test('non-wood materials are recognised from their names', () => {
+  assert.equal(materialKind('Hardware', 'Steel'), 'metal');
+  assert.equal(materialKind('Other', 'Brass'), 'brass');
+  assert.equal(materialKind('Other', 'Paint_Green'), 'paint');
+  assert.equal(materialKind('Other', 'Verre'), 'glass');
+  assert.equal(materialKind('Leather', 'Strap'), 'leather');
+  assert.equal(materialKind('Hardware', '_____Metal'), 'metal');
+  assert.equal(materialKind('Hardware', 'Thing'), 'metal'); // hardware defaults to steel
+  assert.equal(materialKind('Other', 'Material12'), 'plain');
+  assert.equal(materialKind('Other', 'Doré'), 'brass'); // French gilt
+  assert.equal(materialKind('Other', 'Top or bottom'), 'plain'); // "or" is just a word
+  assert.equal(materialKind('Other', 'Coral'), 'plain');
+});
+
+import { applySetup } from '../viewer/library.js';
+import { looksLikeWood } from '../viewer/woodtex.js';
+
+test('a material keeps its own photo when Set up moves it in or out of Wood', () => {
+  const cfg = { title: 'T', materials: { Material12: { category: 'Other', color: '#999999', photo: 'p.jpg' }, Oak: { category: 'Wood', color: '#c9975c', texture: { base: '#c9975c', image: 'oak.jpg' } } } };
+  const out = applySetup(cfg, { categories: { Material12: 'Wood', Oak: 'Other' } });
+  assert.equal(out.materials.Material12.texture.image, 'p.jpg');
+  assert.equal(out.materials.Material12.photo, undefined);
+  assert.equal(out.materials.Oak.texture, undefined);
+  assert.equal(out.materials.Oak.photo, 'oak.jpg');
+  const back = applySetup(out, { categories: { Material12: 'Other', Oak: 'Wood' } });
+  assert.equal(back.materials.Material12.photo, 'p.jpg');
+  assert.equal(back.materials.Oak.texture.image, 'oak.jpg');
+});
+
+test('a photo is taken for wood when it is streaky and wood-coloured', () => {
+  assert.equal(looksLikeWood(100, 40, '#a0703f'), true); // brown, grain one way
+  assert.equal(looksLikeWood(100, 90, '#a0703f'), false); // brown but no grain (leather, cork)
+  assert.equal(looksLikeWood(100, 40, '#3050a0'), false); // striped blue fabric
+  assert.equal(looksLikeWood(100, 40, '#808080'), false); // brushed steel
+  assert.equal(looksLikeWood(40, 100, '#5a3d28'), true); // walnut, grain the other way
+});
+
+import { orientFaces, isBackToBack } from '../viewer/look.js';
+
+// signed volume of a closed triangle soup (positive: faces point out)
+function volumeOf(g) {
+  const p = g.attributes.position, a = new THREE3.Vector3(), b = new THREE3.Vector3(), c = new THREE3.Vector3();
+  let v = 0;
+  for (let i = 0; i < p.count; i += 3) {
+    a.fromBufferAttribute(p, i); b.fromBufferAttribute(p, i + 1); c.fromBufferAttribute(p, i + 2);
+    v += a.dot(b.cross(c)) / 6;
+  }
+  return v;
+}
+
+test('faces drawn inside-out are turned to face out', () => {
+  const g = new THREE3.BoxGeometry(2, 3, 4).toNonIndexed();
+  g.translate(500, -300, 40); // far from the origin, like many SketchUp models
+  const pos = g.attributes.position;
+  // flip every third triangle, and the whole thing once more for good measure
+  for (let t = 0; t < pos.count / 3; t += 3) {
+    for (let c = 0; c < 3; c++) {
+      const v = pos.getComponent(t * 3 + 1, c);
+      pos.setComponent(t * 3 + 1, c, pos.getComponent(t * 3 + 2, c));
+      pos.setComponent(t * 3 + 2, c, v);
+    }
+  }
+  assert.equal(orientFaces(g), true);
+  near(volumeOf(g), 24, 1e-3);
+  // and every face agrees: turning the whole box inside out gives -24
+  const inside = g.clone();
+  const ip = inside.attributes.position;
+  for (let t = 0; t < ip.count / 3; t++) {
+    for (let c = 0; c < 3; c++) {
+      const v = ip.getComponent(t * 3 + 1, c);
+      ip.setComponent(t * 3 + 1, c, ip.getComponent(t * 3 + 2, c));
+      ip.setComponent(t * 3 + 2, c, v);
+    }
+  }
+  near(volumeOf(inside), -24, 1e-3);
+  orientFaces(inside);
+  near(volumeOf(inside), 24, 1e-3);
+});
+
+test("SketchUp's back-to-back faces are left alone", () => {
+  const g = flatCylinder(24, true);
+  const before = g.attributes.position.array.slice();
+  assert.equal(isBackToBack(g), true);
+  assert.equal(orientFaces(g), false);
+  assert.deepEqual([...g.attributes.position.array], [...before]);
+  assert.equal(isBackToBack(flatCylinder(24, false)), false);
+});
+
+import { featureEdges } from '../viewer/look.js';
+
+test('outlines: a board has its 12 edges, not the diagonals across its faces', () => {
+  const g = new THREE3.BoxGeometry(0.75, 3.5, 30).toNonIndexed();
+  assert.equal(featureEdges(g).length / 6, 12);
+  // SketchUp's back-to-back copy of every face changes nothing
+  const both = new THREE3.BufferGeometry();
+  const p = g.attributes.position.array, rev = [];
+  for (let i = 0; i < p.length; i += 9) rev.push(p[i], p[i + 1], p[i + 2], p[i + 6], p[i + 7], p[i + 8], p[i + 3], p[i + 4], p[i + 5]);
+  both.setAttribute('position', new THREE3.Float32BufferAttribute([...p, ...rev], 3));
+  assert.equal(featureEdges(both).length / 6, 12);
+});
+
+test("outlines: a dowel shows its end's rim, not the seams between its facets", () => {
+  // side + top cap only; the open bottom rim counts as an edge too
+  assert.equal(featureEdges(flatCylinder(24)).length / 6, 48);
+  assert.equal(featureEdges(flatCylinder(24, true)).length / 6, 48);
+});
+
+test('outlines: a carving gets none rather than a scribble of lines', () => {
+  const g = new THREE3.SphereGeometry(2, 64, 48);
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const s = 1 + 0.08 * Math.sin(p.getX(i) * 9) * Math.cos(p.getY(i) * 7) + 0.05 * Math.sin(p.getZ(i) * 13);
+    p.setXYZ(i, p.getX(i) * s, p.getY(i) * s, p.getZ(i) * s);
+  }
+  assert.equal(featureEdges(g.toNonIndexed()).length, 0);
+  // while a board keeps real coordinates for its lines
+  const board = featureEdges(new THREE3.BoxGeometry(1, 2, 3).toNonIndexed());
+  assert.ok([...board].some((v) => Math.abs(v) === 1.5));
+});
+
+import { paletteFromColor, STOCK_TEXTURE } from '../viewer/woodtex.js';
+
+test("wood with the stock palette is drawn in the model's own colour", () => {
+  const stock = { ...STOCK_TEXTURE, tile: 5 };
+  const dark = paletteFromColor(stock, '#4d3020');
+  assert.equal(dark.base, '#4d3020');
+  assert.ok(parseInt(dark.ring.slice(1, 3), 16) < 0x4d, 'latewood darker');
+  assert.equal(dark.tile, 5);
+  // a palette someone set stays; so does one with no colour to go on
+  const tuned = { base: '#5b3a24', streak: '#3d2515', ring: '#2c1a0e' };
+  assert.equal(paletteFromColor(tuned, '#ffffff'), tuned);
+  assert.equal(paletteFromColor(stock, undefined), stock);
+  // dozens of browns share a few textures: past the limit, the nearest one issued
+  const near = paletteFromColor(stock, '#4e3121', 1);
+  assert.equal(near.base, '#4d3020');
+});
+
 // A closed prism: cap triangles (2D, [[x,y]x3]...) and the outline's walls,
 // extruded from z = 0 to z = h. perm reorders (x,y,z) for other orientations.
 function prism(caps, outlines, h, perm = [0, 1, 2]) {

@@ -8,7 +8,8 @@ import {
   saveModel, listModels, getModelFiles, getModelConfig, putModelFile, deleteModel, getModelMeta,
 } from './modelstore.js';
 import { escapeHtml, looksLikeSheetGoods, SHEET } from './format.js';
-import { SPECIES, GRAINS, speciesFor } from './woodtex.js';
+import { SPECIES, GRAINS, speciesFor, photoWood } from './woodtex.js';
+import { materialKind } from './look.js';
 
 const DATA_FILES = ['scene.obj', 'scene.mtl', 'materials.json', 'object_dims.json', 'parts_report.json', 'model.json'];
 export const CATEGORIES = ['Wood', 'Sheet goods', 'Hardware', 'Leather', 'Other'];
@@ -58,16 +59,42 @@ export async function importFile(file, onStatus = () => {}) {
     const label = defaultMaterialLabel(name, m);
     if (!m.label && label !== name) m.label = label;
   });
-  files['model.json'] = JSON.stringify(cfg, null, 2);
   // the model's own photos of its woods (3D Warehouse zips carry them), shown on the parts
   const images = zipEntries && woodImages(cfg, zipEntries.entries, zipEntries.names);
-  if (images) files.images = images;
+  if (images) {
+    files.images = images;
+    await woodFromPhotos(cfg, images);
+  }
+  files['model.json'] = JSON.stringify(cfg, null, 2);
   return { name: cfg.title, files, parts: stats.parts };
 }
 
-// { file name: bytes } of the wood photos model.json refers to, found in the zip
+// Warehouse models often paint wood with a photo under a name that says
+// nothing ("Material12", "Texture_3"). A material like that whose photo is
+// streaky and wood-coloured is wood: it counts in the cut list and is shown
+// with its photo. Set up can always say otherwise. And a photo material with
+// no colour of its own (the parser's stand-in tan) takes its photo's colour,
+// for the cut list's colour dots.
+const STAND_IN = '#b28c59'; // collada.js: a material with a texture and no colour
+async function woodFromPhotos(cfg, images) {
+  await Promise.all(Object.entries(cfg.materials || {}).map(async ([name, m]) => {
+    const img = m.photo || m.texture?.image;
+    if (!img || !images[img]) return;
+    try {
+      const photo = photoWood(await createImageBitmap(new Blob([images[img]])), img);
+      if (m.color === STAND_IN) m.color = photo.mean;
+      if (!m.photo || m.category !== 'Other' || materialKind('Other', name, m.label) !== 'plain' || !photo.woody) return;
+      m.category = 'Wood';
+      m.texture = { base: '#c9975c', streak: '#a06f3b', ring: '#8a5a2c', tile: 5, image: m.photo };
+      delete m.photo;
+    } catch { /* not an image the browser can read */ }
+  }));
+}
+
+// { file name: bytes } of the photos model.json refers to (wood, and other
+// textured materials), found in the zip
 function woodImages(cfg, entries, names) {
-  const wanted = new Set(Object.values(cfg.materials || {}).map((m) => m.texture?.image).filter(Boolean));
+  const wanted = new Set(Object.values(cfg.materials || {}).flatMap((m) => [m.texture?.image, m.photo]).filter(Boolean));
   const images = {};
   const base = (n) => n.split('/').pop();
   const decode = (n) => { try { return decodeURIComponent(n); } catch { return n; } };
@@ -138,8 +165,15 @@ export function applySetup(cfg, { title, subtitle, categories, front, labels = {
     const m = (out.materials[name] = out.materials[name] || (name === '(none)' ? { color: '#c9975c', label: 'No material' } : { color: '#999999' }));
     m.category = cat;
     if (changed.includes(name)) m.userCategory = true; // don't second-guess a choice (e.g. plywood as Wood)
-    if ((cat === 'Wood' || cat === 'Sheet goods') && !m.texture) m.texture = { base: '#c9975c', streak: '#a06f3b', ring: '#8a5a2c', tile: 5 };
-    if (cat !== 'Wood' && cat !== 'Sheet goods') delete m.texture;
+    // the model's own photo goes with the material either way
+    if ((cat === 'Wood' || cat === 'Sheet goods') && !m.texture) {
+      m.texture = { base: '#c9975c', streak: '#a06f3b', ring: '#8a5a2c', tile: 5, ...(m.photo ? { image: m.photo } : {}) };
+      delete m.photo;
+    }
+    if (cat !== 'Wood' && cat !== 'Sheet goods') {
+      if (m.texture?.image) m.photo = m.texture.image;
+      delete m.texture;
+    }
   });
   // how the wood looks ('' = guess from its names)
   Object.entries(species).forEach(([name, sp]) => {
@@ -174,19 +208,21 @@ export function initLibrary({ current, onOpen, builtIn }) {
   async function render() {
     let models = [];
     try { models = await listModels(); } catch (e) { status(e.message, 'error'); }
-    const row = (ref, name, sub, actions) => `
+    const thumb = (src) => (src && /^data:image\/jpeg;base64,[\w+/=]+$/.test(src) ? `<img class="lib-thumb" src="${src}" alt="">` : '<span class="lib-thumb"></span>');
+    const row = (ref, name, sub, actions, pic) => `
       <div class="lib-item${ref === current ? ' current' : ''}" data-ref="${escapeHtml(ref)}">
+        ${thumb(pic)}
         <div class="lib-name"><b>${escapeHtml(name)}</b>${ref === current ? ' <span class="lib-badge">open</span>' : ''}<div class="muted small">${sub}</div></div>
         <div class="lib-actions">${actions}</div>
       </div>`;
     const btn = (act, label, title) => `<button class="card-btn" data-act="${act}" title="${title}">${label}</button>`;
-    listEl.innerHTML = row('', escapeHtml(builtIn.title), 'Built-in model', ref0Actions())
+    listEl.innerHTML = row('', escapeHtml(builtIn.title), 'Built-in model', ref0Actions(), builtIn.thumb)
       + (models.length ? models.map((m) => row(`local:${m.id}`, m.name,
         `${m.parts} parts · uploaded ${new Date(m.createdAt).toLocaleDateString()} · ${escapeHtml(m.source || '')}`,
         (`local:${m.id}` === current ? '' : btn('open', 'Open', 'Open this model'))
         + btn('setup', 'Set up', 'Title, which materials are wood, which way is front')
         + btn('export', 'Download', 'Save this model as a zip (to keep, share, or add to the repo)')
-        + btn('delete', 'Delete', 'Remove from this browser'))).join('')
+        + btn('delete', 'Delete', 'Remove from this browser'), m.thumb)).join('')
         : '<div class="muted small lib-empty">No uploaded models yet.</div>');
     function ref0Actions() { return current === '' ? '' : btn('open', 'Open', 'Open this model'); }
   }
@@ -250,6 +286,7 @@ export function initLibrary({ current, onOpen, builtIn }) {
   modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
 
   // ----- setup dialog -----
+  let photoUrls = [];
   async function openSetup(id) {
     const files = await getModelFiles(id);
     if (!files) return;
@@ -269,6 +306,18 @@ export function initLibrary({ current, onOpen, builtIn }) {
       cfg.materials['(none)'] = { category: anyWood ? 'Other' : 'Wood', color: '#c9975c', label: 'No material' };
     }
     const mats = Object.keys(cfg.materials).sort((a, b) => (uses[b] || 0) - (uses[a] || 0));
+    // a material painted with a photo shows that photo: "Material12" and
+    // "Material13" are easier told apart by their wood (or fabric) than their names
+    photoUrls.forEach((u) => URL.revokeObjectURL(u));
+    photoUrls = [];
+    const swatch = (m) => {
+      const img = cfg.materials[m].texture?.image || cfg.materials[m].photo;
+      const bytes = img && files.images?.[img];
+      if (!bytes) return `<span class="mat-swatch" style="background:${escapeHtml(cfg.materials[m].color || '#999')}"></span>`;
+      const url = URL.createObjectURL(new Blob([bytes]));
+      photoUrls.push(url);
+      return `<span class="mat-swatch photo" style="background-image:url('${url}')" title="${escapeHtml(img)}"></span>`;
+    };
     setup.querySelector('.setup-body').innerHTML = `
       <label class="setup-field">Name <input name="title" value="${escapeHtml(cfg.title || '')}" /></label>
       <label class="setup-field">Description <input name="subtitle" value="${escapeHtml(cfg.subtitle || '')}" placeholder="e.g. plan source" /></label>
@@ -276,13 +325,22 @@ export function initLibrary({ current, onOpen, builtIn }) {
         <select name="front">${Object.keys(FRONTS).map((k) => `<option value="${k}"${k === frontOf(cfg) ? ' selected' : ''}>${k} (${k.includes('X') ? 'red' : 'blue'} axis ${k.startsWith('+') ? 'positive' : 'negative'})</option>`).join('')}</select></label>
       <p class="muted small">Tip: use the Front view button afterwards - if you see the back, pick the opposite direction.</p>
       <table class="setup-mats"><thead><tr><th>Material</th><th>Used by</th><th>Counts as</th><th title="Species or material name. Materials with the same name are added up together.">Called</th><th title="How the wood looks in 3D">Looks like</th></tr></thead><tbody>
-      ${mats.map((m) => `<tr><td><span class="mat-swatch" style="background:${escapeHtml(cfg.materials[m].color || '#999')}"></span>${escapeHtml(m === '(none)' ? 'No material (unpainted)' : m.replace(/^_+/, ''))}</td>
+      ${mats.map((m) => `<tr><td>${swatch(m)}${escapeHtml(m === '(none)' ? 'No material (unpainted)' : m.replace(/^_+/, ''))}</td>
         <td class="num">${uses[m] || 0} pc</td>
         <td><select data-mat="${escapeHtml(m)}" data-initial="${escapeHtml(effectiveCategory(m, cfg.materials[m]))}">${CATEGORIES.map((c) => `<option${c === effectiveCategory(m, cfg.materials[m]) ? ' selected' : ''}>${c}</option>`).join('')}</select></td>
         <td><input data-label="${escapeHtml(m)}" value="${escapeHtml(cfg.materials[m].label || (m === '(none)' ? 'No material' : defaultMaterialLabel(m, cfg.materials[m])))}" /></td>
         <td><select data-species="${escapeHtml(m)}"><option value="">${escapeHtml(cfg.materials[m].texture?.image ? 'The model\'s own photo' : SPECIES[speciesFor(cfg.materials[m].label, m)]?.name ? `Auto (${SPECIES[speciesFor(cfg.materials[m].label, m)].name})` : 'Auto (wide grain)')}</option><optgroup label="In the model's colour">${Object.entries(GRAINS).map(([k, g]) => `<option value="${k}"${cfg.materials[m].species === k ? ' selected' : ''}>${escapeHtml(g.name)}</option>`).join('')}</optgroup><optgroup label="Species">${Object.entries(SPECIES).map(([k, sp]) => `<option value="${k}"${cfg.materials[m].species === k ? ' selected' : ''}>${escapeHtml(sp.name)}</option>`).join('')}</optgroup></select></td></tr>`).join('')}
       </tbody></table>
       <p class="muted small">Only <b>Wood</b> parts go into rough stock, board feet, the cutting diagram and templates. Give materials the same name (e.g. all the oak textures "Red oak") to total them as one species.</p>`;
+    // "Looks like" is how wood looks: only wood (and sheet goods) have a choice
+    const syncLooks = (sel) => {
+      const look = setup.querySelector(`select[data-species="${CSS.escape(sel.dataset.mat)}"]`);
+      if (look) look.disabled = sel.value !== 'Wood' && sel.value !== SHEET;
+    };
+    setup.querySelectorAll('select[data-mat]').forEach((sel) => {
+      syncLooks(sel);
+      sel.addEventListener('change', () => syncLooks(sel));
+    });
     setup.dataset.id = id;
     setup.style.display = 'flex';
   }

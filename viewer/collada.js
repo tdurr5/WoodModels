@@ -771,22 +771,28 @@ export function starterConfig(fileName, matKeyToName, info) {
     const c = ((byName.get(name) || {}).color) || [0.7, 0.55, 0.35, 1];
     const hex = '#' + c.slice(0, 3).map((v) => Math.max(0, Math.min(255, roundHalfEven(v * 255))).toString(16).padStart(2, '0')).join('');
     const entry = { category: guessCategory(name), color: hex };
+    const image = (byName.get(name) || {}).image;
     if (entry.category === 'Wood') {
       entry.texture = { base: '#c9975c', streak: '#a06f3b', ring: '#8a5a2c', tile: 5 };
-      const image = (byName.get(name) || {}).image;
       // the model's own photo of the wood (kept with an upload; see library.js)
       if (image) entry.texture.image = image.replace(/^.*[\\/]/, '');
+    } else if (image) {
+      // a photo-textured material that isn't (known to be) wood: fabric,
+      // stone, or wood under a name that doesn't say so
+      entry.photo = image.replace(/^.*[\\/]/, '');
     }
     materials[name] = entry;
   }
   return {
     title,
     subtitle: '',
-    axisNames: { x: 'front-to-back', y: 'vertical', z: 'side-to-side' },
+    // SketchUp's front (its Front view looks at the model from -Y, Z up) is
+    // +Z here, Y up; Set up can change it
+    axisNames: { x: 'side-to-side', y: 'vertical', z: 'front-to-back' },
     views: {
       iso: { label: '3D', dir: [0.7, 0.5, 0.7] },
-      front: { label: 'Front', dir: [1, 0, 0] },
-      side: { label: 'Side', dir: [0, 0, 1] },
+      front: { label: 'Front', dir: [0, 0, 1] },
+      side: { label: 'Side', dir: [-1, 0, 0] },
       top: { label: 'Top', dir: [0, 1, 0.0001] },
     },
     materials,
