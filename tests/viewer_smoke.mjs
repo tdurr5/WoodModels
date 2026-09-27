@@ -775,7 +775,9 @@ with zipfile.ZipFile(${JSON.stringify(zipPath)}, 'w', zipfile.ZIP_DEFLATED) as z
         legVolumes: legs.map((m) => volume(m.geometry)),
         dowelNormals: normals.size,
         cushionPhoto: cushion?.material.map?.image?.width,
-        outlined: all.filter((m) => m.children.some((c) => c.isLineSegments && c.geometry.attributes.position.count > 0)).length,
+        outlined: all.filter((m) => window.__viewer.outlineOf(m) > 0).length,
+        drawn: window.__viewer.outlinesDrawn().plain,
+        segments: all.reduce((n, m) => n + window.__viewer.outlineOf(m), 0),
         parts: all.length,
         shadows: renderer.shadowMap.enabled && all.every((m) => m.castShadow),
       };
@@ -787,6 +789,7 @@ with zipfile.ZipFile(${JSON.stringify(zipPath)}, 'w', zipfile.ZIP_DEFLATED) as z
     check(look.dowelNormals > 20, `a round part is shaded round (${look.dowelNormals} normals)`);
     check(look.cushionPhoto === 32, `a fabric part shows its own photo (${look.cushionPhoto})`);
     check(look.outlined === look.parts, `every part is outlined (${look.outlined} of ${look.parts})`);
+    check(look.drawn === look.segments, `and every outline is drawn (${look.drawn} of ${look.segments} segments)`);
     check(look.shadows, 'parts cast shadows');
     await p2.locator('#viewport').screenshot({ path: path.join(OUT, '44-new-model-look.png') });
     check(errs.length === 0, `no page errors (${errs.join('; ')})`);

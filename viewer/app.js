@@ -152,6 +152,18 @@ const stage = createStage(scene, renderer);
 // follows the theme)
 const edgeMats = { plain: edgeMaterial(0x000000, 0.4), hl: edgeMaterial(0x5a1a00, 0.55), hover: edgeMaterial(0xffa640, 0.95), ghost: edgeMaterial(0xffffff, 0.14) };
 let hoverRow = null; // the part under the pointer: its outline lights up
+// All the outlines of one style are drawn as one object - four draw calls
+// however many parts, which keeps a 2000-part timber frame quick to orbit on
+// a phone. Rebuilt when a part moves, shows, hides or changes style
+// (updateEdges, checked every frame like the shadows).
+const edgeLayers = Object.fromEntries(Object.keys(edgeMats).map((style) => {
+  const l = new THREE.LineSegments(new THREE.BufferGeometry(), edgeMats[style]);
+  l.frustumCulled = false; // its bounds change with every rebuild
+  l.raycast = () => {}; // never picked or measured
+  l.renderOrder = 1;
+  scene.add(l);
+  return [style, l];
+}));
 
 // ---------- state ----------
 let config = {};
@@ -575,11 +587,7 @@ function prepareMeshes(materialNames) {
     }
     smoothNormals(child.geometry); // round parts shade round, square edges stay crisp
     if (singleSided) child.material.side = THREE.DoubleSide; // an open surface still shows from behind
-    const edgeGeo = new THREE.BufferGeometry();
-    edgeGeo.setAttribute('position', new THREE.BufferAttribute(featureEdges(child.geometry), 3));
-    const edges = new THREE.LineSegments(edgeGeo, edgeMats.plain);
-    edges.raycast = () => {}; // never picked or measured
-    child.add(edges); // follows the part: exploded, hidden, set aside
+    const edges = featureEdges(child.geometry); // its outline (drawn by updateEdges)
     child.castShadow = child.receiveShadow = true;
     const orig = child.material;
     const endMap = endMapOf(orig);
@@ -641,7 +649,6 @@ function applyMaterials() {
       m.visible = now || (isShownPart(m) && !catHidden);
       m.material = now ? info.hl : done ? info.orig : info.dim;
       m.castShadow = !m.material.transparent; // ghosts and glass throw no shadow
-      showEdges(m, info);
       return;
     }
     const inGroup = !current && groupSel !== null && info.row?.top_group === groupSel;
@@ -649,24 +656,48 @@ function applyMaterials() {
     m.visible = isSel || (isShownPart(m) && !catHidden && !(s.isolate && (current || groupSel !== null) && !isSel));
     m.material = !current && groupSel === null ? info.orig : isSel ? (current?.piece === m && current.meshes.length > 1 ? info.hlPiece : info.hl) : info.dim;
     m.castShadow = !m.material.transparent;
-    showEdges(m, info);
   });
 }
-// Which outline a part gets for how it's drawn (none in wireframe, which draws its own)
-function showEdges(m, info) {
-  const hover = hoverRow && info.row === hoverRow;
-  info.edges.visible = !wireOn;
-  info.edges.material = hover ? edgeMats.hover : m.material === info.dim ? edgeMats.ghost
-    : m.material === info.hl || m.material === info.hlPiece ? edgeMats.hl : edgeMats.plain;
+// Which outline a part gets for how it's drawn: none when hidden, or in
+// wireframe (which draws its own)
+const EDGE_STYLES = Object.keys(edgeMats);
+function edgeStyle(m, info) {
+  if (!m.visible || wireOn || !info.edges.length) return null;
+  if (hoverRow && info.row === hoverRow) return 'hover';
+  if (m.material === info.dim) return 'ghost';
+  return m.material === info.hl || m.material === info.hlPiece ? 'hl' : 'plain';
+}
+let edgeSig = NaN;
+function updateEdges() {
+  let h = 17;
+  const mix = (v) => { h = Math.imul(h ^ Math.round(v * 1024), 16777619); };
+  const styles = meshes.map((m, i) => {
+    const st = edgeStyle(m, meshInfo.get(m));
+    mix(i + 1); mix(st ? EDGE_STYLES.indexOf(st) : -1);
+    if (st) { mix(m.position.x); mix(m.position.y); mix(m.position.z); }
+    return st;
+  });
+  if (h === edgeSig) return;
+  edgeSig = h;
+  EDGE_STYLES.forEach((style) => {
+    let n = 0;
+    meshes.forEach((m, i) => { if (styles[i] === style) n += meshInfo.get(m).edges.length; });
+    const arr = new Float32Array(n);
+    let o = 0;
+    meshes.forEach((m, i) => {
+      if (styles[i] !== style) return;
+      const src = meshInfo.get(m).edges, { x, y, z } = m.position; // exploded offset
+      for (let k = 0; k < src.length; k += 3) { arr[o++] = src[k] + x; arr[o++] = src[k + 1] + y; arr[o++] = src[k + 2] + z; }
+    });
+    const layer = edgeLayers[style];
+    layer.geometry.dispose();
+    layer.geometry = new THREE.BufferGeometry();
+    layer.geometry.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+  });
 }
 function setHoverRow(row) {
   if (row === hoverRow) return;
-  const was = hoverRow;
   hoverRow = row;
-  meshes.forEach((m) => {
-    const info = meshInfo.get(m);
-    if (info.row && (info.row === was || info.row === row)) showEdges(m, info);
-  });
   requestRender();
 }
 
@@ -2165,6 +2196,7 @@ function captureOverview({ exploded = 0 } = {}) {
   frameBox(box, config.views?.iso?.dir || [0.7, 0.5, 0.7], false);
   let url = null;
   stage.invalidateShadows(); // parts set aside or exploded for the picture
+  updateEdges();
   try {
     renderer.render(scene, camera);
     url = cropToContent(renderer.domElement, 24, exploded ? drawCallouts : null);
@@ -2423,6 +2455,7 @@ function animate(now) {
   updateOverlays();
   const on = section.axis !== 'off';
   stage.updateShadows(meshes, [on ? 1 : 0, on ? clipPlane.constant : 0, on ? clipPlane.normal.x + 2 * clipPlane.normal.y + 4 * clipPlane.normal.z : 0]);
+  updateEdges();
   renderer.render(scene, camera);
 }
 let lastOrthoDist = 0;
@@ -2465,4 +2498,6 @@ window.__viewer = {
   guideAxes: () => selectionGuideAxes(),
   contactsOf: (name) => [...contactsOf(meshByName.get(name))].map((m) => m.name),
   endTemplate: () => { printingTemplate = false; },
+  outlineOf: (m) => meshInfo.get(m)?.edges.length / 6 || 0, // a part's outline segments
+  outlinesDrawn: () => Object.fromEntries(Object.entries(edgeLayers).map(([k, l]) => [k, (l.geometry.attributes.position?.count || 0) / 2])),
 };
