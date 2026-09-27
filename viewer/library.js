@@ -58,6 +58,15 @@ export async function importFile(file, onStatus = () => {}) {
   return { name: cfg.title, files, parts: stats.parts };
 }
 
+// An uploaded model as a zip of its data files in a folder named after it
+// (Download, and Share on a phone); uploading it again restores it.
+export async function modelZip(id) {
+  const [files, meta] = await Promise.all([getModelFiles(id), getModelMeta(id)]);
+  const slug = (meta?.name || 'model').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'model';
+  const bytes = zip(Object.fromEntries(DATA_FILES.map((f) => [`${slug}/${f}`, files[f]])));
+  return new File([bytes], `${slug}.zip`, { type: 'application/zip' });
+}
+
 // ---------- model setup (config editing) ----------
 
 // Directions for "front": the world axis the model's length/front points along.
@@ -180,12 +189,10 @@ export function initLibrary({ current, onOpen, builtIn }) {
     if (b.dataset.act === 'open') onOpen(ref);
     else if (b.dataset.act === 'setup' && id) { close(); openSetup(id); }
     else if (b.dataset.act === 'export' && id) {
-      const [files, meta] = await Promise.all([getModelFiles(id), getModelMeta(id)]);
-      const slug = (meta.name || 'model').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'model';
-      const blob = new Blob([zip(Object.fromEntries(DATA_FILES.map((f) => [`${slug}/${f}`, files[f]])))], { type: 'application/zip' });
+      const file = await modelZip(id);
       const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `${slug}.zip`;
+      a.href = URL.createObjectURL(file);
+      a.download = file.name;
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     } else if (b.dataset.act === 'delete' && id) {

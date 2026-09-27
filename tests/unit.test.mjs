@@ -639,3 +639,15 @@ test('assembly order gets an assemble step after each sub-assembly with several 
   assert.equal(legs.assemble, true);
   assert.deepEqual(legs.rows.map((r) => r.key), ['a', 'b']);
 });
+
+import { reachableUrl, qrSvg } from '../viewer/share.js';
+
+test('a QR code is offered only for pages a phone can open', () => {
+  const at = (href) => { const u = new URL(href); return { protocol: u.protocol, hostname: u.hostname, origin: u.origin, pathname: u.pathname, search: u.search }; };
+  assert.equal(reachableUrl(at('https://tdurr5.github.io/WoodModels/?model=models/bench/')), 'https://tdurr5.github.io/WoodModels/?model=models/bench/');
+  assert.equal(reachableUrl(at('http://localhost:8743/')), null);
+  assert.equal(reachableUrl(at('http://127.0.0.1:8743/')), null);
+  assert.equal(reachableUrl(at('file:///home/me/viewer/index.html')), null);
+  const svg = qrSvg('https://tdurr5.github.io/WoodModels/');
+  assert.match(svg, /^<svg[\s\S]*<path d="M/);
+});

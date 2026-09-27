@@ -563,6 +563,14 @@ try {
   await page.screenshot({ path: path.join(OUT, '13-help.png') });
   await page.keyboard.press('Escape');
 
+  console.log('share');
+  await page.locator('#clShare').click();
+  const shareText = await page.locator('#share .share-text').innerText();
+  check(/Shaving Horse - shopping list[\s\S]*Lumber \(rough\):[\s\S]*8\/4 Wood[\s\S]*Hardware:[\s\S]*Threaded Rod/.test(shareText), 'Share has the shopping list as text to send');
+  check(/can't reach/.test(await page.locator('#share .share-body').innerText()), 'on this computer (localhost) it says a phone can\'t open it, instead of a useless QR code');
+  await page.keyboard.press('Escape');
+  check(!(await page.locator('#share').isVisible()), 'Esc closes Share');
+
   console.log('part letters');
   await page.locator('#resetBtn').click();
   await page.locator('#explodeRange').fill('0.8');
@@ -711,6 +719,11 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     await p2.locator('#clCheck summary').click();
     await p2.locator('#clCheck a', { hasText: 'Leg' }).click();
     check(await p2.locator('#dimCard .pn-text').innerText() === 'Leg', 'its links go to the part');
+    await p2.keyboard.press('Escape');
+    // an upload lives in this browser: Share sends the model file (a download where there's no share sheet)
+    await p2.locator('#clShare').click();
+    const [sent] = await Promise.all([p2.waitForEvent('download', { timeout: 15000 }), p2.locator('#share .share-model').click()]);
+    check(/\.zip$/.test(sent.suggestedFilename()), `Share sends an uploaded model's file to move it to a phone (${sent.suggestedFilename()})`);
     await p2.keyboard.press('Escape');
 
     // select a part, tick it, then come back without any ?model=

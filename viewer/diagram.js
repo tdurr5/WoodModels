@@ -294,3 +294,28 @@ export function initDiagramModal({ rows, onSelectRow, finishArea = () => 0 }) {
   modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
   return { open, close, isOpen: () => modal.style.display === 'flex', render, colorFor, setRows };
 }
+
+// The shopping list as plain text, to send to your phone or the lumber yard.
+export function shoppingText(rows, title) {
+  const units = settings().units;
+  const lines = [`${title} - shopping list`];
+  const shop = shoppingList(computeLayouts(rows));
+  if (shop.length) {
+    lines.push('', 'Lumber (rough):');
+    shop.forEach((s) => lines.push(`- ${s.label}: ${s.list}${s.none ? '' : ` (${s.bf.toFixed(1)} bf)`}`));
+  }
+  const sheets = sheetLayouts(rows);
+  if (sheets.length) {
+    lines.push('', 'Sheet goods:');
+    sheets.forEach((g) => lines.push(`- ${sheetLine(g)}`));
+  }
+  const hw = hardwareList(rows, units);
+  const main = hw.other.filter((o) => o.category !== 'Other');
+  if (hw.rods.length || main.length) {
+    lines.push('', 'Hardware:');
+    hw.rods.forEach((r) => lines.push(`- ${r.name}: ${r.text}`));
+    main.forEach((o) => lines.push(`- ${o.name} ×${o.count}: ${o.size}`));
+  }
+  if (shop.some((s) => !s.none)) lines.push('', 'Buy about 20% extra lumber for defects.');
+  return lines.join('\n');
+}

@@ -17,9 +17,10 @@ import {
   normalizeEdits, withStatus, withName, withGroupName, withPieceStatus, withJoin, withSplit, withAutoFixes, joinKey,
 } from './edits.js';
 import { initMeasure } from './measure.js';
-import { initDiagramModal, computeLayouts, layoutsHTML, STOCK_DEFAULTS } from './diagram.js';
+import { initDiagramModal, computeLayouts, layoutsHTML, STOCK_DEFAULTS, shoppingText } from './diagram.js';
+import { initShare } from './share.js';
 import { buildTemplate } from './template.js';
-import { initLibrary } from './library.js';
+import { initLibrary, modelZip } from './library.js';
 import { getModelFiles, lastOpened, rememberOpened, putModelFile, addPhoto, listPhotos, deletePhoto } from './modelstore.js';
 import { obbFromDims, partsTouch, findOverlaps, applyJoins, endJoints } from './geometry.js';
 
@@ -250,6 +251,7 @@ async function init() {
     onSelect: (r) => pickRow(r), onPrint: printSheet, onDiagram: () => diagram.open(),
     onLibrary: () => library.open(), onSetup: LOCAL_ID ? () => library.openSetup(LOCAL_ID) : null,
     onSetStatus: setPartStatus, onRenameGroup: renameGroup, onSelectGroup: selectGroup, onBuild: () => startBuild(),
+    onShare: () => share.open(),
   });
   diagram = initDiagramModal({ rows, onSelectRow: (r) => selectRow(r), finishArea: () => (model ? woodSurfaceArea() : 0) });
   buildViewButtons();
@@ -275,6 +277,15 @@ async function init() {
   }
   else if (!settings().seenIntro && !seenIntroAnywhere()) $('introTip').style.display = 'block';
 }
+
+// Share: this model on your phone, the shopping list as text (share.js)
+const share = initShare({
+  getTitle: () => config.title || 'Project',
+  localId: LOCAL_ID,
+  shoppingText: () => shoppingText(rows, config.title || 'Project'),
+  modelFile: () => modelZip(LOCAL_ID),
+  notify: (msg) => showToast(msg),
+});
 
 // Model library (uploads). Opening a model reloads the page on it, so every
 // model starts from a clean scene.
@@ -2199,6 +2210,7 @@ window.addEventListener('keydown', (e) => {
     // the thing on top first: a dialog, then measuring, then build mode
     if ($('help').style.display === 'flex') toggleHelp(false);
     else if (library.isOpen()) { $('library').style.display = 'none'; $('setup').style.display = 'none'; }
+    else if (share.isOpen()) share.close();
     else if (diagram && diagram.isOpen()) diagram.close();
     else if (measure.cancel()) syncToolButtons();
     else if (build) exitBuild();

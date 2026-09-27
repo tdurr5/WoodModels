@@ -21,6 +21,7 @@ A 3D cut-list viewer for woodworking plans, starting with the Lie-Nielsen/Brian 
   - `edits.js` - your renames, deleted parts and parts set aside, per model
   - `woodtex.js` - species wood textures (side and end grain) generated in the browser
   - `build.js` - build mode's step order (assembly or cutting)
+  - `share.js` - Share: QR code of the page, sending a model file or the shopping list (QR encoder vendored in `vendor/qrcode/`, MIT)
   - `settings.js` - per-browser preferences (units, allowances, parts ticked off)
   - `model.json` - per-model settings: title, friendly part names, notes, materials, axis names, view presets
   - `vendor/three/` - pinned three.js 0.160 build and the three addons used (MIT)
@@ -49,6 +50,8 @@ The viewer is an installable web app that keeps working offline once it has been
 2. Run the **publish viewer** workflow from the Actions tab.
 
 It only publishes when you run it by hand. Open the published page once while online, then use "Add to Home Screen". After that it opens without a connection, model included.
+
+**Share** (in the cut list) gets a project onto your phone: on the published page it shows a QR code to scan with the phone's camera. An uploaded model lives in one browser, so Share sends its file instead - through the share sheet (AirDrop, Messages, email) where there is one, else as a download - and you add it on the phone under Models. Share also has the shopping list as text, to send to yourself or the lumber yard.
 
 On a phone the layout follows how you hold it (model above the list upright, side by side sideways), measuring snaps from further away for a fingertip, and the ? help lists the touch gestures. The 3D view only redraws when something changes, so an idle page doesn't drain the battery.
 
