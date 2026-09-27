@@ -1,8 +1,17 @@
 name: test
 
+# Once per change: pushes to main, and pull requests (which cover their
+# branch's pushes) - not a push run and a PR run for every commit.
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+
+# a newer push to the same branch cancels the run it replaces
+concurrency:
+  group: test-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
