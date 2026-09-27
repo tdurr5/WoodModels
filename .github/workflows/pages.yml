@@ -5,6 +5,13 @@ name: publish viewer
 
 on:
   workflow_dispatch:
+  # also run by update lumber prices (prices.yml) after it commits new prices
+  workflow_call:
+    inputs:
+      ref:
+        description: branch or commit to publish
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -23,6 +30,8 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

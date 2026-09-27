@@ -1,0 +1,53 @@
+# Keeps viewer/prices.json current: typical lumber prices per species, moved
+# with the public US producer price indexes for lumber (scripts/update_prices.py).
+# Weekly, or by hand from the Actions tab. When the prices change it commits
+# them to main and republishes the viewer, so phones pick them up. When the
+# price sources can't be reached it changes nothing (and doesn't fail).
+name: update lumber prices
+
+on:
+  schedule:
+    - cron: '17 9 * * 1' # Mondays, 09:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: prices
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.commit.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python3 scripts/update_prices.py
+      - id: commit
+        run: |
+          if git diff --quiet -- viewer/prices.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add viewer/prices.json
+          git commit -m "Update lumber prices"
+          git push origin HEAD:main
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: update
+    if: needs.update.outputs.changed == 'true'
+    uses: ./.github/workflows/pages.yml
+    with:
+      ref: main

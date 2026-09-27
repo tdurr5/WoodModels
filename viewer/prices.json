@@ -1,0 +1,120 @@
+{
+  "updated": "2025-01-31",
+  "note": "Typical US retail $/board foot for 4/4 lumber, moved with the US producer price indexes for lumber. An estimate: prices vary a lot by yard, grade and region. (Baseline prices: not yet adjusted by the index - the weekly update fills that in.)",
+  "baseMonth": "2025-01",
+  "thicknessPremium": {
+    "4/4": 1.0,
+    "5/4": 1.1,
+    "6/4": 1.15,
+    "8/4": 1.25,
+    "10/4": 1.4,
+    "12/4": 1.5,
+    "16/4": 1.7
+  },
+  "indexes": {
+    "hardwood": {
+      "series": "WPU0812",
+      "factor": 1.0,
+      "asOf": null,
+      "yearChange": null
+    },
+    "softwood": {
+      "series": "WPU0811",
+      "factor": 1.0,
+      "asOf": null,
+      "yearChange": null
+    }
+  },
+  "species": {
+    "red-oak": {
+      "low": 4.75,
+      "high": 7.5,
+      "typical": 6.12,
+      "kind": "hardwood"
+    },
+    "white-oak": {
+      "low": 6.5,
+      "high": 10.5,
+      "typical": 8.5,
+      "kind": "hardwood"
+    },
+    "walnut": {
+      "low": 9.5,
+      "high": 16.0,
+      "typical": 12.75,
+      "kind": "hardwood"
+    },
+    "cherry": {
+      "low": 6.5,
+      "high": 10.0,
+      "typical": 8.25,
+      "kind": "hardwood"
+    },
+    "maple": {
+      "low": 5.5,
+      "high": 9.0,
+      "typical": 7.25,
+      "kind": "hardwood"
+    },
+    "ash": {
+      "low": 4.5,
+      "high": 7.5,
+      "typical": 6.0,
+      "kind": "hardwood"
+    },
+    "hickory": {
+      "low": 5.0,
+      "high": 8.0,
+      "typical": 6.5,
+      "kind": "hardwood"
+    },
+    "beech": {
+      "low": 5.5,
+      "high": 8.5,
+      "typical": 7.0,
+      "kind": "hardwood"
+    },
+    "birch": {
+      "low": 4.5,
+      "high": 7.5,
+      "typical": 6.0,
+      "kind": "hardwood"
+    },
+    "poplar": {
+      "low": 3.25,
+      "high": 5.0,
+      "typical": 4.12,
+      "kind": "hardwood"
+    },
+    "mahogany": {
+      "low": 11.0,
+      "high": 18.0,
+      "typical": 14.5,
+      "kind": "hardwood"
+    },
+    "pine": {
+      "low": 2.75,
+      "high": 5.0,
+      "typical": 3.88,
+      "kind": "softwood"
+    },
+    "larch": {
+      "low": 3.5,
+      "high": 6.0,
+      "typical": 4.75,
+      "kind": "softwood"
+    },
+    "fir": {
+      "low": 4.0,
+      "high": 7.5,
+      "typical": 5.75,
+      "kind": "softwood"
+    },
+    "cedar": {
+      "low": 4.0,
+      "high": 7.5,
+      "typical": 5.75,
+      "kind": "softwood"
+    }
+  }
+}

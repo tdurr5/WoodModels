@@ -5,10 +5,23 @@
 import { packWithOwned, boardParts, boardYield, piecesByStock } from './nesting.js';
 import { getInventory, setInventory, ownedFor } from './inventory.js';
 import { formatLength, boardFeet, escapeHtml, SHEET } from './format.js';
+import { speciesFor } from './woodtex.js';
 import { settings, updateSettings } from './settings.js';
 import { roughFor, isRod, finishedDims, millingPlanHTML, sheetLayouts, sheetLine } from './cutlist.js';
 
 export const STOCK_DEFAULTS = { length: 96, width: 8, kerf: 0.125 };
+
+// Typical prices (prices.json, kept current by the "update lumber prices"
+// workflow): an estimate for species you haven't priced yourself.
+let typicalPrices = null;
+export function loadTypicalPrices() {
+  return fetch('prices.json').then((r) => (r.ok ? r.json() : null)).then((d) => { typicalPrices = d?.species ? d : null; return typicalPrices; }).catch(() => null);
+}
+// $/bf estimate for a species at a rough thickness ('8/4'), or null
+export function typicalPrice(material, thicknessLabel) {
+  const sp = typicalPrices && typicalPrices.species[speciesFor(material)];
+  return sp ? Math.round(sp.typical * (typicalPrices.thicknessPremium?.[thicknessLabel] || 1) * 4) / 4 : null;
+}
 
 const PART_COLORS = ['#e0b27a', '#c99b62', '#d6a56b', '#b98a55', '#e8c08e', '#cf9f68', '#bf9160', '#dcb483'];
 
@@ -44,6 +57,12 @@ function buyInfo(g) {
 }
 
 // Shopping list line per group, e.g. "8/4 Wood: 2 × 8' × 8" (21.3 bf)".
+// e.g. " Hardwood lumber prices: +3% over the past year." (US producer price index)
+function trendText() {
+  const y = typicalPrices?.indexes?.hardwood?.yearChange;
+  return y == null ? '' : ` Hardwood lumber prices: ${y >= 0 ? '+' : ''}${Math.round(y * 100)}% over the past year.`;
+}
+
 export function shoppingList(layouts) {
   const prices = settings().prices || {};
   return layouts.map((g) => {
@@ -60,8 +79,9 @@ export function shoppingList(layouts) {
       list += ` — only ${feetInches(partial)} of ${g.boards.length > 1 ? 'the last one' : 'it'} is used; a shorter board or an offcut will do`;
     }
     if (mine) list += `, plus ${mine}`;
-    const price = prices[g.material];
-    return { label: `${g.thicknessLabel} ${g.material}`, material: g.material, list, bf, yield: g.partsBf / g.bf, cost: price > 0 ? bf * price : null };
+    const yours = prices[g.material];
+    const price = yours > 0 ? yours : typicalPrice(g.material, g.thicknessLabel);
+    return { label: `${g.thicknessLabel} ${g.material}`, material: g.material, list, bf, yield: g.partsBf / g.bf, cost: price > 0 ? bf * price : null, estimated: !(yours > 0) && price > 0 };
   });
 }
 
@@ -135,7 +155,7 @@ export function layoutsHTML(layouts, { pxPerInch, units, colorFor, hardware = nu
       <ul>${shop.map((s) => `<li><b>${escapeHtml(s.label)}</b>: ${escapeHtml(s.list)}${s.none ? ' - nothing to buy' : ` — ${s.bf.toFixed(1)} bf${s.cost != null ? ` ≈ ${money(s.cost)}` : ''}, ${Math.round(s.yield * 100)}% used`}</li>`).join('')}</ul>` : ''}
       ${sheets.length ? `<b>Sheet goods to buy</b>:
         <ul>${sheets.map((g) => `<li><b>${escapeHtml(sheetLine(g))}</b> — ${Math.round((g.sheets.reduce((a, b) => a + boardYield(b), 0) / g.sheets.length) * 100)}% used${g.sheets.some((b) => b.oversize) ? ' <span class="warn">⚠ a part is bigger than the sheet</span>' : ''}</li>`).join('')}</ul>` : ''}
-      ${totalCost ? `<div>Lumber estimate: <b>${money(totalCost)}</b> (${money(totalCost * 1.2)} with 20% extra)</div>` : ''}
+      ${totalCost ? `<div>Lumber estimate: <b>${shop.some((x) => x.estimated) ? '≈ ' : ''}${money(totalCost)}</b> (${money(totalCost * 1.2)} with 20% extra)${shop.some((x) => x.estimated) ? `<div class="muted small">≈ uses typical prices for the species${typicalPrices?.updated ? ` (updated ${escapeHtml(typicalPrices.updated)})` : ''} where you haven't entered your own: yards vary a lot, so put in what yours charges.${trendText()}</div>` : ''}</div>` : ''}
       ${hw.rods.length || hwMain.length ? `<b>Hardware</b>:
         <ul>${hw.rods.map((r) => `<li><b>${escapeHtml(r.name)}</b>: ${escapeHtml(r.text)}</li>`).join('')}
         ${hwMain.map(otherLine).join('')}</ul>` : ''}
@@ -269,7 +289,10 @@ export function initDiagramModal({ rows, onSelectRow, finishArea = () => 0 }) {
   function renderPrices(layouts) {
     const prices = settings().prices || {};
     const materials = [...new Set(layouts.map((g) => g.material))];
-    pricesEl.innerHTML = materials.map((m) => `<label>${escapeHtml(m)} $/bf <input type="number" min="0" step="0.25" data-mat="${escapeHtml(m)}" value="${prices[m] ?? ''}" placeholder="–" /></label>`).join('');
+    pricesEl.innerHTML = materials.map((m) => {
+      const est = typicalPrice(m, layouts.find((g) => g.material === m)?.thicknessLabel);
+      return `<label>${escapeHtml(m)} $/bf <input type="number" min="0" step="0.25" data-mat="${escapeHtml(m)}" value="${prices[m] ?? ''}" placeholder="${est ? `≈ ${est.toFixed(2)}` : '–'}" title="${est ? 'Blank: a typical price is used as an estimate' : ''}" /></label>`;
+    }).join('');
   }
   pricesEl.addEventListener('change', (e) => {
     const m = e.target.dataset.mat;
@@ -282,6 +305,7 @@ export function initDiagramModal({ rows, onSelectRow, finishArea = () => 0 }) {
   });
 
   function open() { modal.style.display = 'flex'; render(); }
+  loadTypicalPrices().then(() => { if (modal.style.display === 'flex') render(); });
   function close() { modal.style.display = 'none'; }
 
   Object.entries(inputs).forEach(([k, el]) => el.addEventListener('change', () => {

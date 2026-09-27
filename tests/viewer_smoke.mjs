@@ -563,6 +563,13 @@ try {
   await page.screenshot({ path: path.join(OUT, '13-help.png') });
   await page.keyboard.press('Escape');
 
+  const est = await page.evaluate(async () => {
+    const d = await import('./diagram.js');
+    await d.loadTypicalPrices();
+    return { walnut4: d.typicalPrice('Walnut', '4/4'), walnut8: d.typicalPrice('Black walnut', '8/4'), unknown: d.typicalPrice('Wood', '4/4') };
+  });
+  check(est.walnut4 > 5 && est.walnut8 > est.walnut4 && est.unknown === null, `typical prices (prices.json) give an estimate per species, more for thick stock (walnut 4/4 $${est.walnut4}, 8/4 $${est.walnut8})`);
+
   console.log('share');
   await page.locator('#clShare').click();
   const shareText = await page.locator('#share .share-text').innerText();
