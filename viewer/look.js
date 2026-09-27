@@ -337,6 +337,7 @@ const GRID_FRAG = /* glsl */`
   uniform float major;
   uniform vec2 center;
   uniform float radius;
+  uniform float strength;
   varying vec3 vWorld;
   float lineAt(vec2 p, float size, out float density) {
     vec2 g = p / size;
@@ -351,14 +352,14 @@ const GRID_FRAG = /* glsl */`
     float minor = lineAt(vWorld.xz, cell, dMinor) * (1.0 - smoothstep(0.08, 0.3, dMinor));
     float maj = lineAt(vWorld.xz, cell * major, dMajor) * (1.0 - smoothstep(0.3, 0.7, dMajor));
     float fade = 1.0 - smoothstep(radius * 0.45, radius, length(vWorld.xz - center));
-    float a = max(minor * 0.55, maj) * fade;
+    float a = max(minor * 0.55, maj) * fade * strength;
     if (a < 0.003) discard;
     gl_FragColor = vec4(mix(minorColor, majorColor, maj), a);
   }`;
 
 const GROUND_THEMES = {
-  dark: { minor: 0x34363b, major: 0x4b4e55, shadow: 0.55 },
-  light: { minor: 0xe6e0d6, major: 0xcdc5b8, shadow: 0.2 },
+  dark: { minor: 0x34363b, major: 0x4b4e55, shadow: 0.55, strength: 1 },
+  light: { minor: 0xddd6ca, major: 0xc9c0b2, shadow: 0.2, strength: 0.55 }, // on a pale floor a grid shouts: keep it quiet
 };
 
 // Grid squares that suit the model's size: inches for a box, a foot for
@@ -400,7 +401,7 @@ export function createStage(scene, renderer) {
   const gridMat = new THREE.ShaderMaterial({
     uniforms: {
       minorColor: { value: new THREE.Color() }, majorColor: { value: new THREE.Color() },
-      cell: { value: 1 }, major: { value: 12 }, center: { value: new THREE.Vector2() }, radius: { value: 100 },
+      cell: { value: 1 }, major: { value: 12 }, center: { value: new THREE.Vector2() }, radius: { value: 100 }, strength: { value: 1 },
     },
     vertexShader: GRID_VERT, fragmentShader: GRID_FRAG,
     transparent: true, depthWrite: false, side: THREE.DoubleSide,
@@ -511,6 +512,7 @@ export function createStage(scene, renderer) {
     const t = GROUND_THEMES[name] || GROUND_THEMES.dark;
     gridMat.uniforms.minorColor.value.setHex(t.minor);
     gridMat.uniforms.majorColor.value.setHex(t.major);
+    gridMat.uniforms.strength.value = t.strength;
     shadowMat.opacity = t.shadow;
   };
   stage.setTheme('dark');
