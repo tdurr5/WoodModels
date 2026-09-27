@@ -899,3 +899,86 @@ test("wood with the stock palette is drawn in the model's own colour", () => {
   const near = paletteFromColor(stock, '#4e3121', 1);
   assert.equal(near.base, '#4d3020');
 });
+
+// A closed prism: cap triangles (2D, [[x,y]x3]...) and the outline's walls,
+// extruded from z = 0 to z = h. perm reorders (x,y,z) for other orientations.
+function prism(caps, outlines, h, perm = [0, 1, 2]) {
+  const out = [];
+  const put = (p) => out.push(...perm.map((k) => p[k]));
+  caps.forEach(([a, b, c]) => { [a, c, b].forEach(([x, y]) => put([x, y, 0])); [a, b, c].forEach(([x, y]) => put([x, y, h])); });
+  outlines.forEach((poly) => poly.forEach((p, i) => {
+    const q = poly[(i + 1) % poly.length];
+    [[p, 0], [q, 0], [q, h], [p, 0], [q, h], [p, h]].forEach(([[x, y], z]) => put([x, y, z]));
+  }));
+  return out;
+}
+const rect = (x0, y0, x1, y1) => [[[x0, y0], [x1, y0], [x1, y1]], [[x0, y0], [x1, y1], [x0, y1]]];
+// part frame: Length, Width, Thickness along x, y, z from the origin
+const boxOf = (size) => ({ center: size.map((s) => s / 2), axes: [[1, 0, 0], [0, 1, 0], [0, 0, 1]], half: size.map((s) => s / 2) });
+
+test('cuts: a notch in an edge, through the thickness', async () => {
+  const { cutFeatures } = await import('../viewer/features.js');
+  // 10 x 3 x 1 board, a 2" wide, 1" deep notch in one edge at 4" from the end
+  const caps = [...rect(0, 0, 10, 2), ...rect(0, 2, 4, 3), ...rect(6, 2, 10, 3)];
+  const outline = [[0, 0], [10, 0], [10, 3], [6, 3], [6, 2], [4, 2], [4, 3], [0, 3]];
+  const cuts = cutFeatures(boxOf([10, 3, 1]), prism(caps, [outline], 1));
+  assert.equal(cuts.length, 1);
+  assert.equal(cuts[0].kind, 'notch');
+  assert.equal(cuts[0].through, true);
+  assert.equal(cuts[0].surface, 'face');
+  near(cuts[0].box[0][0], 4, 0.07);
+  near(cuts[0].size[0], 2, 0.07);
+  near(cuts[0].size[1], 1, 0.07);
+});
+
+test('cuts: a round hole, and a blind one', async () => {
+  const { cutFeatures } = await import('../viewer/features.js');
+  // 4 x 4 x 1 block with a 1" hole through the middle
+  const n = 32, ring = (r) => Array.from({ length: n }, (_, i) => {
+    const t = (i / n) * Math.PI * 2 + Math.PI / 4;
+    const d = r === 'sq' ? 2 / Math.max(Math.abs(Math.cos(t)), Math.abs(Math.sin(t))) : r;
+    return [2 + d * Math.cos(t), 2 + d * Math.sin(t)];
+  });
+  const inner = ring(0.5), outer = ring('sq');
+  const caps = inner.flatMap((p, i) => { const j = (i + 1) % n; return [[p, outer[i], outer[j]], [p, outer[j], inner[j]]]; });
+  const block = prism(caps, [outer, [...inner].reverse()], 1);
+  let cuts = cutFeatures(boxOf([4, 4, 1]), block);
+  assert.equal(cuts.length, 1);
+  assert.equal(cuts[0].kind, 'hole');
+  assert.equal(cuts[0].through, true);
+  near(cuts[0].dia, 1, 0.04);
+  // the same hole stopping 1/4" short of the far face: 3/4" deep
+  const top = caps.map((t) => t.map(([x, y]) => [x, y, 1]));
+  const tri3 = (tris, z, flip) => tris.flatMap(([a, b, c]) => (flip ? [a, c, b] : [a, b, c]).flatMap(([x, y]) => [x, y, z]));
+  const walls = (poly, z0, z1) => poly.flatMap((p, i) => {
+    const q = poly[(i + 1) % poly.length];
+    return [[p, z0], [q, z0], [q, z1], [p, z0], [q, z1], [p, z1]].flatMap(([[x, y], z]) => [x, y, z]);
+  });
+  const bottom = rect(0, 0, 4, 4), holeFloor = inner.slice(1, -1).map((p, i) => [inner[0], p, inner[i + 2]]);
+  const blind = [
+    ...top.flatMap((t) => t.flat()), ...tri3(bottom, 0, true), ...tri3(holeFloor, 0.25, false),
+    ...walls(outer, 0, 1), ...walls([...inner].reverse(), 0.25, 1),
+  ];
+  cuts = cutFeatures(boxOf([4, 4, 1]), blind);
+  assert.equal(cuts.length, 1);
+  assert.equal(cuts[0].kind, 'hole');
+  assert.equal(cuts[0].through, false);
+  near(cuts[0].depth, 0.75, 0.01);
+  near(cuts[0].dia, 1, 0.04);
+});
+
+test('cuts: none in a plain board, a dowel, or a tenon the model draws', async () => {
+  const { cutFeatures } = await import('../viewer/features.js');
+  assert.deepEqual(cutFeatures(boxOf([10, 3, 1]), prism(rect(0, 0, 10, 3), [[[0, 0], [10, 0], [10, 3], [0, 3]]], 1)), []);
+  // a 1" dowel 10" long along x: a 24-sided profile in (y, z) extruded along x
+  const n = 24, circle = Array.from({ length: n }, (_, i) => [0.5 + 0.5 * Math.cos((i / n) * Math.PI * 2), 0.5 + 0.5 * Math.sin((i / n) * Math.PI * 2)]);
+  const fan = circle.slice(1, -1).map((p, i) => [circle[0], p, circle[i + 2]]);
+  assert.deepEqual(cutFeatures(boxOf([10, 1, 1]), prism(fan, [circle], 10, [2, 0, 1])), []);
+  // a rail with a 1" tenon on one end: its shoulders look like notches...
+  const caps = [...rect(0, 0, 10, 3), ...rect(10, 1, 11, 2)];
+  const outline = [[0, 0], [10, 0], [10, 1], [11, 1], [11, 2], [10, 2], [10, 3], [0, 3]];
+  const rail = prism(caps, [outline], 1);
+  assert.equal(cutFeatures(boxOf([11, 3, 1]), rail).length, 2);
+  // ...but not once it's known to be a tenon
+  assert.deepEqual(cutFeatures(boxOf([11, 3, 1]), rail, { ends: [0, 1] }), []);
+});
