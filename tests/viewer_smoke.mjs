@@ -347,6 +347,17 @@ try {
   await page.waitForTimeout(100);
   const moved = await page.evaluate(() => window.__viewer.scene.getObjectByName('Legs_Leg_Front').position.length());
   check(moved > 1, `explode moves parts apart (${moved.toFixed(1)}")`);
+  const units = await page.evaluate(() => {
+    const v = window.__viewer;
+    const key = (m) => m.position.toArray().map((x) => x.toFixed(3)).join();
+    const heads = v.meshesOf(v.rows().find((r) => /head/i.test(r.name)).name);
+    const roller = v.meshesOf(v.rows().find((r) => /jaw upper$/i.test(r.name) || /Treadle Jaw Upper/i.test(r.name) && !/ten/i.test(r.name)).name);
+    const legs = v.meshesOf('Leg Rear');
+    return { heads: new Set(heads.map(key)).size, headCount: heads.length, roller: new Set(roller.map(key)).size, rollerCount: roller.length, legs: new Set(legs.map(key)).size };
+  });
+  check(units.heads <= 4 && units.headCount > 4, `a bolt head modeled as facets stays in one piece (${units.headCount} facets, ${units.heads} positions)`);
+  check(units.roller === 1 && units.rollerCount > 1, `a part modeled as touching segments stays together (${units.rollerCount} segments, ${units.roller} positions)`);
+  check(units.legs === 2, `a pair of separate legs still comes apart (${units.legs} positions)`);
   await page.screenshot({ path: path.join(OUT, '08-exploded.png') });
   await selectPart('Leg Front');
   const labelsExploded = await page.locator('#axisLabels .axisLabel').count();
