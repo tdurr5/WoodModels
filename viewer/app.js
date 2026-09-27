@@ -26,7 +26,7 @@ import { getModelFiles, getModelMeta, lastOpened, rememberOpened, putModelFile, 
 import { obbFromDims, partsTouch, findOverlaps, findButts, applyJoins, endJoints, pointInObb } from './geometry.js';
 import { cutFeatures } from './features.js';
 import { glueUpStrips } from './nesting.js';
-import { createStage, smoothNormals, orientFaces, materialKind, surfaceMaterial, featureEdges, edgeMaterial } from './look.js';
+import { createStage, smoothNormals, orientFaces, materialKind, surfaceMaterial, featureEdges, edgeMaterial, threadPitch, boltThreadLength, addThreads } from './look.js';
 
 const $ = (id) => document.getElementById(id);
 const viewport = $('viewport');
@@ -535,6 +535,7 @@ function refreshRows() {
   allPartRows.forEach((r) => (r.obj_names || []).forEach((n) => rowByMeshName.set(n, r)));
   meshes.forEach((m) => { meshInfo.get(m).row = rowByMeshName.get(m.name); });
   explodeUnits();
+  applyThreads();
   setCutListRows(allPartRows);
   diagram.setRows(rows);
   if (diagram.isOpen()) diagram.render();
@@ -667,6 +668,63 @@ function prepareMeshes(materialNames) {
   updateModelBox();
 
   explodeUnits();
+  applyThreads();
+}
+
+// ---------- threads on bolts and rods ----------
+// A round hardware part is a bolt when a bolt head sits on one end: plain
+// shank from the head, threads the usual length at the far end. With no
+// head, a rod whose name says it's threaded (1/2"-13, M10, all-thread) is
+// threaded all along. The part's card can say otherwise (edits.threads:
+// row key -> 'full' | 'none' | inches of thread).
+const THREAD_CHOICES = ['full', 'none', 0.5, 1, 1.5, 2, 3, 4];
+function threadSpecFor(m) {
+  const row = meshInfo.get(m).row, d = objectDims[m.name];
+  if (!row || row.category !== 'Hardware' || d?.axes?.length !== 3) return null;
+  const [L, W, T] = d.axes;
+  if (Math.abs(W.length - T.length) > 0.15 * W.length || L.length < 2 * W.length) return null; // not a shank
+  const dia = (W.length + T.length) / 2;
+  const axis = new THREE.Vector3(...L.direction), c = new THREE.Vector3(...d.center);
+  const ends = [c.clone().addScaledVector(axis, -L.length / 2), c.clone().addScaledVector(axis, L.length / 2)];
+  let head = -1;
+  meshes.forEach((o) => {
+    const r = meshInfo.get(o).row;
+    if (o === m || head >= 0 || !r || r.category !== 'Hardware' || !/head/i.test(`${r.name} ${r.label}`)) return;
+    const b = o.geometry.boundingBox.clone().expandByScalar(dia * 0.3);
+    head = b.containsPoint(ends[0]) ? 0 : b.containsPoint(ends[1]) ? 1 : -1;
+  });
+  const names = [row.name, row.label]; // not its size: 4-1/2" isn't a thread
+  const choice = edits.threads?.[row.key];
+  let length;
+  if (choice === 'none') return { shank: true, length: 0 };
+  if (typeof choice === 'number') length = Math.min(choice, L.length);
+  else if (choice === 'full') length = L.length;
+  else if (head >= 0) length = boltThreadLength(dia, L.length);
+  else if (/thread|\brod\b|stud|all.?thread|\d\s*"?\s*-\s*\d{1,2}\b|\bUN[CF]\b|\bM\d/i.test(names.join(' '))) length = L.length;
+  else return { shank: true, length: 0 };
+  // from the tip (the end away from the head) towards the head
+  const tip = head === 0 ? 1 : 0;
+  const dir = tip === 0 ? axis : axis.clone().negate();
+  return { shank: true, axis: dir.toArray(), origin: ends[tip].toArray(), length, pitch: threadPitch(dia, ...names), head: head >= 0 };
+}
+function applyThreads() {
+  meshes.forEach((m) => {
+    const info = meshInfo.get(m);
+    const spec = threadSpecFor(m);
+    info.threads = spec;
+    if (!spec) return;
+    [info.orig, info.dim, info.hl, info.hlPiece].forEach((mat) => {
+      const had = !!mat.userData.threadUniforms;
+      addThreads(mat, spec.length ? spec : null);
+      if (!had) mat.needsUpdate = true;
+    });
+  });
+  requestRender();
+}
+function setThreads(row, choice) {
+  const next = normalizeEdits(edits);
+  if (choice === 'auto') delete next.threads[row.key]; else next.threads[row.key] = choice;
+  commitEdits(next, choice === 'none' ? 'No threads drawn' : choice === 'auto' ? 'Threads as the model suggests' : 'Threads changed');
 }
 
 // Exploded view moves each assembly group away from the model center, and
@@ -2154,6 +2212,7 @@ function renderDimCard() {
     ? '<button class="card-btn" data-act="build" title="Put this part back in the build">Put back in build</button>'
     : `<button class="card-btn" data-act="aside" title="Keep it with its sizes, but leave it out of the build: totals, shopping list, prints (e.g. a tool drawn on the bench)">Set aside${row.count > 1 ? ` all ×${row.count}` : ''}</button>`}
       <button class="card-btn danger" data-act="delete" title="Delete from this model: a mistake or junk in the model (Del). You can restore it.">Delete${row.count > 1 ? ` all ×${row.count}` : ''}</button>
+      ${threadsHtml(row)}
       ${row.status ? '' : '<button class="card-btn" data-act="merge" title="One solid piece the model drew in several (a glued-up slab, a board drawn in two): click the other pieces in 3D, then Merge">Merge…</button>'}
       ${canMove() && !row.status ? `<button class="card-btn${moving ? ' on' : ''}" data-act="move" title="Lay out the exploded view: drag the arrows to move this piece (saved with the model, so your phone shows it too)">${moving ? 'Done moving' : '✥ Move'}</button>` : ''}
       ${canMove() && edits.explode?.[meshInfo.get(current.piece || current.meshes[0])?.unitKey] ? '<button class="card-btn" data-act="move-reset" title="Back to where exploding puts it">Reset position</button>' : ''}
@@ -2198,6 +2257,10 @@ function renderDimCard() {
     selectRow(allPartRows.find((r) => r.obj_names.includes(o.a)), { frame: false });
   });
   dimCard.querySelector('[data-act="merge"]')?.addEventListener('click', () => startMerge());
+  dimCard.querySelector('select[data-act="threads"]')?.addEventListener('change', (e) => {
+    const v = e.target.value;
+    setThreads(row, v === 'auto' || v === 'full' || v === 'none' ? v : +v);
+  });
   dimCard.querySelector('[data-act="move"]')?.addEventListener('click', () => (moving ? stopMove() : startMove()));
   dimCard.querySelector('[data-act="move-reset"]')?.addEventListener('click', () => {
     const key = meshInfo.get(current.piece || current.meshes[0])?.unitKey;
@@ -2207,6 +2270,18 @@ function renderDimCard() {
   dimCard.querySelector('[data-act="split"]')?.addEventListener('click', () => {
     commitEdits(withSplit(edits, row.pieces), 'Split back into the pieces in the model');
   });
+}
+
+// the Threads choice on a bolt's or rod's card
+function threadsHtml(row) {
+  const spec = current?.meshes.map((m) => meshInfo.get(m).threads).find(Boolean);
+  if (!spec?.shank) return '';
+  const choice = edits.threads?.[row.key] ?? 'auto';
+  const units = settings().units;
+  const auto = spec && choice === 'auto' ? (spec.length ? `Auto (${spec.head ? `${formatLength(spec.length, units)} at the end` : 'whole length'})` : 'Auto (none)') : 'Auto';
+  const opt = (v, label) => `<option value="${v}"${String(v) === String(choice) ? ' selected' : ''}>${escapeHtml(label)}</option>`;
+  return `<label class="card-threads" title="How much of it is threaded - drawn on the model">Threads
+    <select data-act="threads">${opt('auto', auto)}${THREAD_CHOICES.map((v) => opt(v, v === 'full' ? 'Whole length' : v === 'none' ? 'None (plain pin)' : `${formatLength(v, units)} at the end`)).join('')}</select></label>`;
 }
 
 // ---------- laying out the exploded view ----------
@@ -2874,5 +2949,6 @@ window.__viewer = {
   contactsOf: (name) => [...contactsOf(meshByName.get(name))].map((m) => m.name),
   endTemplate: () => { printingTemplate = false; },
   outlineOf: (m) => meshInfo.get(m)?.edges.length / 6 || 0, // a part's outline segments
+  threadsOf: (m) => meshInfo.get(m)?.threads || null,
   outlinesDrawn: () => Object.fromEntries(Object.entries(edgeLayers).map(([k, l]) => [k, (l.geometry.attributes.position?.count || 0) / 2])),
 };

@@ -1158,6 +1158,24 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     check(Math.abs((await legAt()) - x0) < 0.01, 'Reset position puts it back');
     await p2.locator('#explodeRange').fill('0');
     await p2.keyboard.press('Escape');
+    // bolts: a plain shank from the head, threads at the far end
+    const rod = await p2.evaluate(() => {
+      const v = window.__viewer;
+      return v.rows().filter((r) => /Threaded Rod/.test(r.name)).map((r) => v.threadsOf(v.scene.getObjectByName(r.obj_names[0])));
+    });
+    // (one rod's head is the model's corrupted component: with no head it's all-thread)
+    check(rod.length > 0 && rod.every((t) => t && Math.abs(t.pitch - 1 / 13) < 1e-6 && (t.head ? t.length > 1 && t.length < 2 : t.length > 6)) && rod.some((t) => t.head),
+      `bolts are drawn with threads at the end, 13 to the inch (${rod.map((t) => t && `${t.length}" ${t.head ? 'at the end' : 'all along'}`).join(', ')})`);
+    const seatHandle = await p2.evaluate(() => { const v = window.__viewer; return v.threadsOf(v.meshesOf('Seat Handle')[0]); });
+    check(!seatHandle || !seatHandle.length, 'a plain pin gets no threads');
+    await p2.locator('#clList .row', { hasText: 'Threaded Rod' }).first().click();
+    await p2.waitForTimeout(300);
+    await p2.locator('#dimCard select[data-act="threads"]').selectOption('full');
+    await p2.waitForTimeout(300);
+    const full = await p2.evaluate(() => window.__viewer.threadsOf(window.__viewer.currentSelectionMeshes()[0]).length);
+    check(full > 4, `the card's Threads choice can make it threaded all along (${full}")`);
+    await p2.keyboard.press('Control+z');
+    await p2.keyboard.press('Escape');
     await p2.locator('#clList .row', { hasText: 'Seat Handle' }).first().click();
     await p2.keyboard.press('Delete');
     check(!(await names()).includes('Seat Handle'), 'a built-in model part can be deleted');

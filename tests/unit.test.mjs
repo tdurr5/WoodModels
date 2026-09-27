@@ -374,7 +374,7 @@ test('edits: names are trimmed and cleared by an empty name', () => {
   assert.deepEqual(e.names, {});
   e = withGroupName(e, 'group_7', 'Base');
   assert.deepEqual(e.groups, { group_7: 'Base' });
-  assert.deepEqual(normalizeEdits({ names: [], status: 'x' }), { names: {}, groups: {}, status: {}, pieces: {}, joins: [], splits: [], explode: {} }, 'bad data is ignored');
+  assert.deepEqual(normalizeEdits({ names: [], status: 'x' }), { names: {}, groups: {}, status: {}, pieces: {}, joins: [], splits: [], explode: {}, threads: {} }, 'bad data is ignored');
 });
 
 // ---------- overlapping copies and single-piece edits ----------
