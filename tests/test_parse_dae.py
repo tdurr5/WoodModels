@@ -201,6 +201,37 @@ class OtherExporters(unittest.TestCase):
         self.assertEqual(rows_y[0]['dims'], rows_z[0]['dims'])
 
 
+class PaintedPart(unittest.TestCase):
+    """A part painted two ways (3D Warehouse models): SketchUp's unnamed
+    default "material" on its end faces, listed first, and a photo-textured
+    wood on its long sides."""
+    @classmethod
+    def setUpClass(cls):
+        with tempfile.TemporaryDirectory() as tmp:
+            dae = os.path.join(tmp, 'm.dae')
+            with open(dae, 'w') as f:
+                f.write(make_fixture.build(painted=True))
+            parse_dae.main([dae, '-o', tmp, '-q'])
+            cls.cfg = load_json(tmp, 'model.json')
+            cls.mats = load_json(tmp, 'materials.json')
+
+    def test_shown_with_the_material_covering_most_of_it(self):
+        # the OBJ material for the rail is the walnut, not the default listed first
+        self.assertIn('Walnut_-_Long_Grain', self.mats.values())
+        self.assertNotIn('material', self.mats.values())
+
+    def test_its_photo_is_recorded(self):
+        self.assertEqual(self.cfg['materials']['Walnut_-_Long_Grain']['texture']['image'], 'Walnut_-_Long_Grain.jpg')
+
+    def test_pick_material_rules(self):
+        info = {'a': {'name': 'material'}, 'b': {'name': 'Oak'}, 'c': {'name': 'Pine'}, 'e': {'name': 'edge_color000255'}}
+        pick = parse_dae.pick_material
+        self.assertEqual(pick({'s1': 'a', 's2': 'b'}, info), 'b')  # a named material before the default
+        self.assertEqual(pick({'s1': 'b', 's2': 'c'}, info, {'s1': 2.0, 's2': 10.0}), 'c')  # the bigger area
+        self.assertEqual(pick({'s1': 'e', 's2': 'a'}, info), 'a')  # the default before an edge colour
+        self.assertEqual(pick({'s1': 'e'}, info), 'e')
+
+
 class LooseGeometry(unittest.TestCase):
     """Newer SketchUp exports: unnamed groups, one board split into one mesh
     per face material, separate boards drawn touching, a dowel in a hole."""

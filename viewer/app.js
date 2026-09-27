@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { woodMaterial, addEndGrain, endMapOf, speciesFor, generateGrainUV } from './woodtex.js';
+import { woodMaterial, addEndGrain, endMapOf, speciesFor, generateGrainUV, photoWood } from './woodtex.js';
 import { classifyOverlaps as classifyOverlapsIn, singleSidedGeometry } from './autofix.js';
 import { formatLength, escapeHtml, toFraction, isCut, dimensionalSize } from './format.js';
 import { compoundAngle, describeAngle, round1, DEFAULT_AXIS_NAMES } from './angles.js';
@@ -187,6 +187,25 @@ const axisLabelsEl = $('axisLabels');
 const AXIS_COLORS = { Length: '#ff6b4a', Width: '#7ee08a', Thickness: '#6ab7ff' };
 
 // ---------- loading ----------
+// The wood photos a model comes with (3D Warehouse textures): kept with an
+// upload (files.images), or next to scene.obj for a model folder. A photo
+// that can't be read just leaves the generated grain.
+let woodPhotos = new Map();
+async function loadWoodPhotos(cfg, files) {
+  const out = new Map();
+  const wanted = [...new Set(Object.values(cfg.materials || {}).map((m) => m.texture?.image).filter(Boolean))];
+  await Promise.all(wanted.map(async (name) => {
+    try {
+      let blob = files.images?.[name] ? new Blob([files.images[name]]) : null;
+      if (!blob && !LOCAL_ID) {
+        const r = await fetch(MODEL_BASE + name.split('/').map(encodeURIComponent).join('/'));
+        if (r.ok) blob = await r.blob();
+      }
+      if (blob) out.set(name, photoWood(await createImageBitmap(blob), name));
+    } catch { /* not an image the browser can read */ }
+  }));
+  return out;
+}
 // Which model to show:
 //   ?model=local:<id>          an uploaded model saved in this browser (library.js)
 //   ?model=models/workbench/   another model's data files in a folder next to this page
@@ -262,6 +281,7 @@ async function init() {
   mtl.preload();
   model = new OBJLoader().setMaterials(mtl).parse(files['scene.obj']);
   scene.add(model);
+  woodPhotos = await loadWoodPhotos(cfg, files);
   prepareMeshes(materialNames);
   if (classifyOverlaps()) refreshRows();
   frameBox(modelBox, config.views?.iso?.dir || [0.7, 0.5, 0.7], false);
@@ -506,7 +526,9 @@ function prepareMeshes(materialNames) {
       // wood: the species set in Set up, else guessed from the material's names
       const seed = [...child.name].reduce((h, ch) => (Math.imul(h, 31) + ch.charCodeAt(0)) | 0, 17);
       generateGrainUV(child.geometry, 6, objectDims[child.name], seed);
-      child.material = woodMaterial(mc.species || speciesFor(mc.label, realName), mc.texture);
+      // the model's own photo of the wood, unless you picked how it looks in Set up
+      const photo = !mc.species && woodPhotos.get(mc.texture?.image);
+      child.material = woodMaterial(mc.species || speciesFor(mc.label, realName), mc.texture, photo || null);
       child.material.color.multiplyScalar(0.9 + 0.14 * (((seed >>> 0) % 97) / 97)); // no two boards quite the same shade
     } else {
       child.material = child.material.clone(); // own copy so clipping/wireframe flags are per mesh

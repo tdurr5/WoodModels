@@ -228,6 +228,20 @@ def compute_axis_angle(d):
 
 # ---------- COLLADA reading ----------
 
+def add_area(material_area, symbol, positions, faces):
+    """Adds the faces' surface area to material_area[symbol]."""
+    if not symbol:
+        return
+    total = 0.0
+    for a, b, c in faces:
+        pa, pb, pc = positions[a], positions[b], positions[c]
+        u = (pb[0] - pa[0], pb[1] - pa[1], pb[2] - pa[2])
+        v = (pc[0] - pa[0], pc[1] - pa[1], pc[2] - pa[2])
+        cx, cy, cz = u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]
+        total += math.sqrt(cx * cx + cy * cy + cz * cz) / 2
+    material_area[symbol] = material_area.get(symbol, 0.0) + total
+
+
 def load_geometries(root, scale=1.0):
     """id -> dict(positions, faces, bbox, local_center, local_axes, materials).
     Positions are multiplied by `scale` (file units -> inches)."""
@@ -258,9 +272,11 @@ def load_geometries(root, scale=1.0):
         # gather faces from triangles / polylist, indexing the VERTEX input
         faces = []
         materials_used = set()
+        material_area = {}  # material symbol -> surface area it covers (pick_material)
         for prim in list(mesh.findall(q('triangles'), NS)) + list(mesh.findall(q('polylist'), NS)):
             if prim.get('material'):
                 materials_used.add(prim.get('material'))
+            first_face = len(faces)
             inputs = prim.findall(q('input'), NS)
             stride = len(set(i.get('offset') for i in inputs)) or 1
             vertex_offset = next((int(i.get('offset')) for i in inputs if i.get('semantic') == 'VERTEX'), 0)
@@ -281,10 +297,12 @@ def load_geometries(root, scale=1.0):
                 n = len(idx) // stride
                 for t in range(0, n - n % 3, 3):
                     faces.append(tuple(idx[(t+k)*stride + vertex_offset] for k in range(3)))
+            add_area(material_area, prim.get('material'), positions, faces[first_face:])
         # <polygons>: one <p> per polygon (used by some non-SketchUp exporters)
         for prim in mesh.findall(q('polygons'), NS):
             if prim.get('material'):
                 materials_used.add(prim.get('material'))
+            first_face = len(faces)
             inputs = prim.findall(q('input'), NS)
             stride = len(set(i.get('offset') for i in inputs)) or 1
             vertex_offset = next((int(i.get('offset')) for i in inputs if i.get('semantic') == 'VERTEX'), 0)
@@ -293,10 +311,11 @@ def load_geometries(root, scale=1.0):
                 verts = [idx[k*stride + vertex_offset] for k in range(len(idx) // stride)]
                 for k in range(1, len(verts)-1):
                     faces.append((verts[0], verts[k], verts[k+1]))
+            add_area(material_area, prim.get('material'), positions, faces[first_face:])
 
         bbox, local_center, local_axes = fit_box(positions)
         geoms[gid] = dict(positions=positions, faces=faces, bbox=bbox, local_center=local_center,
-                          local_axes=local_axes, materials=materials_used)
+                          local_axes=local_axes, materials=materials_used, material_area=material_area)
     return geoms
 
 
@@ -593,6 +612,7 @@ def merge_open_shells(instances, geoms):
                                   local_axes=local_axes, materials=mats)
             # the merged part takes the material covering most of it
             dominant = max(members, key=lambda m: len(geoms[instances[m]['geom_id']]['faces']))
+            geoms[gid]['material_area'] = geoms[instances[dominant]['geom_id']].get('material_area', {})
             first = instances[members[0]]
             first['material_bindings'] = instances[dominant]['material_bindings']
             first['geom_id'] = gid
@@ -676,11 +696,27 @@ def is_excluded_from_3d(inst):
     return 'Nut_3_4' in inst['path'].split('/')
 
 
-def pick_material(bindings, material_info):
-    # prefer the first bound material that isn't one of SketchUp's edge colors
-    for target in bindings.values():
-        if not (material_info.get(target, {}).get('name') or '').startswith('edge_color'):
-            return target
+# SketchUp's name for faces left unpainted in a part whose other faces are
+# painted ("material", "material_1"...)
+DEFAULT_MATERIAL = re.compile(r'^material(_\d+)?$')
+
+
+def pick_material(bindings, material_info, areas=None):
+    """The one material a part is shown and listed with: the one covering most
+    of its surface, never SketchUp's edge colours, and its unnamed default only
+    if there's nothing else (a leg painted sapele with its end faces left
+    unpainted is sapele)."""
+    areas = areas or {}
+    best = None
+    for i, (sym, target) in enumerate(bindings.items()):
+        name = material_info.get(target, {}).get('name') or ''
+        if name.startswith('edge_color'):
+            continue
+        key = (1 if DEFAULT_MATERIAL.match(name) else 0, -areas.get(sym, 0.0), i)
+        if best is None or key < best[0]:
+            best = (key, target)
+    if best:
+        return best[1]
     return next(iter(bindings.values()), None)
 
 
@@ -710,7 +746,7 @@ def write_obj(instances, geoms, material_info, dae_path, out_dir, up='Z_UP'):
                 wp = to_yup(apply_matrix(wm, p), up)
                 f.write(f"v {wp[0]:.5f} {wp[1]:.5f} {wp[2]:.5f}\n")
 
-            mat_target = pick_material(inst['material_bindings'], material_info)
+            mat_target = pick_material(inst['material_bindings'], material_info, geo.get('material_area'))
             mat_key = mat_target or 'default'
             info = material_info.get(mat_target, {})
             mat_key_to_name[mat_key] = info.get('name') or 'default'
@@ -893,6 +929,10 @@ def starter_config(dae_path, mat_key_to_name, material_info):
         entry = {'category': guess_category(name), 'color': hexcolor}
         if entry['category'] == 'Wood':
             entry['texture'] = {'base': '#c9975c', 'streak': '#a06f3b', 'ring': '#8a5a2c', 'tile': 5}
+            image = (info_by_name.get(name) or {}).get('image')
+            if image:
+                # the model's own photo of the wood (copied next to scene.obj; see write_obj)
+                entry['texture']['image'] = re.sub(r'^.*[\\/]', '', image)
         materials[name] = entry
     return {
         'title': title,

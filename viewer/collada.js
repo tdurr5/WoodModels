@@ -190,6 +190,7 @@ function loadGeometries(root, scale) {
 
       const faces = [];
       const materialsUsed = new Set();
+      const materialArea = new Map(); // material symbol -> surface area it covers (pickMaterial)
       const layout = (prim) => {
         const inputs = kids(prim, 'input');
         const stride = new Set(inputs.map((i) => i.getAttribute('offset'))).size || 1;
@@ -198,6 +199,7 @@ function loadGeometries(root, scale) {
       };
       for (const prim of [...kids(mesh, 'triangles'), ...kids(mesh, 'polylist')]) {
         if (prim.getAttribute('material')) materialsUsed.add(prim.getAttribute('material'));
+        const firstFace = faces.length;
         const { stride, vo } = layout(prim);
         const p = kid(prim, 'p');
         if (!p || !p.textContent.trim()) continue;
@@ -215,9 +217,11 @@ function loadGeometries(root, scale) {
           const n = Math.floor(idx.length / stride);
           for (let t = 0; t < n - (n % 3); t += 3) faces.push([0, 1, 2].map((k) => idx[(t + k) * stride + vo]));
         }
+        addArea(materialArea, prim.getAttribute('material'), positions, faces.slice(firstFace));
       }
       for (const prim of kids(mesh, 'polygons')) {
         if (prim.getAttribute('material')) materialsUsed.add(prim.getAttribute('material'));
+        const firstFace = faces.length;
         const { stride, vo } = layout(prim);
         for (const p of kids(prim, 'p')) {
           const idx = numbers(p.textContent);
@@ -225,9 +229,10 @@ function loadGeometries(root, scale) {
           for (let k = 0; k < Math.floor(idx.length / stride); k++) verts.push(idx[k * stride + vo]);
           for (let k = 1; k < verts.length - 1; k++) faces.push([verts[0], verts[k], verts[k + 1]]);
         }
+        addArea(materialArea, prim.getAttribute('material'), positions, faces.slice(firstFace));
       }
       const [bbox, localCenter, localAxes] = fitBox(positions);
-      geoms.set(gid, { positions, faces, bbox, localCenter, localAxes, materials: materialsUsed });
+      geoms.set(gid, { positions, faces, bbox, localCenter, localAxes, materials: materialsUsed, materialArea });
     }
   }
   return geoms;
@@ -495,6 +500,7 @@ function mergeOpenShells(instances, geoms) {
       // the merged part takes the material covering most of it
       let dominant = members[0];
       for (const m of members) if (geoms.get(instances[m].geom_id).faces.length > geoms.get(instances[dominant].geom_id).faces.length) dominant = m;
+      geoms.get(gid).materialArea = geoms.get(instances[dominant].geom_id).materialArea || new Map();
       const first = instances[members[0]];
       first.material_bindings = instances[dominant].material_bindings;
       first.geom_id = gid;
@@ -555,12 +561,39 @@ function shapeName(geo, ext) {
 const isPlanSheet = (inst) => inst.path.startsWith(PLAN_SHEET_PREFIX);
 const isExcludedFrom3d = (inst) => isPlanSheet(inst) || inst.path.split('/').includes('Nut_3_4');
 
-function pickMaterial(bindings, info) {
-  for (const target of bindings.values()) {
-    if (!((info.get(target) || {}).name || '').startsWith('edge_color')) return target;
-  }
+// SketchUp's name for faces left unpainted in a part whose other faces are
+// painted ("material", "material_1"...)
+const DEFAULT_MATERIAL = /^material(_\d+)?$/;
+
+// The one material a part is shown and listed with: the one covering most of
+// its surface, never SketchUp's edge colours, and its unnamed default only if
+// there's nothing else (a leg painted sapele with its end faces left
+// unpainted is sapele). Same as parse_dae.py pick_material.
+function pickMaterial(bindings, info, areas = new Map()) {
+  let best = null, bestKey = null;
+  [...bindings.entries()].forEach(([sym, target], i) => {
+    const name = (info.get(target) || {}).name || '';
+    if (name.startsWith('edge_color')) return;
+    const key = [DEFAULT_MATERIAL.test(name) ? 1 : 0, -(areas.get(sym) || 0), i];
+    const less = !bestKey || key[0] < bestKey[0] || (key[0] === bestKey[0] && (key[1] < bestKey[1] || (key[1] === bestKey[1] && key[2] < bestKey[2])));
+    if (less) { best = target; bestKey = key; }
+  });
+  if (best) return best;
   const first = bindings.values().next();
   return first.done ? null : first.value;
+}
+
+function addArea(materialArea, symbol, positions, faces) {
+  if (!symbol) return;
+  let total = 0;
+  for (const [a, b, c] of faces) {
+    const pa = positions[a], pb = positions[b], pc = positions[c];
+    const u = [pb[0] - pa[0], pb[1] - pa[1], pb[2] - pa[2]];
+    const v = [pc[0] - pa[0], pc[1] - pa[1], pc[2] - pa[2]];
+    const cx = u[1] * v[2] - u[2] * v[1], cy = u[2] * v[0] - u[0] * v[2], cz = u[0] * v[1] - u[1] * v[0];
+    total += Math.sqrt(cx * cx + cy * cy + cz * cz) / 2;
+  }
+  materialArea.set(symbol, (materialArea.get(symbol) || 0) + total);
 }
 
 function writeObj(instances, geoms, info, up) {
@@ -585,7 +618,7 @@ function writeObj(instances, geoms, info, up) {
       const w = toYup(applyMatrix(inst.world_matrix, p), up);
       obj.push(`v ${f5(w[0])} ${f5(w[1])} ${f5(w[2])}\n`);
     }
-    const target = pickMaterial(inst.material_bindings, info);
+    const target = pickMaterial(inst.material_bindings, info, geo.materialArea);
     const key = target || 'default';
     const mi = info.get(target) || {};
     matKeyToName[key] = mi.name || 'default';
@@ -735,7 +768,12 @@ export function starterConfig(fileName, matKeyToName, info) {
     const c = ((byName.get(name) || {}).color) || [0.7, 0.55, 0.35, 1];
     const hex = '#' + c.slice(0, 3).map((v) => Math.max(0, Math.min(255, roundHalfEven(v * 255))).toString(16).padStart(2, '0')).join('');
     const entry = { category: guessCategory(name), color: hex };
-    if (entry.category === 'Wood') entry.texture = { base: '#c9975c', streak: '#a06f3b', ring: '#8a5a2c', tile: 5 };
+    if (entry.category === 'Wood') {
+      entry.texture = { base: '#c9975c', streak: '#a06f3b', ring: '#8a5a2c', tile: 5 };
+      const image = (byName.get(name) || {}).image;
+      // the model's own photo of the wood (kept with an upload; see library.js)
+      if (image) entry.texture.image = image.replace(/^.*[\\/]/, '');
+    }
     materials[name] = entry;
   }
   return {
