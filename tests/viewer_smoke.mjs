@@ -133,6 +133,18 @@ try {
   await page.screenshot({ path: path.join(OUT, '01-loaded.png') });
   await page.locator('#introClose').click();
   check(!(await page.locator('#introTip').isVisible()), 'tips can be dismissed');
+  await page.waitForTimeout(1500);
+  const frames = await page.evaluate(async () => {
+    const info = window.__viewer.renderer.info.render;
+    const a = info.frame;
+    await new Promise((r) => setTimeout(r, 1000));
+    const b = info.frame;
+    window.__viewer.controls.rotateLeft?.(0.2);
+    window.__viewer.requestRender();
+    await new Promise((r) => setTimeout(r, 300));
+    return { idle: b - a, after: info.frame - b };
+  });
+  check(frames.idle === 0 && frames.after > 0, `nothing is redrawn while the model sits still, and it redraws when asked (${frames.idle} idle frames, ${frames.after} after)`);
 
   console.log('select from sidebar');
   const bench = page.locator('#clList .row', { hasText: 'Bench' }).first();

@@ -50,6 +50,8 @@ The viewer is an installable web app that keeps working offline once it has been
 
 It only publishes when you run it by hand. Open the published page once while online, then use "Add to Home Screen". After that it opens without a connection, model included.
 
+On a phone the layout follows how you hold it (model above the list upright, side by side sideways), measuring snaps from further away for a fingertip, and the ? help lists the touch gestures. The 3D view only redraws when something changes, so an idle page doesn't drain the battery.
+
 ## Using it
 
 **Cut list** (right sidebar)

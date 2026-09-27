@@ -31,9 +31,16 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1b1c1f);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
-renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // 3x phones: no visible gain for 2.25x the pixels
 renderer.localClippingEnabled = true;
 viewport.prepend(renderer.domElement); // first, so the HTML overlays paint on top
+
+// Draw only when something may have changed - input, the camera moving, an
+// edit - and for a moment after. An idle phone on the bench shouldn't spend
+// its battery redrawing the same picture 60 times a second.
+let renderUntil = 0;
+function requestRender(ms = 500) { renderUntil = Math.max(renderUntil, performance.now() + ms); }
+['pointerdown', 'pointermove', 'pointerup', 'wheel', 'keydown', 'input', 'change', 'click'].forEach((t) => window.addEventListener(t, () => requestRender(), { capture: true, passive: true }));
 
 const perspCamera = new THREE.PerspectiveCamera(45, 1, 0.05, 2000);
 const orthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, -2000, 4000);
@@ -55,6 +62,7 @@ function resize() {
   const w = viewport.clientWidth, h = viewport.clientHeight;
   if (!w || !h || `${w}x${h}` === lastSize) return;
   lastSize = `${w}x${h}`;
+  requestRender();
   renderer.setSize(w, h, false);
   perspCamera.aspect = w / h;
   perspCamera.updateProjectionMatrix();
@@ -529,6 +537,7 @@ function allMaterials() {
 }
 
 function applyMaterials() {
+  requestRender();
   const s = settings();
   const hidden = new Set(s.hiddenCategories);
   const selected = new Set(current ? current.meshes : []);
@@ -636,6 +645,7 @@ function placeCap() {
 }
 
 function applySection() {
+  requestRender();
   const on = section.axis !== 'off';
   if (on) {
     const i = { x: 0, y: 1, z: 2 }[section.axis];
@@ -660,6 +670,7 @@ function setWireframe(on) {
 }
 
 function setExplodePositions(f) {
+  requestRender();
   meshes.forEach((m) => {
     const { baseCenter, groupCenter } = meshInfo.get(m);
     m.position.copy(groupCenter).sub(modelCenter).multiplyScalar(f)
@@ -708,6 +719,7 @@ function applySettingsToScene() {
 }
 
 onSettingsChange((s, patch) => {
+  requestRender();
   if ('units' in patch || 'showRough' in patch || 'allowance' in patch || 'cut' in patch || 'hiddenCategories' in patch || 'userNotes' in patch || 'showAside' in patch) renderRows();
   if ('showAside' in patch && model) updateModelBox();
   if ('units' in patch && model && overlaps.length) refreshRows(); // overlap notes are written in the units shown
@@ -883,6 +895,7 @@ function disposeOverlays() {
 }
 
 function buildSelectionOverlays() {
+  requestRender();
   disposeOverlays();
   const box = new THREE.Box3();
   current.meshes.forEach((m) => box.expandByObject(m));
@@ -1972,7 +1985,8 @@ function updateOverlays() {
 function animate(now) {
   requestAnimationFrame(animate);
   stepTween(now);
-  controls.update();
+  if (controls.update() || tween) requestRender(); // moving (incl. the orbit's glide to a stop)
+  if (now > renderUntil) return; // nothing has changed: don't redraw the same picture
   if (camera.isOrthographicCamera) updateOrthoFrustumIfNeeded();
   processHover();
   updateOverlays();
@@ -2012,7 +2026,7 @@ window.__viewer = {
   currentSelectionMeshes: () => (current ? current.meshes : []),
   meshesOf: (name) => meshes.filter((m) => meshInfo.get(m).row?.name === name),
   measureClickCount: () => measure.points.length + measure.measurements.length * 2,
-  setExplode, setView, selectRow, rows: () => rows,
+  setExplode, setView, selectRow, rows: () => rows, requestRender,
   prepareTemplate,
   guidePoints: () => selectionGuidePoints(),
   guideAxes: () => selectionGuideAxes(),

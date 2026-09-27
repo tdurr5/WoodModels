@@ -370,6 +370,22 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
 .setup-mats input { width: 100%; min-width: 90px; box-sizing: border-box; }
 .lib-box.setup-box { width: min(760px, calc(100% - 24px)); }
 @media (max-width: 800px) { .setup-mats th:nth-child(2), .setup-mats td:nth-child(2) { display: none; } }
+/* phones: each material as a small card - name, then its choices - instead of a table wider than the screen */
+@media (max-width: 600px) {
+  .setup-mats thead { display: none; }
+  .setup-mats, .setup-mats tbody { display: block; }
+  .setup-mats tr { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .setup-mats td { display: block; border: none; padding: 0; min-width: 0; }
+  .setup-mats td:first-child { grid-column: 1 / -1; font-weight: 600; overflow-wrap: anywhere; }
+  .setup-mats td:nth-child(3) { grid-column: 1; grid-row: 2; }
+  .setup-mats td:nth-child(5) { grid-column: 2; grid-row: 2; }
+  .setup-mats td:nth-child(4) { grid-column: 1 / -1; grid-row: 3; }
+  .setup-mats td:nth-child(n+3)::before { display: block; font-size: 11px; color: var(--muted); margin-bottom: 2px; }
+  .setup-mats td:nth-child(3)::before { content: 'Counts as'; }
+  .setup-mats td:nth-child(4)::before { content: 'Called'; }
+  .setup-mats td:nth-child(5)::before { content: 'Looks like'; }
+  .setup-mats select, .setup-mats input { width: 100%; min-width: 0; box-sizing: border-box; }
+}
 .group-title .gt-name { cursor: pointer; }
 .group-title .gt-name:hover { text-decoration: underline; }
 .group-title.active .gt-name { color: var(--accent-text); }

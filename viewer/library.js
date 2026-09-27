@@ -5,7 +5,7 @@
 import { parseCollada } from './collada.js';
 import { unzip, isZip, text as bytesToText, zip } from './zip.js';
 import {
-  saveModel, listModels, getModelFiles, putModelFile, deleteModel, getModelMeta,
+  saveModel, listModels, getModelFiles, getModelConfig, putModelFile, deleteModel, getModelMeta,
 } from './modelstore.js';
 import { escapeHtml, looksLikeSheetGoods, SHEET } from './format.js';
 import { SPECIES, speciesFor } from './woodtex.js';
@@ -247,10 +247,23 @@ export function initLibrary({ current, onOpen, builtIn }) {
     setup.dataset.id = id;
     setup.style.display = 'flex';
   }
-  setup.querySelector('.setup-save').addEventListener('click', async () => {
+  const saveBtn = setup.querySelector('.setup-save');
+  saveBtn.addEventListener('click', async () => {
+    if (saveBtn.disabled) return;
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving…';
+    try {
+      await saveSetup();
+      saveBtn.textContent = 'Save';
+    } catch (e) {
+      saveBtn.textContent = 'Couldn\'t save - try again';
+      saveBtn.title = e.message || String(e);
+    }
+    saveBtn.disabled = false;
+  });
+  async function saveSetup() {
     const id = setup.dataset.id;
-    const files = await getModelFiles(id);
-    const cfg = JSON.parse(files['model.json']);
+    const cfg = JSON.parse(await getModelConfig(id));
     delete (cfg.materials || {}).default;
     const body = setup.querySelector('.setup-body');
     const categories = {};
@@ -274,8 +287,8 @@ export function initLibrary({ current, onOpen, builtIn }) {
     });
     await putModelFile(id, 'model.json', JSON.stringify(next, null, 2), { name: next.title });
     setup.style.display = 'none';
-    onOpen(`local:${id}`, { reload: true });
-  });
+    onOpen(`local:${id}`);
+  }
   setup.querySelector('.setup-cancel').addEventListener('click', () => { setup.style.display = 'none'; });
 
   return { open, close, openSetup, isOpen: () => modal.style.display === 'flex' || setup.style.display === 'flex', handleFile };
