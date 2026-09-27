@@ -147,8 +147,9 @@ scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnviron
 // lights, ground grid and soft shadows, laid out around whatever model is
 // loaded (look.js; the model is exported Y-up, standard three.js convention)
 const stage = createStage(scene, renderer);
-// every part's outline, SketchUp-style (look.js featureEdges); one material
-// for plain parts and one for the highlighted part, recoloured with the theme
+// every part's outline, SketchUp-style (look.js featureEdges): one material
+// each for plain, highlighted, hovered and ghosted parts (the ghost's colour
+// follows the theme)
 const edgeMats = { plain: edgeMaterial(0x000000, 0.4), hl: edgeMaterial(0x5a1a00, 0.55), hover: edgeMaterial(0xffa640, 0.95), ghost: edgeMaterial(0xffffff, 0.14) };
 let hoverRow = null; // the part under the pointer: its outline lights up
 
@@ -642,7 +643,7 @@ function applyMaterials() {
     showEdges(m, info);
   });
 }
-// Outlines on solid parts only: a ghosted part is just a hint, and wireframe draws its own
+// Which outline a part gets for how it's drawn (none in wireframe, which draws its own)
 function showEdges(m, info) {
   const hover = hoverRow && info.row === hoverRow;
   info.edges.visible = !wireOn;
