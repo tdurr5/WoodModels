@@ -72,13 +72,18 @@ export async function importFile(file, onStatus = () => {}) {
 // Warehouse models often paint wood with a photo under a name that says
 // nothing ("Material12", "Texture_3"). A material like that whose photo is
 // streaky and wood-coloured is wood: it counts in the cut list and is shown
-// with its photo. Set up can always say otherwise.
+// with its photo. Set up can always say otherwise. And a photo material with
+// no colour of its own (the parser's stand-in tan) takes its photo's colour,
+// for the cut list's colour dots.
+const STAND_IN = '#b28c59'; // collada.js: a material with a texture and no colour
 async function woodFromPhotos(cfg, images) {
   await Promise.all(Object.entries(cfg.materials || {}).map(async ([name, m]) => {
-    if (!m.photo || m.category !== 'Other' || !images[m.photo] || materialKind('Other', name, m.label) !== 'plain') return;
+    const img = m.photo || m.texture?.image;
+    if (!img || !images[img]) return;
     try {
-      const bmp = await createImageBitmap(new Blob([images[m.photo]]));
-      if (!photoWood(bmp, m.photo).woody) return;
+      const photo = photoWood(await createImageBitmap(new Blob([images[img]])), img);
+      if (m.color === STAND_IN) m.color = photo.mean;
+      if (!m.photo || m.category !== 'Other' || materialKind('Other', name, m.label) !== 'plain' || !photo.woody) return;
       m.category = 'Wood';
       m.texture = { base: '#c9975c', streak: '#a06f3b', ring: '#8a5a2c', tile: 5, image: m.photo };
       delete m.photo;
@@ -279,6 +284,7 @@ export function initLibrary({ current, onOpen, builtIn }) {
   modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
 
   // ----- setup dialog -----
+  let photoUrls = [];
   async function openSetup(id) {
     const files = await getModelFiles(id);
     if (!files) return;
@@ -298,6 +304,18 @@ export function initLibrary({ current, onOpen, builtIn }) {
       cfg.materials['(none)'] = { category: anyWood ? 'Other' : 'Wood', color: '#c9975c', label: 'No material' };
     }
     const mats = Object.keys(cfg.materials).sort((a, b) => (uses[b] || 0) - (uses[a] || 0));
+    // a material painted with a photo shows that photo: "Material12" and
+    // "Material13" are easier told apart by their wood (or fabric) than their names
+    photoUrls.forEach((u) => URL.revokeObjectURL(u));
+    photoUrls = [];
+    const swatch = (m) => {
+      const img = cfg.materials[m].texture?.image || cfg.materials[m].photo;
+      const bytes = img && files.images?.[img];
+      if (!bytes) return `<span class="mat-swatch" style="background:${escapeHtml(cfg.materials[m].color || '#999')}"></span>`;
+      const url = URL.createObjectURL(new Blob([bytes]));
+      photoUrls.push(url);
+      return `<span class="mat-swatch photo" style="background-image:url('${url}')" title="${escapeHtml(img)}"></span>`;
+    };
     setup.querySelector('.setup-body').innerHTML = `
       <label class="setup-field">Name <input name="title" value="${escapeHtml(cfg.title || '')}" /></label>
       <label class="setup-field">Description <input name="subtitle" value="${escapeHtml(cfg.subtitle || '')}" placeholder="e.g. plan source" /></label>
@@ -305,7 +323,7 @@ export function initLibrary({ current, onOpen, builtIn }) {
         <select name="front">${Object.keys(FRONTS).map((k) => `<option value="${k}"${k === frontOf(cfg) ? ' selected' : ''}>${k} (${k.includes('X') ? 'red' : 'blue'} axis ${k.startsWith('+') ? 'positive' : 'negative'})</option>`).join('')}</select></label>
       <p class="muted small">Tip: use the Front view button afterwards - if you see the back, pick the opposite direction.</p>
       <table class="setup-mats"><thead><tr><th>Material</th><th>Used by</th><th>Counts as</th><th title="Species or material name. Materials with the same name are added up together.">Called</th><th title="How the wood looks in 3D">Looks like</th></tr></thead><tbody>
-      ${mats.map((m) => `<tr><td><span class="mat-swatch" style="background:${escapeHtml(cfg.materials[m].color || '#999')}"></span>${escapeHtml(m === '(none)' ? 'No material (unpainted)' : m.replace(/^_+/, ''))}</td>
+      ${mats.map((m) => `<tr><td>${swatch(m)}${escapeHtml(m === '(none)' ? 'No material (unpainted)' : m.replace(/^_+/, ''))}</td>
         <td class="num">${uses[m] || 0} pc</td>
         <td><select data-mat="${escapeHtml(m)}" data-initial="${escapeHtml(effectiveCategory(m, cfg.materials[m]))}">${CATEGORIES.map((c) => `<option${c === effectiveCategory(m, cfg.materials[m]) ? ' selected' : ''}>${c}</option>`).join('')}</select></td>
         <td><input data-label="${escapeHtml(m)}" value="${escapeHtml(cfg.materials[m].label || (m === '(none)' ? 'No material' : defaultMaterialLabel(m, cfg.materials[m])))}" /></td>

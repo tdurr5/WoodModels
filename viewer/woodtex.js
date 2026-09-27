@@ -263,7 +263,8 @@ export function photoWood(img, id) {
   if (vertical) tex.repeat.set(perAcross, perAlong);
   else { tex.center.set(0.5, 0.5); tex.rotation = Math.PI / 2; tex.repeat.set(perAlong, perAcross); }
   tex.needsUpdate = true;
-  return { id, map: tex, early: avg(0.6, 0.95), late: avg(0.05, 0.3), vertical, woody: looksLikeWood(gx, gy, avg(0, 1)) };
+  const mean = avg(0, 1);
+  return { id, map: tex, early: avg(0.6, 0.95), late: avg(0.05, 0.3), mean, vertical, woody: looksLikeWood(gx, gy, mean) };
 }
 
 // Does a photo look like wood? Streaky one way (grain) and wood-coloured:
