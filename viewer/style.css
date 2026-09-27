@@ -360,6 +360,10 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
   .tpl-inch i { position: absolute; bottom: 0; width: 0; height: 0.12in; border-left: 1px solid #000; }
   .tpl-tile { position: relative; overflow: hidden; outline: 0.5px solid #999; }
   .tpl-tile img { position: absolute; max-width: none; }
+  .tpl-svg { position: absolute; left: 0; top: 0; }
+  .tpl-cells { display: flex; flex-direction: column; gap: 0.25in; }
+  .tpl-checkcol { display: flex; flex-direction: column; gap: 3px; }
+  .tpl-ruler { display: block; }
   /* dashed line = where the neighbouring tile's edge lands when overlapped
      (borders, not shading: browsers drop backgrounds when printing) */
   .tpl-overlap { position: absolute; }

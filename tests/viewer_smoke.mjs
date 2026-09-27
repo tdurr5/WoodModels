@@ -496,15 +496,25 @@ try {
   check(await page.locator('#dimCard [data-act="template"]').count() === 1, 'wood part card offers a full-size template');
   const tpl = await page.evaluate(() => {
     window.__viewer.prepareTemplate();
-    const img = document.querySelector('#printSheet .tpl-tile img');
-    return { pages: document.querySelectorAll('#printSheet .tpl-page').length, w: img.style.width, h: img.style.height };
+    const svgs = [...document.querySelectorAll('#printSheet .tpl-tile svg')];
+    const trueSize = svgs.every((sv) => Math.abs(parseFloat(sv.getAttribute('width')) - +sv.getAttribute('viewBox').split(' ')[2]) < 1e-6);
+    const first = svgs[0].getAttribute('viewBox').split(' ').map(Number);
+    return { pages: document.querySelectorAll('#printSheet .tpl-page').length, trueSize, first, lines: svgs[0].querySelectorAll('path').length, ruler: !!document.querySelector('#printSheet .tpl-ruler') };
   });
   // Leg Front is 27-1/8" x 3-13/16" (+0.3" border each side): face view needs 4 letter tiles across
-  check(tpl.pages >= 5 && /^27\.7\d*in$/.test(tpl.w), `template is tiled at true size (${tpl.pages} pages, face ${tpl.w} × ${tpl.h})`);
+  check(tpl.pages >= 5 && tpl.trueSize && tpl.first[2] === 7.5 && tpl.lines >= 2, `template is tiled at true size, drawn as lines (${tpl.pages} pages, first tile ${tpl.first.slice(2).join(' × ')}")`);
+  check(tpl.ruler, 'each tile has a 6" ruler to check the printer didn\'t scale it');
   await page.emulateMedia({ media: 'print' });
   await page.pdf({ path: path.join(OUT, 'template-leg-front.pdf'), format: 'Letter' });
   check(await page.locator('#printSheet .tpl-page').count() === tpl.pages, 'printing keeps the template (not the cut sheet)');
   await page.screenshot({ path: path.join(OUT, '17-template-print.png') });
+  await page.emulateMedia({ media: 'screen' });
+  await page.evaluate(() => { window.__viewer.endTemplate(); document.getElementById('printSheet').innerHTML = ''; });
+  // the shaving horse's bench: 46-3/8" long, several pages taped together
+  await selectPart('Bench');
+  await page.evaluate(() => window.__viewer.prepareTemplate());
+  await page.emulateMedia({ media: 'print' });
+  await page.pdf({ path: path.join(OUT, 'template-bench.pdf'), format: 'Letter' });
   await page.emulateMedia({ media: 'screen' });
   await page.evaluate(() => { window.__viewer.endTemplate(); document.getElementById('printSheet').innerHTML = ''; });
 
