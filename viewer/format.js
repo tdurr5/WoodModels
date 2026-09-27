@@ -42,10 +42,6 @@ export function formatLength(inches, units = 'in16') {
   }
 }
 
-export function formatDims(dims, units) {
-  return dims.map((d) => formatLength(d, units)).join(' × ');
-}
-
 // Board feet = L x W x T (inches) / 144.
 export function boardFeet(l, w, t) {
   return (l * w * t) / 144;

@@ -7,7 +7,6 @@ import * as THREE from 'three';
 import { formatLength } from './format.js';
 import { dihedralFromNormals, slopeAngles } from './angles.js';
 
-const SNAP_PX = { endpoint: 14, corner: 14, boxmid: 11, cross: 16, axis: 10, midpoint: 11, edge: 8 };
 const SNAP_COLORS = { endpoint: 0x7ee08a, corner: 0xffe066, boxmid: 0xffe066, cross: 0x7ee08a, midpoint: 0x6ab7ff, edge: 0xff6bd6, face: 0xffb454, axis: 0xffffff };
 const SNAP_NAMES = {
   endpoint: 'Endpoint', corner: 'Corner of outline box', boxmid: 'Midpoint of outline box edge',
@@ -20,6 +19,9 @@ const ACCENT = '#ffb454';
 
 // phones and tablets: tap, not click, and no Esc key
 const TOUCH = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
+// how close (screen pixels) the pointer has to be to snap; a fingertip needs more room
+const SNAP_PX = Object.fromEntries(Object.entries({ endpoint: 14, corner: 14, boxmid: 11, cross: 16, axis: 10, midpoint: 11, edge: 8 })
+  .map(([k, px]) => [k, TOUCH ? Math.round(px * 1.8) : px]));
 
 export function initMeasure(ctx) {
   // ctx: { scene, getCamera, canvas, pickMeshes, selectionName, labelsEl, hintEl, units,

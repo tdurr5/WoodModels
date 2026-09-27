@@ -22,7 +22,9 @@ kbd { background: var(--hover); border: 1px solid var(--border-2); border-bottom
 .muted { color: var(--muted); }
 .small { font-size: 10.5px; }
 
-#app { display: flex; height: 100%; }
+#app { display: flex; height: 100%; box-sizing: border-box;
+  /* iPhone notch and home bar (the page runs edge to edge: viewport-fit=cover) */
+  padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0); }
 #viewport { flex: 1; position: relative; min-width: 0; }
 #viewport canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
 #sidebar { width: 390px; overflow-y: auto; background: var(--panel); border-left: 1px solid var(--line); padding: 12px; box-sizing: border-box; }
@@ -429,3 +431,4 @@ body.build-mode #dimCard, body.build-mode #bottombar, body.build-mode #introTip 
 @media print { #buildPanel { display: none !important; } }
 .cd-other { margin: 4px 0; } .cd-other summary { cursor: pointer; font-weight: 600; } .cd-other ul { margin-top: 4px; }
 @media print { .cd-other:not([open]) ul { display: block; } }
+#help, #diagram, #library, #setup { box-sizing: border-box; padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0); }

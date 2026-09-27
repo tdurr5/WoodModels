@@ -1270,11 +1270,25 @@ function buildSteps() {
 }
 const buildState = (order, i) => ({ order, stepOf: new Map(order.map((r, k) => [r.key, k])), i });
 
+// Keep the screen on while building: a phone propped up on the bench
+// shouldn't go dark between cuts. (The lock drops when the tab is hidden.)
+let wakeLock = null;
+async function keepAwake(on) {
+  try {
+    if (on && !wakeLock && navigator.wakeLock && document.visibilityState === 'visible') {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => { wakeLock = null; });
+    } else if (!on && wakeLock) await wakeLock.release();
+  } catch { /* not allowed (e.g. battery saver): the screen sleeps as usual */ }
+}
+document.addEventListener('visibilitychange', () => { if (build) keepAwake(true); });
+
 function startBuild() {
   if (!model) return;
   const order = buildSteps();
   if (!order.length) return;
   build = buildState(order, Math.max(0, order.findIndex((r) => r.key === settings().buildStep)));
+  keepAwake(true);
   document.body.classList.add('build-mode');
   measure.cancel();
   syncToolButtons();
@@ -1299,6 +1313,7 @@ function pickRow(r) {
 
 function exitBuild() {
   build = null;
+  keepAwake(false);
   document.body.classList.remove('build-mode');
   $('buildPanel').style.display = 'none';
   updateFreeArea();

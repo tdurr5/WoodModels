@@ -72,6 +72,8 @@ It only publishes when you run it by hand. Open the published page once while on
 - The model assembles as you go: parts from earlier steps solid, this one highlighted with its dimensions, the rest ghosted. Tap any part to jump to its step.
 - **Assembly order** builds from the ground up, assembly by assembly; **Cutting order** groups the wood by species and stock thickness, widest and longest first, the way you'd mill it.
 - It remembers where you were. ← / → (or Back / Next) step through; Esc leaves.
+- The phone's screen stays on while you're in build mode (where the browser allows it), and the steps follow any edits you make along the way.
+- Sideways on a phone, the step sits down the side with the model beside it.
 
 **3D view**
 - **Realistic wood**: each species has its own look - colour, growth rings with cathedral grain along the board, open pores in oak and ash, oak's ray fleck, knots in pine - with end grain on the ends of boards. The species is guessed from the material's name (in several languages); pick it yourself under **Looks like** in Set up. Textures are generated in the browser, so they work offline.
