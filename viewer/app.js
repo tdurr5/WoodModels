@@ -934,13 +934,18 @@ function disposeOverlays() {
   if (!current) return;
   if (current.gizmo) {
     scene.remove(current.gizmo);
-    current.gizmo.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+    current.gizmo.traverse((o) => {
+      if (o.userData.shared) return; // an x-ray ghost: the part's own geometry, a shared material
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) o.material.dispose();
+    });
     current.gizmo = null;
   }
   axisLabelsEl.innerHTML = '';
   current.labels = [];
 }
 
+const xrayMaterial = new THREE.MeshBasicMaterial({ color: 0xff7a45, transparent: true, opacity: 0.28, depthTest: false, depthWrite: false });
 function buildSelectionOverlays() {
   requestRender();
   disposeOverlays();
@@ -957,6 +962,16 @@ function buildSelectionOverlays() {
   // not always their holes and cuts, and a named part can differ slightly);
   // a measurement that differs from the first piece's is flagged. Show the
   // lean on each, since mirrored pairs lean in opposite directions.
+  // x-ray: the part shows faintly through whatever is in front of it (a block
+  // set into a top, a tenon inside a leg), following it as it moves (explode)
+  current.meshes.forEach((m) => {
+    const ghost = new THREE.Mesh(m.geometry, xrayMaterial);
+    ghost.matrixAutoUpdate = false;
+    ghost.renderOrder = 10;
+    ghost.userData.shared = true;
+    ghost.onBeforeRender = () => { ghost.matrix.copy(m.matrixWorld); ghost.matrixWorld.copy(m.matrixWorld); };
+    gizmo.add(ghost);
+  });
   const pieces = rowPieces(current.row);
   const first = objectDims[pieces[0]?.key];
   // (hardware with a hand-written size is stored as one mesh per facet: not versions)
@@ -1544,6 +1559,15 @@ function exitBuild() {
   frameBox(focusBox(), null);
 }
 
+// A small part (a key, a dog block) framed on its own fills the screen with
+// no sign of where it goes: frame at least a foot around it.
+const CONTEXT_SIZE = 12;
+function withContext(box) {
+  const size = box.getSize(new THREE.Vector3());
+  const grow = new THREE.Vector3(...[size.x, size.y, size.z].map((d) => Math.max(0, CONTEXT_SIZE - d) / 2));
+  return box.clone().expandByVector(grow);
+}
+
 function stepBuild(delta) {
   if (!build) return;
   build.i = Math.min(build.order.length - 1, Math.max(0, build.i + delta));
@@ -1558,7 +1582,7 @@ function showStep(frame) {
   // frame once the panel is up: its height changes with the step
   updateFreeArea();
   const box = step.assemble ? groupBox(step.group) : current?.box;
-  if (frame && box && !box.isEmpty()) frameBox(box, null);
+  if (frame && box && !box.isEmpty()) frameBox(withContext(box), null);
 }
 
 function partStepHtml(row, units) {
