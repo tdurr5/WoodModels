@@ -1110,18 +1110,22 @@ function buildDimensionGizmo(group, data, labelSpecs, offset, ref = null) {
   // box (rather than all three converging on one corner), so the lines and
   // labels spread out around the part instead of overlapping.
   const CORNER_SIGNS = [[1, 1], [-1, 1], [1, -1]];
+  // a beam in a shed frame gets its lines stood off (and ticked) in proportion,
+  // not hugging it; anything furniture-sized (up to 2') as drawn
+  const s = THREE.MathUtils.clamp(Math.max(...axes.map((a) => a.length)) / 24, 1, 8);
+  const margin = MARGIN * s, tick = TICK_LEN * s;
   for (let i = 0; i < 3; i++) {
     const j = (i + 1) % 3, k = (i + 2) % 3;
     const [sj, sk] = CORNER_SIGNS[i];
     const lineCenter = center.clone()
-      .addScaledVector(axes[j].dir, sj * (axes[j].length / 2 + MARGIN))
-      .addScaledVector(axes[k].dir, sk * (axes[k].length / 2 + MARGIN));
+      .addScaledVector(axes[j].dir, sj * (axes[j].length / 2 + margin))
+      .addScaledVector(axes[k].dir, sk * (axes[k].length / 2 + margin));
     const half = axes[i].dir.clone().multiplyScalar(axes[i].length / 2);
     const p1 = lineCenter.clone().sub(half), p2 = lineCenter.clone().add(half);
     const mat = new THREE.LineBasicMaterial({ color: new THREE.Color(AXIS_COLORS[axes[i].role] || '#ffffff') });
     group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([p1, p2]), mat));
     [p1, p2].forEach((p) => {
-      const t = axes[j].dir.clone().multiplyScalar(TICK_LEN / 2);
+      const t = axes[j].dir.clone().multiplyScalar(tick / 2);
       group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([p.clone().sub(t), p.clone().add(t)]), mat));
     });
     const text = formatLength(axes[i].length, units);
@@ -1175,7 +1179,7 @@ function buildAngleGizmo(group, data, labelSpecs, offset) {
   const half = lengthAxis.length / 2;
   const pivot = center.clone().addScaledVector(dir, -half); // the end the reference is drawn from
   const otherEnd = center.clone().addScaledVector(dir, half);
-  const radius = Math.max(3, Math.min(lengthAxis.length * 0.4, 10));
+  const radius = Math.max(3, Math.min(lengthAxis.length * 0.4, Math.max(10, lengthAxis.length * 0.15))); // 10" on furniture, in proportion on a rafter
 
   const refLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([pivot, pivot.clone().addScaledVector(ref, radius * 1.35)]), xrayLineMaterial(0xcccccc));
   refLine.renderOrder = 999;
