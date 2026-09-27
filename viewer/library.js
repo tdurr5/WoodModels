@@ -7,11 +7,11 @@ import { unzip, isZip, text as bytesToText, zip } from './zip.js';
 import {
   saveModel, listModels, getModelFiles, putModelFile, deleteModel, getModelMeta,
 } from './modelstore.js';
-import { escapeHtml } from './format.js';
+import { escapeHtml, looksLikeSheetGoods, SHEET } from './format.js';
 import { SPECIES, speciesFor } from './woodtex.js';
 
 const DATA_FILES = ['scene.obj', 'scene.mtl', 'materials.json', 'object_dims.json', 'parts_report.json', 'model.json'];
-export const CATEGORIES = ['Wood', 'Hardware', 'Leather', 'Other'];
+export const CATEGORIES = ['Wood', 'Sheet goods', 'Hardware', 'Leather', 'Other'];
 
 // ---------- import ----------
 
@@ -85,15 +85,20 @@ export function cleanMaterialName(name) {
   return out || String(name || '').replace(/^_+/, '');
 }
 
-export function applySetup(cfg, { title, subtitle, categories, front, labels = {}, species = {} }) {
+// the category a material is treated as (cutlist.js prepareRows does the same)
+const effectiveCategory = (name, m) => ((m.category === 'Wood' || m.category === 'Other') && !m.userCategory && looksLikeSheetGoods(name, m.label) ? SHEET : m.category);
+
+// changed: materials whose category you picked yourself (kept as chosen)
+export function applySetup(cfg, { title, subtitle, categories, front, labels = {}, species = {}, changed = [] }) {
   const out = structuredClone(cfg);
   out.title = title || out.title;
   out.subtitle = subtitle ?? out.subtitle;
   Object.entries(categories || {}).forEach(([name, cat]) => {
     const m = (out.materials[name] = out.materials[name] || (name === '(none)' ? { color: '#c9975c', label: 'No material' } : { color: '#999999' }));
     m.category = cat;
-    if (cat === 'Wood' && !m.texture) m.texture = { base: '#c9975c', streak: '#a06f3b', ring: '#8a5a2c', tile: 5 };
-    if (cat !== 'Wood') delete m.texture;
+    if (changed.includes(name)) m.userCategory = true; // don't second-guess a choice (e.g. plywood as Wood)
+    if ((cat === 'Wood' || cat === 'Sheet goods') && !m.texture) m.texture = { base: '#c9975c', streak: '#a06f3b', ring: '#8a5a2c', tile: 5 };
+    if (cat !== 'Wood' && cat !== 'Sheet goods') delete m.texture;
   });
   // how the wood looks ('' = guess from its names)
   Object.entries(species).forEach(([name, sp]) => {
@@ -234,7 +239,7 @@ export function initLibrary({ current, onOpen, builtIn }) {
       <table class="setup-mats"><thead><tr><th>Material</th><th>Used by</th><th>Counts as</th><th title="Species or material name. Materials with the same name are added up together.">Called</th><th title="How the wood looks in 3D">Looks like</th></tr></thead><tbody>
       ${mats.map((m) => `<tr><td><span class="mat-swatch" style="background:${escapeHtml(cfg.materials[m].color || '#999')}"></span>${escapeHtml(m === '(none)' ? 'No material (unpainted)' : m.replace(/^_+/, ''))}</td>
         <td class="num">${uses[m] || 0} pc</td>
-        <td><select data-mat="${escapeHtml(m)}">${CATEGORIES.map((c) => `<option${c === cfg.materials[m].category ? ' selected' : ''}>${c}</option>`).join('')}</select></td>
+        <td><select data-mat="${escapeHtml(m)}" data-initial="${escapeHtml(effectiveCategory(m, cfg.materials[m]))}">${CATEGORIES.map((c) => `<option${c === effectiveCategory(m, cfg.materials[m]) ? ' selected' : ''}>${c}</option>`).join('')}</select></td>
         <td><input data-label="${escapeHtml(m)}" value="${escapeHtml(cfg.materials[m].label || (m === '(none)' ? 'No material' : cleanMaterialName(m)))}" /></td>
         <td><select data-species="${escapeHtml(m)}"><option value="">${escapeHtml(SPECIES[speciesFor(cfg.materials[m].label, m)]?.name ? `Auto (${SPECIES[speciesFor(cfg.materials[m].label, m)].name})` : 'Auto')}</option>${Object.entries(SPECIES).map(([k, sp]) => `<option value="${k}"${cfg.materials[m].species === k ? ' selected' : ''}>${escapeHtml(sp.name)}</option>`).join('')}</select></td></tr>`).join('')}
       </tbody></table>
@@ -249,7 +254,11 @@ export function initLibrary({ current, onOpen, builtIn }) {
     delete (cfg.materials || {}).default;
     const body = setup.querySelector('.setup-body');
     const categories = {};
-    body.querySelectorAll('select[data-mat]').forEach((s) => { categories[s.dataset.mat] = s.value; });
+    const changed = [];
+    body.querySelectorAll('select[data-mat]').forEach((s) => {
+      categories[s.dataset.mat] = s.value;
+      if (s.value !== s.dataset.initial) changed.push(s.dataset.mat);
+    });
     const labels = {};
     body.querySelectorAll('input[data-label]').forEach((i) => { labels[i.dataset.label] = i.value; });
     const species = {};
@@ -261,6 +270,7 @@ export function initLibrary({ current, onOpen, builtIn }) {
       categories,
       labels,
       species,
+      changed,
     });
     await putModelFile(id, 'model.json', JSON.stringify(next, null, 2), { name: next.title });
     setup.style.display = 'none';

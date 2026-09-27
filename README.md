@@ -60,7 +60,8 @@ It only publishes when you run it by hand. Open the published page once while on
 - **Shopping list & cutting diagram** (`C`):
   - Lays the rough parts out on boards of your stock size (length, width, kerf), grouped by species and thickness. Shows how many boards to buy and how much of each is used, and flags when an offcut will do.
   - Cuts follow a real sequence: crosscut into sections, rip into strips, crosscut the parts. Click a piece to find it in 3D.
-  - Hardware is totalled per size, e.g. rod pieces and the stock length to buy.
+  - **Sheet goods** (plywood, MDF, OSB, Masonite/hardboard, particle board, melamine...) are laid out on full sheets instead - 4×8 by default, or 5×10, 5×5, 4×4 or 2×4 - per material and thickness, at finished size. Materials whose name says what they are are detected automatically; otherwise pick **Sheet goods** in **Set up**.
+  - Hardware is totalled per size, e.g. rod pieces and the stock length to buy. Anything that is neither wood nor hardware is folded away under *Other parts*.
   - Enter a price per board foot for a lumber cost estimate.
 - **Your notes**: add a note to any part from its card; it shows in the list, CSV and printout.
 - ⚠ notes flag known problems in the source model (e.g. rods whose name says 8-1/4" but are modeled 6-7/8").
@@ -98,7 +99,7 @@ Click **Models** at the top of the sidebar (or press `M`), then choose a file - 
 
 1. On 3D Warehouse, open the model and use **Download → Collada File** (a `.zip`) or **KMZ**. The SketchUp `.skp` download can't be read in a browser; in SketchUp itself, **File → Export → 3D Model → COLLADA (.dae)** works too.
 2. Upload the `.zip`, `.kmz` or `.dae`. It's measured in the browser the same way `parse_dae.py` does it (any units, Z-up or Y-up, other exporters' COLLADA 1.4/1.5), so every tool - cut list, rough stock, joins, templates, cutting diagram, angle tools - works on it.
-3. A **Set up** dialog opens: name it, pick which materials count as **Wood** (only wood goes into rough stock, board feet and the cutting diagram), what each material is **called** (give the several textures a model uses for one species the same name, e.g. "Larch", and they total up as one), and which way the front of the piece faces. You can reopen it any time from the **Set up** button in the sidebar.
+3. A **Set up** dialog opens: name it, pick which materials count as **Wood** (only wood goes into rough stock, board feet and the cutting diagram) or **Sheet goods**, what each wood **looks like** (the species used for its grain in 3D), what each material is **called** (give the several textures a model uses for one species the same name, e.g. "Larch", and they total up as one), and which way the front of the piece faces. You can reopen it any time from the **Set up** button in the sidebar.
 
 Uploads are saved in this browser (nothing is sent anywhere), and the page reopens the model you had open last. Ticked-off parts, notes and preferences are kept per model. In the Models list you can switch between models, **Download** one as a zip of the six data files (to back it up, move it to another device - just upload the zip there - or add it to the repo as a `?model=` folder), or **Delete** it.
 

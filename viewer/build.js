@@ -10,11 +10,14 @@
 // rows: parts in the build; boxOf(row) -> { minY, volume } of its pieces in
 // the model (null when it has none); thicknessOf(row) -> rough stock
 // thickness (cutting order). Returns the rows in build order.
+// boards and sheet goods: the parts you cut
+const cut = (r) => r.category === 'Wood' || r.category === 'Sheet goods';
+
 export function buildOrder(rows, boxOf, mode = 'assembly', thicknessOf = (r) => r.dims[2]) {
   if (mode === 'cutting') {
-    const wood = rows.filter((r) => r.category === 'Wood').sort((a, b) => String(a.materialLabel).localeCompare(String(b.materialLabel))
+    const wood = rows.filter(cut).sort((a, b) => String(a.materialLabel).localeCompare(String(b.materialLabel))
       || thicknessOf(a) - thicknessOf(b) || b.dims[1] - a.dims[1] || b.dims[0] - a.dims[0]);
-    return [...wood, ...buildOrder(rows.filter((r) => r.category !== 'Wood'), boxOf)];
+    return [...wood, ...buildOrder(rows.filter((r) => !cut(r)), boxOf)];
   }
   const info = new Map(rows.map((r) => [r, boxOf(r) || { minY: Infinity, volume: 0 }]));
   const groups = new Map();
@@ -32,7 +35,7 @@ export function buildOrder(rows, boxOf, mode = 'assembly', thicknessOf = (r) => 
   return [...groups.values()]
     .sort((a, b) => lowest(a) - lowest(b) || String(a[0].groupName).localeCompare(String(b[0].groupName)))
     .flatMap((list) => [
-      ...list.filter((r) => r.category === 'Wood').sort(byHeight),
-      ...list.filter((r) => r.category !== 'Wood').sort(byHeight),
+      ...list.filter(cut).sort(byHeight),
+      ...list.filter((r) => !cut(r)).sort(byHeight),
     ]);
 }

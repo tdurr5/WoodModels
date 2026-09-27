@@ -406,3 +406,5 @@ body.build-mode #dimCard, body.build-mode #bottombar, body.build-mode #introTip 
   .bp-size { font-size: 24px; }
 }
 @media print { #buildPanel { display: none !important; } }
+.cd-other { margin: 4px 0; } .cd-other summary { cursor: pointer; font-weight: 600; } .cd-other ul { margin-top: 4px; }
+@media print { .cd-other:not([open]) ul { display: block; } }

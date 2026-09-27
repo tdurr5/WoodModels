@@ -822,6 +822,22 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     await p2.locator('#clList > .row', { hasText: 'Board' }).first().click();
     await p2.locator('#dimCard [data-act=del-overlap]').click();
     check(JSON.stringify(await boardRows()) === JSON.stringify(['1" × 4" × 10" ×2']) && !/Overlaps/.test(await p2.locator('#clList > .row', { hasText: 'Board' }).first().innerText()), '"Delete the overlapping copy" removes one piece and the warning');
+
+    // sheet goods: choose it in Set up
+    await p2.locator('#clSetup').click();
+    await p2.locator('#setup select[data-mat="Wood"]').selectOption('Sheet goods');
+    await Promise.all([p2.waitForEvent('load'), p2.locator('#setup .setup-save').click()]);
+    await loaded();
+    const sum = await p2.locator('#clSummary').innerText();
+    check(/Sheet goods: 1 sheet of 1" Wood \(4' × 8'\)/.test(sum), `a material set to Sheet goods is laid out on sheets (${sum.split('\n').find((l) => /Sheet/.test(l))})`);
+    await p2.locator('#clDiagram').click();
+    const shopText = await p2.locator('#diagram .cd-shop').innerText();
+    const sheetGroups = await p2.locator('#diagram .cd-group h3', { hasText: 'sheet' }).allInnerTexts();
+    // one layout per thickness: the 1" boards and the 1-1/2" leg
+    check(/Sheet goods to buy/.test(shopText) && sheetGroups.length === 2 && /^1" Wood/.test(sheetGroups[0]), `the cutting diagram shows a sheet layout per thickness (${sheetGroups.join(' / ')})`);
+    await p2.locator('#cdSheet').selectOption('60x60');
+    check(/5' × 5'/.test(await p2.locator('#diagram .cd-shop').innerText()), 'sheet size can be changed');
+    await p2.screenshot({ path: path.join(OUT, '46-sheet-goods.png') });
     check(errs.length === 0, `no page errors (${errs.join('; ')})`);
   } finally {
     await b2.close();

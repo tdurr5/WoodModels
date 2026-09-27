@@ -4,12 +4,12 @@ import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { woodMaterial, addEndGrain, endMapOf, speciesFor } from './woodtex.js';
-import { formatLength, escapeHtml, toFraction } from './format.js';
+import { formatLength, escapeHtml, toFraction, isCut } from './format.js';
 import { compoundAngle, describeAngle, round1, DEFAULT_AXIS_NAMES } from './angles.js';
 import { initSettings, settings, updateSettings, onSettingsChange, resetSettings } from './settings.js';
 import {
   prepareRows, renderCutList, renderRows, markActive, visibleRows, focusSearch, finishedDims, buildPrintSheet, isRod, userNote,
-  millingPlanHTML, setCutListRows, inlineEdit, markActiveGroup, roughDims, roughFor,
+  millingPlanHTML, setCutListRows, inlineEdit, markActiveGroup, roughDims, roughFor, sheetLayouts,
 } from './cutlist.js';
 import { buildOrder } from './build.js';
 import {
@@ -677,7 +677,7 @@ function woodSurfaceArea() {
   const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), tri = new THREE.Triangle();
   meshes.forEach((m) => {
     const row = rowByMeshName.get(m.name);
-    if (!row || row.category !== 'Wood' || row.status) return;
+    if (!row || !isCut(row) || row.status) return;
     const pos = singleSidedGeometry(m.geometry).attributes.position;
     for (let i = 0; i + 2 < pos.count; i += 3) {
       a.fromBufferAttribute(pos, i); b.fromBufferAttribute(pos, i + 1); c.fromBufferAttribute(pos, i + 2);
@@ -1260,7 +1260,7 @@ function contactHtml(row) {
   const link = ({ row: r, n }) => `<a href="#part=${encodeURIComponent(partRef(r))}" data-key="${escapeHtml(r.key)}">${escapeHtml(r.name)}</a>${n > 1 ? ` ×${n}` : ''}`;
   const units = settings().units;
   if (isRod(row)) {
-    const wood = list.filter((c) => c.row.category === 'Wood');
+    const wood = list.filter((c) => isCut(c.row));
     return wood.length ? `<div class="card-rel"><b>Bore ⌀${escapeHtml(formatLength(row.dims[1], units))}</b> (plus clearance) through: ${wood.map(link).join(', ')}</div>` : '';
   }
   // Hardware facets (bolt heads, nuts) are one mesh per face; they're listed
@@ -1288,7 +1288,7 @@ function drillingHtml() {
   const units = settings().units;
   const items = rows.filter((r) => isRod(r) && r.clickable).map((r) => {
     const mesh = meshByName.get(r.obj_names[0]);
-    const wood = mesh ? pieceContacts(mesh, r).filter((c) => c.row.category === 'Wood') : [];
+    const wood = mesh ? pieceContacts(mesh, r).filter((c) => isCut(c.row)) : [];
     if (!wood.length) return '';
     const through = wood.map((c) => `${escapeHtml(c.row.name)}${c.n > 1 ? ` ×${c.n}` : ''}`).join(', ');
     return `<tr><td class="ps-chk"><span class="box"></span></td><td><b>${escapeHtml(r.name)}</b> <span class="ps-grp">${escapeHtml(formatLength(r.dims[0], units))} long</span></td>
@@ -1437,7 +1437,7 @@ function renderBuildPanel() {
     ${mine ? `<div class="card-note mine">✎ ${escapeHtml(mine)}</div>` : ''}
     <div class="bp-nav">
       <button class="bp-prev" ${build.i === 0 ? 'disabled' : ''}>◀ Back</button>
-      <label class="bp-cut"><input type="checkbox" ${cutSet.has(row.key) ? 'checked' : ''} /> ${row.category === 'Wood' ? 'Cut' : 'Done'}</label>
+      <label class="bp-cut"><input type="checkbox" ${cutSet.has(row.key) ? 'checked' : ''} /> ${isCut(row) ? 'Cut' : 'Done'}</label>
       <button class="bp-next" ${build.i === n - 1 ? 'disabled' : ''}>Next ▶</button>
     </div>`;
   el.style.display = 'block';
@@ -1501,7 +1501,7 @@ function renderDimCard() {
       <button class="card-btn" data-act="piece-aside" title="Set aside just this piece">Set aside</button>
       <button class="card-btn danger" data-act="piece-delete" title="Delete just this piece, not all ${row.count}">Delete</button></div>` : ''}
     <div class="card-actions">
-      ${data && row.category === 'Wood' && !row.status ? '<button class="card-btn" data-act="template" title="Print this part at full size to trace onto your stock">Print full-size template</button>' : ''}
+      ${data && isCut(row) && !row.status ? '<button class="card-btn" data-act="template" title="Print this part at full size to trace onto your stock">Print full-size template</button>' : ''}
       ${row.status === 'aside'
     ? '<button class="card-btn" data-act="build" title="Put this part back in the build">Put back in build</button>'
     : `<button class="card-btn" data-act="aside" title="Keep it with its sizes, but leave it out of the build: totals, shopping list, prints (e.g. a tool drawn on the bench)">Set aside${row.count > 1 ? ` all ×${row.count}` : ''}</button>`}
@@ -1922,9 +1922,10 @@ window.addEventListener('beforeprint', () => {
   const img = model ? [captureOverview(), captureOverview({ exploded: 1 })] : null;
   // print-sized diagrams: 7.5" printable width at 96 css px per inch
   const layouts = computeLayouts(rows);
-  const longest = Math.max(...layouts.flatMap((g) => g.boards.map((b) => b.length)), 1);
-  const diagrams = layouts.length
-    ? `<div class="ps-diagrams"><h2>Shopping list &amp; cutting diagrams</h2>${layoutsHTML(layouts, { pxPerInch: 700 / longest, units: settings().units, colorFor: diagram.colorFor, hardware: rows, finishArea: woodSurfaceArea() })}</div>`
+  const sheets = sheetLayouts(rows);
+  const longest = Math.max(...layouts.flatMap((g) => g.boards.map((b) => b.length)), ...sheets.flatMap((g) => g.sheets.map((b) => b.length)), 1);
+  const diagrams = layouts.length || sheets.length
+    ? `<div class="ps-diagrams"><h2>Shopping list &amp; cutting diagrams</h2>${layoutsHTML(layouts, { pxPerInch: 700 / longest, units: settings().units, colorFor: diagram.colorFor, hardware: rows, finishArea: woodSurfaceArea(), sheets })}</div>`
     : '';
   const mill = millingPlanHTML(rows);
   buildPrintSheet($('printSheet'), rows, config, img, drillingHtml() + (mill ? `<h2>Milling plan</h2>${mill}` : '') + diagrams);

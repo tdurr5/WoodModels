@@ -10,7 +10,7 @@ const DEFAULTS = {
   hiddenCategories: [],
   cut: [],          // row keys ticked off as cut / done
   isolate: false,   // hide (rather than ghost) unselected parts
-  stock: { length: 96, width: 8, kerf: 0.125 }, // lumber for cutting diagrams
+  stock: { length: 96, width: 8, kerf: 0.125, sheetLength: 96, sheetWidth: 48 }, // lumber and sheet goods for cutting diagrams
   theme: 'dark',    // 'dark' | 'light'
   prices: {},       // $ per board foot by material label, for cost estimates
   userNotes: {},    // row key -> the user's own note for that part

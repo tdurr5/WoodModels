@@ -3,9 +3,9 @@
 // the printed cut sheet.
 
 import { packBoards, boardParts, boardYield, piecesByStock } from './nesting.js';
-import { formatLength, boardFeet, escapeHtml } from './format.js';
+import { formatLength, boardFeet, escapeHtml, SHEET } from './format.js';
 import { settings, updateSettings } from './settings.js';
-import { roughFor, isRod, finishedDims, millingPlanHTML } from './cutlist.js';
+import { roughFor, isRod, finishedDims, millingPlanHTML, sheetLayouts, sheetLine } from './cutlist.js';
 
 export const STOCK_DEFAULTS = { length: 96, width: 8, kerf: 0.125 };
 
@@ -63,7 +63,7 @@ export function shoppingList(layouts) {
 export function hardwareList(rows, units) {
   const rods = new Map();
   const other = [];
-  rows.filter((r) => r.category !== 'Wood').forEach((r) => {
+  rows.filter((r) => r.category !== 'Wood' && r.category !== SHEET).forEach((r) => {
     if (isRod(r)) {
       const k = `${r.name}|${r.dims[1].toFixed(3)}`;
       const e = rods.get(k) || { name: r.name, dia: r.dims[1], pieces: [] };
@@ -114,20 +114,37 @@ export function boardSVG(board, g, { pxPerInch = 9, units = 'in16', colorFor = (
   </svg>`;
 }
 
-export function layoutsHTML(layouts, { pxPerInch, units, colorFor, hardware = null, finishArea = 0 }) {
+export function layoutsHTML(layouts, { pxPerInch, units, colorFor, hardware = null, finishArea = 0, sheets = [] }) {
   const shop = shoppingList(layouts);
   const totalCost = shop.reduce((a, s) => a + (s.cost || 0), 0);
   const money = (v) => `$${v.toFixed(2)}`;
   const hw = hardware ? hardwareList(hardware, units) : { rods: [], other: [] };
+  const otherLine = (o) => `<li><b>${escapeHtml(o.name)}</b> ×${o.count}: ${escapeHtml(o.size)}${o.category !== 'Hardware' && o.category !== 'Other' ? ` <span class="muted">(${escapeHtml(o.category.toLowerCase())})</span>` : ''}</li>`;
+  const hwMain = hw.other.filter((o) => o.category !== 'Other');
+  const hwOther = hw.other.filter((o) => o.category === 'Other');
   return `
-    <div class="cd-shop"><b>Lumber to buy</b> (rough, before the ~20% defect allowance):
-      <ul>${shop.map((s) => `<li><b>${escapeHtml(s.label)}</b>: ${escapeHtml(s.list)} — ${s.bf.toFixed(1)} bf${s.cost != null ? ` ≈ ${money(s.cost)}` : ''}, ${Math.round(s.yield * 100)}% used</li>`).join('')}</ul>
+    <div class="cd-shop">${shop.length ? `<b>Lumber to buy</b> (rough, before the ~20% defect allowance):
+      <ul>${shop.map((s) => `<li><b>${escapeHtml(s.label)}</b>: ${escapeHtml(s.list)} — ${s.bf.toFixed(1)} bf${s.cost != null ? ` ≈ ${money(s.cost)}` : ''}, ${Math.round(s.yield * 100)}% used</li>`).join('')}</ul>` : ''}
+      ${sheets.length ? `<b>Sheet goods to buy</b>:
+        <ul>${sheets.map((g) => `<li><b>${escapeHtml(sheetLine(g))}</b> — ${Math.round((g.sheets.reduce((a, b) => a + boardYield(b), 0) / g.sheets.length) * 100)}% used${g.sheets.some((b) => b.oversize) ? ' <span class="warn">⚠ a part is bigger than the sheet</span>' : ''}</li>`).join('')}</ul>` : ''}
       ${totalCost ? `<div>Lumber estimate: <b>${money(totalCost)}</b> (${money(totalCost * 1.2)} with 20% extra)</div>` : ''}
-      ${hw.rods.length || hw.other.length ? `<b>Hardware &amp; other</b>:
+      ${hw.rods.length || hwMain.length ? `<b>Hardware</b>:
         <ul>${hw.rods.map((r) => `<li><b>${escapeHtml(r.name)}</b>: ${escapeHtml(r.text)}</li>`).join('')}
-        ${hw.other.map((o) => `<li><b>${escapeHtml(o.name)}</b> ×${o.count}: ${escapeHtml(o.size)}${o.category !== 'Hardware' ? ` <span class="muted">(${escapeHtml(o.category.toLowerCase())})</span>` : ''}</li>`).join('')}</ul>` : ''}
+        ${hwMain.map(otherLine).join('')}</ul>` : ''}
+      ${hwOther.length ? `<details class="cd-other"><summary>Other parts (${hwOther.reduce((n, o) => n + o.count, 0)}) <span class="muted">- not wood or hardware; set aside anything that isn't part of the build</span></summary>
+        <ul>${hwOther.map(otherLine).join('')}</ul></details>` : ''}
       ${finishArea > 0 ? `<b>Finish</b>: about <b>${(finishArea / 144).toFixed(1)} sq ft</b> of wood surface per coat <span class="muted">(a quart of most oil or varnish finishes covers roughly 100-125 sq ft per coat)</span>` : ''}
     </div>
+    ${sheets.map((g) => `
+      <div class="cd-group">
+        <h3>${escapeHtml(g.thicknessLabel)} ${escapeHtml(g.material)} <span class="muted">— ${g.sheets.length} sheet${g.sheets.length === 1 ? '' : 's'}, ${g.pieces.length} part${g.pieces.length === 1 ? '' : 's'}, finished size</span></h3>
+        ${g.sheets.map((b, i) => `
+          <div class="cd-board">
+            <div class="cd-board-title">Sheet ${i + 1}: ${formatLength(b.width, units)} × ${formatLength(b.length, units)} · ${Math.round(boardYield(b) * 100)}% used
+              ${b.oversize ? '<span class="warn">⚠ larger than your sheet size</span>' : ''}</div>
+            ${boardSVG(b, g, { pxPerInch, units, colorFor })}
+          </div>`).join('')}
+      </div>`).join('')}
     ${layouts.map((g) => `
       <div class="cd-group">
         <h3>${escapeHtml(g.thicknessLabel)} ${escapeHtml(g.material)} <span class="muted">— ${g.boards.length} board${g.boards.length === 1 ? '' : 's'}, ${g.pieces.length} part${g.pieces.length === 1 ? '' : 's'}</span></h3>
@@ -139,7 +156,7 @@ export function layoutsHTML(layouts, { pxPerInch, units, colorFor, hardware = nu
             ${boardSVG(b, g, { pxPerInch, units, colorFor })}
           </div>`).join('')}
       </div>`).join('')}
-    <p class="muted small">Cut sequence per board: crosscut at each section line, rip each section into strips, then crosscut parts from the strips. Parts are rough size (finished + your allowances); ${formatLength(layouts[0]?.stock.kerf ?? STOCK_DEFAULTS.kerf, units)} kerf between cuts. Hatched = offcut.</p>
+    ${layouts.length ? `<p class="muted small">Cut sequence per board: crosscut at each section line, rip each section into strips, then crosscut parts from the strips. Parts are rough size (finished + your allowances); ${formatLength(layouts[0]?.stock.kerf ?? STOCK_DEFAULTS.kerf, units)} kerf between cuts. Hatched = offcut.</p>` : ''}
   `;
 }
 
@@ -155,6 +172,12 @@ export function initDiagramModal({ rows, onSelectRow, finishArea = () => 0 }) {
   }
   const colorFor = (k) => rowColor.get(k) || PART_COLORS[0];
 
+  const sheetSel = modal.querySelector('#cdSheet');
+  sheetSel.addEventListener('change', () => {
+    const [sheetLength, sheetWidth] = sheetSel.value.split('x').map(Number);
+    updateSettings({ stock: { ...STOCK_DEFAULTS, ...(settings().stock || {}), sheetLength, sheetWidth } });
+    render();
+  });
   const inputs = {
     length: modal.querySelector('#cdLength'),
     width: modal.querySelector('#cdWidth'),
@@ -168,10 +191,13 @@ export function initDiagramModal({ rows, onSelectRow, finishArea = () => 0 }) {
     inputs.width.value = String(stock.width);
     inputs.kerf.value = String(stock.kerf);
     const layouts = computeLayouts(rows);
+    const sheets = sheetLayouts(rows);
+    sheetSel.closest('label').style.display = sheets.length ? '' : 'none';
+    sheetSel.value = `${sheets[0]?.stock.length || stock.sheetLength || 96}x${sheets[0]?.stock.width || stock.sheetWidth || 48}`;
     const avail = Math.max(320, body.clientWidth - 24);
-    const longest = Math.max(...layouts.flatMap((g) => g.boards.map((b) => b.length)), stock.length);
+    const longest = Math.max(...layouts.flatMap((g) => g.boards.map((b) => b.length)), ...sheets.flatMap((g) => g.sheets.map((b) => b.length)), stock.length);
     renderPrices(layouts);
-    body.innerHTML = layoutsHTML(layouts, { pxPerInch: avail / longest, units: s.units, colorFor, hardware: rows, finishArea: finishArea() })
+    body.innerHTML = layoutsHTML(layouts, { pxPerInch: avail / longest, units: s.units, colorFor, hardware: rows, finishArea: finishArea(), sheets })
       + `<details class="cd-mill" open><summary>Milling plan: parts that share a machine setting</summary>${millingPlanHTML(rows, s.units)}</details>`;
     body.querySelectorAll('.part').forEach((el) => el.addEventListener('click', () => {
       const row = rows.find((r) => r.key === el.dataset.row);

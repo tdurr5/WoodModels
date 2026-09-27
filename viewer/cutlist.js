@@ -2,7 +2,9 @@
 
 import {
   formatLength, roughStock, displayName, toFraction, toCSV, escapeHtml, UNIT_OPTIONS, millingPlan, isGenericName,
+  SHEET, looksLikeSheetGoods, isCut,
 } from './format.js';
+import { packBoards } from './nesting.js';
 import { settings, updateSettings } from './settings.js';
 import { normalizeEdits, rowStatus } from './edits.js';
 
@@ -14,7 +16,8 @@ import { normalizeEdits, rowStatus } from './edits.js';
 // groups and gives each row a status: null (in the build), 'aside' or 'deleted'.
 export function prepareRows(rawRows, config, edits = config.edits) {
   const mats = config.materials || {};
-  const order = config.categoryOrder || ['Wood', 'Hardware', 'Leather', 'Other'];
+  const order = [...(config.categoryOrder || ['Wood', 'Hardware', 'Leather', 'Other'])];
+  if (!order.includes(SHEET)) order.splice(order.indexOf('Wood') + 1, 0, SHEET);
   const ed = normalizeEdits(edits);
   // groups nobody named (group_12, instance_9) are numbered Group 1, 2, ...
   const generic = [...new Set(rawRows.map((r) => String(r.top_group)))].filter(isGenericName).sort();
@@ -36,7 +39,10 @@ export function prepareRows(rawRows, config, edits = config.edits) {
   const rows = split.map((r) => {
     // parts with no material use the model's "(none)" setting, if it has one
     const matName = (r.materials || []).find((m) => mats[m]) || (r.materials || [])[0] || (mats['(none)'] ? '(none)' : '');
-    const category = (mats[matName] && mats[matName].category) || 'Other';
+    let category = (mats[matName] && mats[matName].category) || 'Other';
+    // plywood, MDF, a part named "1/8 Masonite"...: sheet goods, unless chosen otherwise in Set up
+    if ((category === 'Wood' || category === 'Other') && !mats[matName]?.userCategory
+      && looksLikeSheetGoods(matName, mats[matName]?.label, r.label)) category = SHEET;
     const [l, w, t] = r.dims;
     // parse_dae.py writes dims_str as sixteenths L x W x T; anything else is a
     // hand-written override (e.g. hex hardware) that should be shown as-is.
@@ -380,18 +386,18 @@ function renderSetAside(list, s) {
 }
 const sectionOpen = {};
 
-function rowElement(r, isCut, s) {
+function rowElement(r, ticked, s) {
   const el = document.createElement('div');
-  el.className = 'row' + (r.clickable ? '' : ' disabled') + (isCut ? ' cut' : '');
+  el.className = 'row' + (r.clickable ? '' : ' disabled') + (ticked ? ' cut' : '');
   el.dataset.key = r.key;
   const rough = s.showRough && r.category === 'Wood'
     ? `<div class="rough">rough ${escapeHtml(roughDims(r, s.units))} · ${(roughFor(r).boardFeet * r.count).toFixed(2)} bf</div>` : '';
   const mine = userNote(r);
   const notes = r.notes.map((n) => `<div class="note${r.warn ? ' warn' : ''}">${r.warn ? '⚠ ' : ''}${escapeHtml(n)}</div>`).join('')
     + (mine ? `<div class="note mine">✎ ${escapeHtml(mine)}</div>` : '');
-  const trackable = r.category === 'Wood';
+  const trackable = isCut(r);
   el.innerHTML = `
-    ${trackable ? `<input type="checkbox" class="cut-box" title="Tick off when cut" ${isCut ? 'checked' : ''} />` : '<span class="cut-spacer"></span>'}
+    ${trackable ? `<input type="checkbox" class="cut-box" title="Tick off when cut" ${ticked ? 'checked' : ''} />` : '<span class="cut-spacer"></span>'}
     <div class="row-main">
       <div class="name"><span class="letter">${r.letter}</span><span class="mat-swatch" style="background:${r.color}"></span>${escapeHtml(r.name)}</div>
       <div class="dims">${escapeHtml(finishedDims(r, s.units))}</div>
@@ -422,6 +428,41 @@ function rowElement(r, isCut, s) {
   return el;
 }
 
+// ---------- sheet goods ----------
+export function sheetStock() {
+  const st = settings().stock || {};
+  return { length: st.sheetLength || 96, width: st.sheetWidth || 48, kerf: st.kerf ?? 0.125 };
+}
+
+// What to call a sheet material: the sheet word in its names ("Masonite",
+// "Plywood", "MDF"), else the material's label.
+const SHEET_NAMES = { plywood: 'Plywood', ply: 'Plywood', mdf: 'MDF', osb: 'OSB', masonite: 'Masonite', hardboard: 'Hardboard', particleboard: 'Particleboard', chipboard: 'Chipboard', melamine: 'Melamine', baltic: 'Baltic birch plywood', luan: 'Luan plywood', lauan: 'Luan plywood' };
+export function sheetName(r) {
+  const words = `${r.materialLabel} ${r.label}`.normalize('NFKD').replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase().replace(/[^a-z]+/g, ' ').split(' ');
+  const hit = words.find((w) => SHEET_NAMES[w]) || (words.join(' ').includes('particle board') ? 'particleboard' : null);
+  return hit ? SHEET_NAMES[hit] : r.materialLabel;
+}
+
+// Sheet-goods parts laid out on sheets, per material and thickness:
+// [{ key, material, thicknessLabel, thickness, pieces, stock, sheets }]
+// (sheets are nesting.js boards; parts at finished size, cut with the grain
+// - the part's length - along the sheet's length).
+export function sheetLayouts(rows, stock = sheetStock()) {
+  const groups = new Map();
+  rows.filter((r) => r.category === SHEET).forEach((r) => {
+    const material = sheetName(r), thicknessLabel = toFraction(r.dims[2]);
+    const key = `${material}|${thicknessLabel}`;
+    if (!groups.has(key)) groups.set(key, { key, material, thicknessLabel, thickness: r.dims[2], pieces: [] });
+    for (let i = 0; i < r.count; i++) {
+      groups.get(key).pieces.push({ id: `${r.key}#${i}`, rowKey: r.key, label: r.letter ? `${r.letter} ${r.name}` : r.name, length: r.dims[0], width: r.dims[1] });
+    }
+  });
+  return [...groups.values()].sort((a, b) => a.material.localeCompare(b.material) || a.thickness - b.thickness)
+    .map((g) => ({ ...g, stock, sheets: packBoards(g.pieces, stock).boards }));
+}
+const sheetSize = (st) => `${Math.round(st.width / 12 * 10) / 10}' × ${Math.round(st.length / 12 * 10) / 10}'`;
+export const sheetLine = (g) => `${g.sheets.length} sheet${g.sheets.length === 1 ? '' : 's'} of ${g.thicknessLabel} ${g.material} (${sheetSize(g.stock)})`;
+
 function renderSummary() {
   const t = totals(allRows);
   const s = settings();
@@ -434,6 +475,7 @@ function renderSummary() {
   els.summary.innerHTML = `
     <div class="sum-line"><b>${t.pieces}</b> wood pieces · <b>${t.finishedBF.toFixed(1)}</b> bf finished</div>
     ${mats}
+    ${sheetLayouts(allRows).map((g) => `<div>Sheet goods: <b>${escapeHtml(sheetLine(g))}</b></div>`).join('')}
     <div class="muted small">Rough adds ${formatLength(s.allowance.length, s.units)} length, ${formatLength(s.allowance.width, s.units)} width, next 4/4-5/4-8/4… thickness. Buy ~20% extra for defects.</div>
     <div class="progress" title="Wood pieces ticked off as cut"><div style="width:${pct}%"></div><span>${t.done} of ${t.trackable} pieces cut</span></div>
   `;

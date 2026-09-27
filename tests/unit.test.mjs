@@ -492,3 +492,26 @@ test('cutting order: wood by species and stock thickness, widest first, then the
   ];
   assert.deepEqual(buildOrder(rows, () => ({ minY: 0, volume: 1 }), 'cutting').map((r) => r.key), ['o-thin-wide', 'o-thin', 'o-thick', 'w-thin', 'bolt']);
 });
+
+import { looksLikeSheetGoods } from '../viewer/format.js';
+import { sheetLayouts } from '../viewer/cutlist.js';
+
+test('sheet goods are recognised from material or part names', () => {
+  assert.ok(looksLikeSheetGoods('Plywood_Birch'));
+  assert.ok(looksLikeSheetGoods('__auto_', '', 'Shelf__1_8__Masonite'));
+  assert.ok(looksLikeSheetGoods('MDF'));
+  assert.ok(looksLikeSheetGoods('Baltic Birch'));
+  assert.ok(!looksLikeSheetGoods('Red_Oak', 'Top board'));
+  assert.ok(!looksLikeSheetGoods('Supply cabinet'), 'whole words only');
+});
+
+test('sheet goods are laid out on 4x8 sheets per material and thickness', () => {
+  const rows = prepareRows([
+    { label: 'Side', top_group: 'Case', dims: [30, 20, 0.75], count: 2, materials: ['Plywood'], obj_names: [], dims_str: 'x' },
+    { label: 'Back', top_group: 'Case', dims: [30, 40, 0.25], count: 1, materials: ['Plywood'], obj_names: [], dims_str: 'x' },
+    { label: 'Leg', top_group: 'Base', dims: [30, 2, 2], count: 4, materials: ['Oak'], obj_names: [], dims_str: 'x' },
+  ], { materials: { Plywood: { category: 'Wood' }, Oak: { category: 'Wood' } } });
+  assert.deepEqual(rows.map((r) => r.category).sort(), ['Sheet goods', 'Sheet goods', 'Wood']);
+  const layouts = sheetLayouts(rows, { length: 96, width: 48, kerf: 0.125 });
+  assert.deepEqual(layouts.map((g) => [g.material, g.thicknessLabel, g.sheets.length, g.pieces.length]), [['Plywood', '1/4"', 1, 1], ['Plywood', '3/4"', 1, 2]]);
+});
