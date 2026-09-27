@@ -12,7 +12,7 @@ import {
   prepareRows, renderCutList, renderRows, markActive, visibleRows, focusSearch, finishedDims, buildPrintSheet, isRod, userNote,
   millingPlanHTML, setCutListRows, inlineEdit, markActiveGroup, roughDims, roughFor, sheetLayouts,
 } from './cutlist.js';
-import { buildOrder } from './build.js';
+import { buildOrder, withAssemblySteps } from './build.js';
 import {
   normalizeEdits, withStatus, withName, withGroupName, withPieceStatus, withJoin, withSplit, withAutoFixes, joinKey,
 } from './edits.js';
@@ -20,7 +20,7 @@ import { initMeasure } from './measure.js';
 import { initDiagramModal, computeLayouts, layoutsHTML, STOCK_DEFAULTS } from './diagram.js';
 import { buildTemplate } from './template.js';
 import { initLibrary } from './library.js';
-import { getModelFiles, lastOpened, rememberOpened, putModelFile } from './modelstore.js';
+import { getModelFiles, lastOpened, rememberOpened, putModelFile, addPhoto, listPhotos, deletePhoto } from './modelstore.js';
 import { obbFromDims, partsTouch, findOverlaps, applyJoins, endJoints } from './geometry.js';
 
 const $ = (id) => document.getElementById(id);
@@ -555,7 +555,7 @@ function applyMaterials() {
       // build mode: parts from earlier steps solid, this step highlighted, the rest ghosted
       const step = build.stepOf.get(info.row?.key);
       const done = step !== undefined && step < build.i;
-      const now = selected.has(m);
+      const now = selected.has(m) || (!current && groupSel !== null && info.row?.top_group === groupSel);
       m.visible = now || (isShownPart(m) && !catHidden);
       m.material = now ? info.hl : done ? info.orig : info.dim;
       return;
@@ -1354,14 +1354,14 @@ let cardCollapsed = window.matchMedia('(max-width: 800px)').matches;
 
 // Show a whole assembly group (e.g. to find which "Group 12" is the hand plane):
 // highlighted and framed, with a card to rename, set aside or delete it.
-function selectGroup(group) {
+function selectGroup(group, { frame = true } = {}) {
   if (!model) return;
   clearSelection();
   groupSel = group;
   markActiveGroup(group);
   applyMaterials();
   const box = groupBox(group);
-  if (!box.isEmpty()) frameBox(box, null);
+  if (frame && !box.isEmpty()) frameBox(box, null);
   renderGroupCard(box);
   dismissIntro();
 }
@@ -1425,7 +1425,8 @@ function buildSteps() {
     const sz = box.getSize(new THREE.Vector3());
     return { minY: box.min.y, volume: sz.x * sz.y * sz.z };
   };
-  return buildOrder(rows.filter((r) => r.clickable), boxOf, settings().buildOrder, (r) => roughFor(r)?.thickness || r.dims[2]);
+  const order = buildOrder(rows.filter((r) => r.clickable), boxOf, settings().buildOrder, (r) => roughFor(r)?.thickness || r.dims[2]);
+  return settings().buildOrder === 'cutting' ? order : withAssemblySteps(order);
 }
 const buildState = (order, i) => ({ order, stepOf: new Map(order.map((r, k) => [r.key, k])), i });
 
@@ -1473,6 +1474,7 @@ function pickRow(r) {
 function exitBuild() {
   build = null;
   keepAwake(false);
+  toggleVoice(false);
   document.body.classList.remove('build-mode');
   $('buildPanel').style.display = 'none';
   updateFreeArea();
@@ -1487,14 +1489,141 @@ function stepBuild(delta) {
 }
 
 function showStep(frame) {
-  const row = build.order[build.i];
-  selectRow(row, { frame: false });
-  updateSettings({ buildStep: row.key });
+  const step = build.order[build.i];
+  if (step.assemble) selectGroup(step.group, { frame: false }); else selectRow(step, { frame: false });
+  updateSettings({ buildStep: step.key });
   renderBuildPanel();
   // frame once the panel is up: its height changes with the step
   updateFreeArea();
-  if (frame && current?.box) frameBox(current.box, null);
+  const box = step.assemble ? groupBox(step.group) : current?.box;
+  if (frame && box && !box.isEmpty()) frameBox(box, null);
 }
+
+function partStepHtml(row, units) {
+  const rough = row.category === 'Wood' ? roughDims(row, units) : '';
+  const mine = userNote(row);
+  return `
+    <div class="bp-name"><span class="letter">${row.letter}</span>${escapeHtml(row.name)} <span class="bp-qty">×${row.count}</span></div>
+    <div class="bp-size">${escapeHtml(finishedDims(row, units))}</div>
+    <div class="bp-sub">${row.customDims ? '' : 'Thickness × Width × Length'}${stdSize(row) ? ` · a standard <b>${stdSize(row)}</b>` : rough ? ` · rough <b>${escapeHtml(rough)}</b>` : ''} · ${escapeHtml(row.materialLabel)}</div>
+    ${contactHtml(row)}
+    ${joineryHtml(row, current?.meshes[0])}
+    ${row.notes.map((t) => `<div class="card-note${row.warn ? ' warn' : ''}">${escapeHtml(t)}</div>`).join('')}
+    ${mine ? `<div class="card-note mine">✎ ${escapeHtml(mine)}</div>` : ''}`;
+}
+
+// A sub-assembly's parts are all cut: put it together.
+function assembleStepHtml(step) {
+  const link = (r) => `<a href="#part=${encodeURIComponent(partRef(r))}" data-key="${escapeHtml(r.key)}">${r.letter ? `${r.letter} ` : ''}${escapeHtml(r.name)}</a>${r.count > 1 ? ` ×${r.count}` : ''}`;
+  const wood = step.rows.filter(isCut), hardware = step.rows.filter((r) => !isCut(r));
+  return `
+    <div class="bp-name">Assemble ${escapeHtml(step.groupName)}</div>
+    <div class="card-rel"><b>Parts:</b> ${wood.map(link).join(', ')}</div>
+    ${hardware.length ? `<div class="card-rel"><b>Hardware:</b> ${hardware.map(link).join(', ')}</div>` : ''}
+    <ol class="bp-assemble">
+      <li><b>Dry-fit</b> it all first: every joint closes, nothing binds.</li>
+      <li>Check it's <b>square</b>: the diagonals measure the same.</li>
+      <li>Mark the parts so they go back the same way, take it apart, then <b>glue and clamp</b>${hardware.length ? ' and fit the hardware' : ''}. Check square again before the glue sets.</li>
+    </ol>`;
+}
+
+// Tick the step off (a part cut, an assembly done) and move on to the next.
+function setStepDone(on) {
+  const key = build.order[build.i].key;
+  const next = new Set(settings().cut);
+  if (on) next.add(key); else next.delete(key);
+  updateSettings({ cut: [...next] });
+  if (on && build.i < build.order.length - 1) setTimeout(() => stepBuild(1), 250);
+  else renderBuildPanel();
+}
+
+// ---- hands-free: say "next", "back" or "done" (where the browser can listen) ----
+const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
+let voice = null;
+function toggleVoice(on = !voice) {
+  if (!on) {
+    const rec = voice;
+    voice = null;
+    rec?.stop();
+    if (build) renderBuildPanel();
+    return;
+  }
+  if (!Speech || voice) return;
+  const rec = new Speech();
+  rec.continuous = true;
+  rec.interimResults = false;
+  rec.lang = navigator.language || 'en-US';
+  rec.onresult = (e) => {
+    const said = e.results[e.results.length - 1][0].transcript.toLowerCase();
+    if (!build) return;
+    if (/\b(next|forward|go on)\b/.test(said)) stepBuild(1);
+    else if (/\b(back|previous|go back)\b/.test(said)) stepBuild(-1);
+    else if (/\b(done|finished|cut|check)\b/.test(said)) setStepDone(true);
+  };
+  // browsers stop listening after a while: keep going until it's turned off
+  rec.onend = () => { if (voice === rec) { try { rec.start(); } catch { /* already started */ } } };
+  rec.onerror = (e) => {
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+      showToast('The microphone is blocked for this page - allow it in the browser\'s site settings to use voice.');
+      toggleVoice(false);
+    }
+  };
+  voice = rec;
+  try { rec.start(); } catch { voice = null; }
+  renderBuildPanel();
+}
+
+// ---- build log: photos per step (IndexedDB, modelstore.js) ----
+async function shrinkPhoto(file) {
+  try {
+    const bmp = await createImageBitmap(file);
+    const k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    return await new Promise((r) => c.toBlob((b) => r(b || file), 'image/jpeg', 0.82));
+  } catch { return file; } // e.g. a format the browser can't decode: keep it as is
+}
+let photoUrls = [];
+async function showStepPhotos(stepKey) {
+  let photos = [];
+  try { photos = await listPhotos(modelKey, stepKey); } catch { /* storage unavailable */ }
+  const box = $('buildPanel').querySelector('.bp-photos');
+  if (!build || build.order[build.i]?.key !== stepKey || !box) return; // moved on meanwhile
+  photoUrls.forEach((u) => URL.revokeObjectURL(u));
+  photoUrls = photos.map((p) => URL.createObjectURL(p.blob));
+  box.querySelectorAll('.bp-thumb').forEach((t) => t.remove());
+  photos.forEach((p, i) => {
+    const img = document.createElement('img');
+    img.className = 'bp-thumb';
+    img.src = photoUrls[i];
+    img.alt = 'Build photo';
+    img.addEventListener('click', () => showPhoto(photoUrls[i], p.key, stepKey));
+    box.insertBefore(img, box.querySelector('.bp-photo-add'));
+  });
+}
+function showPhoto(url, key, stepKey) {
+  const view = $('photoView');
+  view.querySelector('img').src = url;
+  view.style.display = 'flex';
+  view.querySelector('.pv-delete').onclick = async (e) => {
+    e.stopPropagation();
+    await deletePhoto(key).catch(() => {});
+    view.style.display = 'none';
+    showStepPhotos(stepKey);
+  };
+}
+$('photoView').addEventListener('click', () => { $('photoView').style.display = 'none'; });
+
+// swipe the step panel sideways to step through (phones)
+let swipe = null;
+$('buildPanel').addEventListener('pointerdown', (e) => { swipe = e.pointerType === 'touch' ? { x: e.clientX, y: e.clientY } : null; });
+$('buildPanel').addEventListener('pointerup', (e) => {
+  if (!swipe || !build) return;
+  const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y;
+  swipe = null;
+  if (Math.abs(dx) > 70 && Math.abs(dy) < 45) stepBuild(dx < 0 ? 1 : -1);
+});
 
 function renderBuildPanel() {
   const el = $('buildPanel');
@@ -1502,26 +1631,20 @@ function renderBuildPanel() {
   const units = settings().units;
   const cutSet = new Set(settings().cut);
   const n = build.order.length;
-  const rough = row.category === 'Wood' ? roughDims(row, units) : '';
-  const mine = userNote(row);
   el.innerHTML = `
     <div class="bp-top">
       <select class="bp-steps" title="Jump to a step">${build.order.map((r, k) => `<option value="${k}"${k === build.i ? ' selected' : ''}>${k + 1}. ${escapeHtml(r.letter)} ${escapeHtml(r.name)}${cutSet.has(r.key) ? ' ✓' : ''}</option>`).join('')}</select>
       <span class="bp-of">of ${n} · ${escapeHtml(row.groupName)}</span>
       <button class="bp-order card-btn" title="Step through the parts in assembly order (ground up) or cutting order (by species and stock thickness)">${settings().buildOrder === 'cutting' ? 'Cutting order' : 'Assembly order'}</button>
+      ${Speech ? `<button class="bp-voice card-btn${voice ? ' on' : ''}" title="Hands-free: say &quot;next&quot;, &quot;back&quot; or &quot;done&quot;">${voice ? '🎤 Listening' : '🎤'}</button>` : ''}
       <button class="bp-exit card-btn" title="Leave build mode (Esc)">Exit</button>
     </div>
     <div class="bp-progress"><div style="width:${Math.round(((build.i + 1) / n) * 100)}%"></div></div>
-    <div class="bp-name"><span class="letter">${row.letter}</span>${escapeHtml(row.name)} <span class="bp-qty">×${row.count}</span></div>
-    <div class="bp-size">${escapeHtml(finishedDims(row, units))}</div>
-    <div class="bp-sub">${row.customDims ? '' : 'Thickness × Width × Length'}${stdSize(row) ? ` · a standard <b>${stdSize(row)}</b>` : rough ? ` · rough <b>${escapeHtml(rough)}</b>` : ''} · ${escapeHtml(row.materialLabel)}</div>
-    ${contactHtml(row)}
-    ${joineryHtml(row, current?.meshes[0])}
-    ${row.notes.map((t) => `<div class="card-note${row.warn ? ' warn' : ''}">${escapeHtml(t)}</div>`).join('')}
-    ${mine ? `<div class="card-note mine">✎ ${escapeHtml(mine)}</div>` : ''}
+    ${row.assemble ? assembleStepHtml(row) : partStepHtml(row, units)}
+    <div class="bp-photos"><label class="card-btn bp-photo-add" title="Take a picture of this step for your build log">📷 Photo<input type="file" accept="image/*" capture="environment" hidden /></label></div>
     <div class="bp-nav">
       <button class="bp-prev" ${build.i === 0 ? 'disabled' : ''}>◀ Back</button>
-      <label class="bp-cut"><input type="checkbox" ${cutSet.has(row.key) ? 'checked' : ''} /> ${isCut(row) ? 'Cut' : 'Done'}</label>
+      <label class="bp-cut"><input type="checkbox" ${cutSet.has(row.key) ? 'checked' : ''} /> ${!row.assemble && isCut(row) ? 'Cut' : 'Done'}</label>
       <button class="bp-next" ${build.i === n - 1 ? 'disabled' : ''}>Next ▶</button>
     </div>`;
   el.style.display = 'block';
@@ -1533,14 +1656,17 @@ function renderBuildPanel() {
   el.querySelector('.bp-prev').addEventListener('click', () => stepBuild(-1));
   el.querySelector('.bp-next').addEventListener('click', () => stepBuild(1));
   el.querySelector('.bp-steps').addEventListener('change', (e) => { build.i = +e.target.value; showStep(true); });
-  el.querySelector('.bp-cut input').addEventListener('change', (e) => {
-    const next = new Set(settings().cut);
-    if (e.target.checked) next.add(row.key); else next.delete(row.key);
-    updateSettings({ cut: [...next] });
-    // ticking a part off moves on to the next one
-    if (e.target.checked && build.i < n - 1) setTimeout(() => stepBuild(1), 250);
-    else renderBuildPanel();
+  el.querySelector('.bp-cut input').addEventListener('change', (e) => setStepDone(e.target.checked));
+  el.querySelector('.bp-voice')?.addEventListener('click', () => toggleVoice());
+  el.querySelector('.bp-photo-add input').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      await addPhoto(modelKey, row.key, await shrinkPhoto(file));
+    } catch (err) { showToast(`Couldn't save the photo: ${err.message || err}`); }
+    showStepPhotos(row.key);
   });
+  showStepPhotos(row.key);
   el.querySelectorAll('.card-rel a, .card-note a').forEach((a) => a.addEventListener('click', (e) => {
     e.preventDefault();
     const k = build.order.findIndex((r) => r.key === a.dataset.key);

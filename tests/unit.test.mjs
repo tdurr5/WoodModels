@@ -627,3 +627,15 @@ test('boards you own are used first; only the rest is bought', () => {
   // an owned board nothing fits on isn't used
   assert.equal(packWithOwned(pieces, [{ length: 10, width: 2 }], stock).owned.length, 0);
 });
+
+import { withAssemblySteps } from '../viewer/build.js';
+
+test('assembly order gets an assemble step after each sub-assembly with several wood parts', () => {
+  const row = (key, g, category = 'Wood', count = 1) => ({ key, top_group: g, groupName: g, category, count, dims: [10, 3, 1] });
+  const order = [row('a', 'Legs', 'Wood', 4), row('b', 'Legs', 'Hardware', 8), row('c', 'Top'), row('d', 'Base'), row('e', 'Base')];
+  const steps = withAssemblySteps(order);
+  assert.deepEqual(steps.map((s) => s.key), ['a', 'b', 'assemble:Legs', 'c', 'd', 'e', 'assemble:Base']);
+  const legs = steps.find((s) => s.key === 'assemble:Legs');
+  assert.equal(legs.assemble, true);
+  assert.deepEqual(legs.rows.map((r) => r.key), ['a', 'b']);
+});

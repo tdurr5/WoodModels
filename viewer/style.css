@@ -471,3 +471,14 @@ body.build-mode #dimCard, body.build-mode #bottombar, body.build-mode #introTip 
 .cd-board.owned .cd-board-title { color: var(--rough); font-weight: 600; }
 @media print { .cd-inv { display: none; } }
 @media (max-width: 600px) { .cd-inv-table thead { display: none; } .cd-inv-table tr { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; padding: 6px 0; border-bottom: 1px solid var(--line); } .cd-inv-table input, .cd-inv-table select { width: 100%; box-sizing: border-box; } }
+/* build mode: assemble steps, photos, voice */
+#buildPanel { touch-action: pan-y; } /* sideways swipes step through */
+.bp-assemble { margin: 6px 0 2px; padding-left: 20px; font-size: 13px; line-height: 1.45; }
+.bp-assemble li { margin: 2px 0; }
+.bp-photos { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.bp-thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); cursor: pointer; }
+.bp-photo-add { cursor: pointer; }
+.bp-voice.on { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+#photoView { position: fixed; inset: 0; z-index: 30; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: rgba(0,0,0,0.85); }
+#photoView img { max-width: 94vw; max-height: 80vh; border-radius: 6px; }
+@media print { #photoView { display: none !important; } }

@@ -1008,6 +1008,30 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     await p2.locator('#clDiagram').click();
     await p2.keyboard.press('Escape');
     check(!(await p2.locator('#diagram').isVisible()) && await p2.locator('#buildPanel').isVisible(), 'Esc closes a dialog opened in build mode, not build mode');
+    // assembly order: an "assemble" step once a sub-assembly's parts are cut
+    await p2.locator('#buildPanel .bp-order').click();
+    const assembleOpt = p2.locator('#buildPanel .bp-steps option', { hasText: 'Assemble Jaw Lower Assy' });
+    check(await assembleOpt.count() === 1, 'assembly order has a step to assemble each sub-assembly');
+    await p2.locator('#buildPanel .bp-steps').selectOption(await assembleOpt.getAttribute('value'));
+    await p2.waitForTimeout(400);
+    const asm = await p2.locator('#buildPanel').innerText();
+    check(/Assemble Jaw Lower Assy[\s\S]*Parts:.*Jaw Lower[\s\S]*Dry-fit/.test(asm), 'the assemble step lists its parts and says how to glue it up');
+    const lit = await p2.evaluate(() => { const v = window.__viewer; return v.meshesOf('Jaw Support').every((m) => m.material.emissiveIntensity > 0); });
+    check(lit, 'and highlights the whole sub-assembly');
+    // a photo of the step, kept with the model
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFklEQVQImWP4z8DwnwEIGBgYGBgAAAgOAQFSSSQjAAAAAElFTkSuQmCC', 'base64');
+    await p2.locator('#buildPanel .bp-photo-add input').setInputFiles({ name: 'step.png', mimeType: 'image/png', buffer: png });
+    await p2.waitForSelector('#buildPanel .bp-thumb', { timeout: 10000 }).catch(() => {});
+    check(await p2.locator('#buildPanel .bp-thumb').count() === 1, 'a photo can be added to a build step');
+    await p2.reload();
+    await loaded();
+    await p2.locator('#clBuild').click();
+    await p2.waitForSelector('#buildPanel .bp-thumb', { timeout: 10000 }).catch(() => {});
+    check(await p2.locator('#buildPanel .bp-thumb').count() === 1, 'the photo is still there after a reload (build log)');
+    await p2.locator('#buildPanel .bp-thumb').click();
+    await p2.locator('#photoView .pv-delete').click();
+    await p2.waitForFunction(() => !document.querySelector('#buildPanel .bp-thumb'), null, { timeout: 15000 }).catch(() => {});
+    check(await p2.locator('#buildPanel .bp-thumb').count() === 0, 'and can be deleted');
     check(errs.length === 0, `no page errors in build mode (${errs.join('; ')})`);
   } finally {
     await b2.close();
@@ -1058,6 +1082,14 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     await p2.waitForTimeout(600);
     const stepAt = await p2.evaluate(partScreenCenter);
     check(stepAt.y < bp.y - 20 && stepAt.y > 60, `the step's part is framed above the panel, not under it (at y=${Math.round(stepAt.y)}, panel at ${Math.round(bp.y)})`);
+    const stepBefore = await p2.locator('#buildPanel .bp-steps').inputValue();
+    await p2.evaluate(({ x, y }) => {
+      const el = document.getElementById('buildPanel');
+      const ev = (type, cx) => el.dispatchEvent(new PointerEvent(type, { pointerType: 'touch', clientX: cx, clientY: y, bubbles: true }));
+      ev('pointerdown', x + 100); ev('pointerup', x - 60);
+    }, { x: bp.x + bp.width / 2, y: bp.y + 40 });
+    await p2.waitForTimeout(300);
+    check(+(await p2.locator('#buildPanel .bp-steps').inputValue()) === +stepBefore + 1, 'swiping the step panel left goes to the next step');
     await p2.screenshot({ path: path.join(OUT, '51-phone-build.png') });
     await p2.locator('#buildPanel .bp-exit').tap();
     await p2.locator('#helpBtn').tap();

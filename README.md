@@ -75,6 +75,9 @@ On a phone the layout follows how you hold it (model above the list upright, sid
 - The model assembles as you go: parts from earlier steps solid, this one highlighted with its dimensions, the rest ghosted. Tap any part to jump to its step.
 - **Assembly order** builds from the ground up, assembly by assembly; **Cutting order** groups the wood by species and stock thickness, widest and longest first, the way you'd mill it.
 - It remembers where you were. ← / → (or Back / Next) step through; Esc leaves.
+- In assembly order, once a sub-assembly's parts are all cut there's an **Assemble** step: its parts and hardware, highlighted together, and a dry-fit / check square / glue-and-clamp checklist.
+- **Build log**: 📷 Photo on any step takes a picture (or picks one) and keeps it with the model in this browser; tap a thumbnail to see it full size or delete it.
+- **Hands-free**: 🎤 (where the browser supports speech) listens for "next", "back" and "done" - handy with glue on your hands. On a phone you can also swipe the step panel sideways.
 - The phone's screen stays on while you're in build mode (where the browser allows it), and the steps follow any edits you make along the way.
 - Sideways on a phone, the step sits down the side with the model beside it.
 
