@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { woodMaterial, addEndGrain, endMapOf, speciesFor, generateGrainUV, photoWood, SPECIES } from './woodtex.js';
+import { woodMaterial, addEndGrain, endMapOf, speciesFor, generateGrainUV, photoWood, paletteFromColor, SPECIES } from './woodtex.js';
 import { classifyOverlaps as classifyOverlapsIn, singleSidedGeometry } from './autofix.js';
 import { formatLength, escapeHtml, toFraction, isCut, dimensionalSize } from './format.js';
 import { compoundAngle, describeAngle, round1, DEFAULT_AXIS_NAMES } from './angles.js';
@@ -545,7 +545,9 @@ function prepareMeshes(materialNames) {
       generateGrainUV(child.geometry, 6, objectDims[child.name], seed); // on the flat normals: one grain direction per face
       // the model's own photo of the wood, unless you picked how it looks in Set up
       const photo = !mc.species && woodPhotos.get(mc.texture?.image);
-      child.material = woodMaterial(mc.species || speciesFor(mc.label, realName), mc.texture, photo || null);
+      // no look picked in Set up: the grain in the colour the model painted it
+      const tex = mc.species ? mc.texture : paletteFromColor(mc.texture, mc.color);
+      child.material = woodMaterial(mc.species || speciesFor(mc.label, realName), tex, photo || null);
       child.material.color.multiplyScalar(0.9 + 0.14 * (((seed >>> 0) % 97) / 97)); // no two boards quite the same shade
     } else {
       // steel, brass, paint, leather... lit the same way as the wood (look.js)

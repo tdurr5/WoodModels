@@ -881,3 +881,20 @@ test('outlines: a carving gets none rather than a scribble of lines', () => {
   const board = featureEdges(new THREE3.BoxGeometry(1, 2, 3).toNonIndexed());
   assert.ok([...board].some((v) => Math.abs(v) === 1.5));
 });
+
+import { paletteFromColor, STOCK_TEXTURE } from '../viewer/woodtex.js';
+
+test("wood with the stock palette is drawn in the model's own colour", () => {
+  const stock = { ...STOCK_TEXTURE, tile: 5 };
+  const dark = paletteFromColor(stock, '#4d3020');
+  assert.equal(dark.base, '#4d3020');
+  assert.ok(parseInt(dark.ring.slice(1, 3), 16) < 0x4d, 'latewood darker');
+  assert.equal(dark.tile, 5);
+  // a palette someone set stays; so does one with no colour to go on
+  const tuned = { base: '#5b3a24', streak: '#3d2515', ring: '#2c1a0e' };
+  assert.equal(paletteFromColor(tuned, '#ffffff'), tuned);
+  assert.equal(paletteFromColor(stock, undefined), stock);
+  // dozens of browns share a few textures: past the limit, the nearest one issued
+  const near = paletteFromColor(stock, '#4e3121', 1);
+  assert.equal(near.base, '#4d3020');
+});
