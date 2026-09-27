@@ -982,3 +982,13 @@ test('cuts: none in a plain board, a dowel, or a tenon the model draws', async (
   // ...but not once it's known to be a tenon
   assert.deepEqual(cutFeatures(boxOf([11, 3, 1]), rail, { ends: [0, 1] }), []);
 });
+
+import { surfaceMaterial } from '../viewer/look.js';
+
+test('the metal decides its colour: brass is yellow, steel grey, whatever the model painted', () => {
+  const hue = (m) => m.color.getHSL({}).h, sat = (m) => m.color.getHSL({}).s;
+  const brassOnGrey = surfaceMaterial('brass', new THREE3.Color(0.5, 0.5, 0.5));
+  assert.ok(sat(brassOnGrey) > 0.3 && hue(brassOnGrey) > 0.08 && hue(brassOnGrey) < 0.17, 'brass stays brass on a grey material');
+  const steelOnTan = surfaceMaterial('metal', new THREE3.Color(0.7, 0.55, 0.35)); // the parser's stand-in tan
+  assert.ok(sat(steelOnTan) < 0.01, 'steel stays grey on a tan material');
+});

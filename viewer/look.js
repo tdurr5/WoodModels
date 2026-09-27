@@ -294,13 +294,16 @@ export function surfaceMaterial(kind, color) {
   const lum = c.r * 0.2126 + c.g * 0.7152 + c.b * 0.0722;
   const opts = { color: c, roughness: 0.6, metalness: 0, envMapIntensity: 0.5 };
   switch (kind) {
+    // The metal decides the colour, not the model: Warehouse metals are often
+    // a photo with no colour of their own (the parser's stand-in tan) or
+    // simply painted any colour, so steel would come out warm and brass grey.
     case 'metal':
-      // SketchUp's greys are often very light or very dark; keep steel steel-ish
-      if (Math.abs(c.r - c.g) < 0.06 && Math.abs(c.g - c.b) < 0.08) c.setScalar(THREE.MathUtils.clamp(lum, 0.45, 0.8));
+      c.setScalar(THREE.MathUtils.clamp(lum, 0.45, 0.8)); // neutral grey, as light as the model drew it
       Object.assign(opts, { roughness: 0.38, metalness: 0.85, envMapIntensity: 1.1 });
       break;
-    case 'blackMetal': Object.assign(opts, { roughness: 0.55, metalness: 0.7, envMapIntensity: 0.9 }); break;
-    case 'brass': case 'copper': Object.assign(opts, { roughness: 0.32, metalness: 0.9, envMapIntensity: 1.2 }); break;
+    case 'blackMetal': c.setScalar(THREE.MathUtils.clamp(lum, 0.04, 0.12)); Object.assign(opts, { roughness: 0.55, metalness: 0.7, envMapIntensity: 0.9 }); break;
+    case 'brass': c.set(0xc9a24a); Object.assign(opts, { roughness: 0.32, metalness: 0.9, envMapIntensity: 1.2 }); break;
+    case 'copper': c.set(0xc0714a); Object.assign(opts, { roughness: 0.32, metalness: 0.9, envMapIntensity: 1.2 }); break;
     case 'glass': Object.assign(opts, { roughness: 0.08, transparent: true, opacity: 0.18, envMapIntensity: 0.7, depthWrite: false }); break; // see through it to the shelves
     case 'leather': Object.assign(opts, { roughness: 0.62, envMapIntensity: 0.4 }); break;
     case 'rubber': Object.assign(opts, { roughness: 0.85, envMapIntensity: 0.25 }); break;
