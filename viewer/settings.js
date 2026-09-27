@@ -15,6 +15,7 @@ const DEFAULTS = {
   prices: {},       // $ per board foot by material label, for cost estimates
   userNotes: {},    // row key -> the user's own note for that part
   seenIntro: false, // first-visit tips dismissed
+  tplEdge: false, // full-size templates also print the edge view
   showAside: false, // draw parts that are set aside (not in the build) in 3D
   buildStep: '',    // build mode: the part (row key) you were on
   buildOrder: 'assembly', // build mode: 'assembly' (ground up) or 'cutting' (by species and stock thickness)

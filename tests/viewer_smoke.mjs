@@ -134,7 +134,8 @@ try {
   await page.locator('#introClose').click();
   check(!(await page.locator('#introTip').isVisible()), 'tips can be dismissed');
   await page.waitForFunction(() => !/checking/.test(document.getElementById('clCheck').textContent), null, { timeout: 15000 }).catch(() => {});
-  check(/✓ Model check/.test(await page.locator('#clCheck').innerText()), 'the model check finds nothing wrong with the built-in model');
+  const mc = await page.locator('#clCheck').innerText();
+  check(!/⚠/.test(mc) && /Model check/.test(mc), `the model check finds nothing wrong with the built-in model, only notes (${mc.split('\n')[0]})`);
   await page.waitForTimeout(1500);
   const frames = await page.evaluate(async () => {
     const info = window.__viewer.renderer.info.render;
@@ -499,14 +500,14 @@ try {
     const svgs = [...document.querySelectorAll('#printSheet .tpl-tile svg')];
     const trueSize = svgs.every((sv) => Math.abs(parseFloat(sv.getAttribute('width')) - +sv.getAttribute('viewBox').split(' ')[2]) < 1e-6);
     const first = svgs[0].getAttribute('viewBox').split(' ').map(Number);
-    return { pages: document.querySelectorAll('#printSheet .tpl-page').length, trueSize, first, lines: svgs[0].querySelectorAll('path').length, ruler: !!document.querySelector('#printSheet .tpl-ruler') };
+    return { pages: document.querySelectorAll('#printSheet .tpl-tile').length, trueSize, first, lines: svgs[0].querySelectorAll('path').length, ruler: !!document.querySelector('#printSheet .tpl-ruler') };
   });
   // Leg Front is 27-1/8" x 3-13/16" (+0.3" border each side): face view needs 4 letter tiles across
-  check(tpl.pages >= 5 && tpl.trueSize && tpl.first[2] === 7.5 && tpl.lines >= 2, `template is tiled at true size, drawn as lines (${tpl.pages} pages, first tile ${tpl.first.slice(2).join(' × ')}")`);
+  check(tpl.pages >= 4 && tpl.trueSize && tpl.first[2] === 7.5 && tpl.lines >= 2, `template is tiled at true size, drawn as lines (${tpl.pages} tiles, first tile ${tpl.first.slice(2).join(' × ')}")`);
   check(tpl.ruler, 'each tile has a 6" ruler to check the printer didn\'t scale it');
   await page.emulateMedia({ media: 'print' });
   await page.pdf({ path: path.join(OUT, 'template-leg-front.pdf'), format: 'Letter' });
-  check(await page.locator('#printSheet .tpl-page').count() === tpl.pages, 'printing keeps the template (not the cut sheet)');
+  check(await page.locator('#printSheet .tpl-tile').count() === tpl.pages, 'printing keeps the template (not the cut sheet)');
   await page.screenshot({ path: path.join(OUT, '17-template-print.png') });
   await page.emulateMedia({ media: 'screen' });
   await page.evaluate(() => { window.__viewer.endTemplate(); document.getElementById('printSheet').innerHTML = ''; });
@@ -1140,7 +1141,7 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     await p2.keyboard.press('Escape');
     // laying out the exploded view: Move a part along an arrow
     await p2.locator('#explodeRange').fill('0.6');
-    await p2.locator('#clList .row', { hasText: 'Leg Front' }).first().click();
+    await p2.locator('#clList .row').filter({ has: p2.locator('.name', { hasText: 'Leg Front' }) }).first().click();
     await p2.waitForTimeout(300);
     await p2.locator('#dimCard [data-act="move"]').click();
     await p2.waitForTimeout(300);
@@ -1176,9 +1177,17 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     // (one rod's head is the model's corrupted component: with no head it's all-thread)
     check(rod.length > 0 && rod.every((t) => t && Math.abs(t.pitch - 1 / 13) < 1e-6 && (t.head ? t.length > 1 && t.length < 2 : t.length > 6)) && rod.some((t) => t.head),
       `bolts are drawn with threads at the end, 13 to the inch (${rod.map((t) => t && `${t.length}" ${t.head ? 'at the end' : 'all along'}`).join(', ')})`);
+    // a bolt drawn through solid wood: the hole the model forgot is added
+    const holes = await p2.evaluate(() => window.__viewer.missingHoles().map((h) => h.partName));
+    check(holes.includes('Bench') && holes.includes('Leg Front'), `holes the model didn't draw are found where bolts go through solid wood (${holes.length}: ${[...new Set(holes)].join(', ')})`);
+    await p2.locator('#clList .row').filter({ has: p2.locator('.name', { hasText: 'Leg Front' }) }).first().click();
+    await p2.waitForTimeout(300);
+    check(/No hole drawn where/.test(await p2.locator('#dimCard').innerText()), 'the part\'s card says the hole was added');
+    await p2.keyboard.press('Escape');
     const seatHandle = await p2.evaluate(() => { const v = window.__viewer; return v.threadsOf(v.meshesOf('Seat Handle')[0]); });
     check(!seatHandle || !seatHandle.length, 'a plain pin gets no threads');
-    await p2.locator('#clList .row', { hasText: 'Threaded Rod' }).first().click();
+    // (by its name: other parts' notes mention the rod too)
+    await p2.locator('#clList .row').filter({ has: p2.locator('.name', { hasText: /Threaded Rod/ }) }).first().click();
     await p2.waitForTimeout(300);
     await p2.locator('#dimCard select[data-act="threads"]').selectOption('full');
     await p2.waitForTimeout(300);
@@ -1186,7 +1195,7 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     check(full > 4, `the card's Threads choice can make it threaded all along (${full}")`);
     await p2.keyboard.press('Control+z');
     await p2.keyboard.press('Escape');
-    await p2.locator('#clList .row', { hasText: 'Seat Handle' }).first().click();
+    await p2.locator('#clList .row').filter({ has: p2.locator('.name', { hasText: 'Seat Handle' }) }).first().click();
     await p2.keyboard.press('Delete');
     check(!(await names()).includes('Seat Handle'), 'a built-in model part can be deleted');
     const letters = await p2.locator('#clList > .row .letter').allInnerTexts();

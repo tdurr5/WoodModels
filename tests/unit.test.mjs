@@ -1003,3 +1003,35 @@ test('pieces moved in the exploded view are kept with the edits', () => {
   assert.deepEqual(e.explode, {});
   assert.deepEqual(normEdits({ explode: { a: [1, 2], b: 'x', c: [1, NaN, 2] } }).explode, {}); // junk ignored
 });
+
+import { findMissingHoles } from '../viewer/holes.js';
+
+test('a bolt through solid wood means the model forgot the hole', () => {
+  // a 1-1/2" thick board, a 1/2" bolt straight through it
+  const board = { name: 'board', obb: { center: [0, 0, 0], axes: [[1, 0, 0], [0, 1, 0], [0, 0, 1]], half: [10, 2, 0.75] } };
+  const bolt = { name: 'bolt', center: [3, 0, 0], axis: [0, 0, 1], length: 4, dia: 0.5 };
+  const solidBoard = (P, p) => Math.abs(p[0]) <= 10 && Math.abs(p[1]) <= 2 && Math.abs(p[2]) <= 0.75;
+  const [h] = findMissingHoles([bolt], [board], solidBoard);
+  assert.equal(h.part, 'board');
+  assert.ok(Math.abs(h.depth - 1.5) < 0.1, `through the thickness (${h.depth})`);
+  near(h.from[0], 3, 1e-9);
+  // drawn with its hole: nothing to add
+  const drilled = (P, p) => solidBoard(P, p) && Math.hypot(p[0] - 3, p[1]) > 0.25;
+  assert.equal(findMissingHoles([bolt], [board], drilled).length, 0);
+  // a bolt that only sits against the board: no hole
+  const beside = { ...bolt, center: [3, 0, 2.8] };
+  assert.equal(findMissingHoles([beside], [board], solidBoard).length, 0);
+});
+
+import { parseMeasured, printCorrection } from '../viewer/template.js';
+
+test('printer correction: what the 6" ruler measured', () => {
+  assert.equal(parseMeasured('5 3/4'), 5.75);
+  assert.equal(parseMeasured('5-3/4"'), 5.75);
+  assert.equal(parseMeasured('5.75'), 5.75);
+  assert.equal(parseMeasured('6'), 6);
+  assert.equal(parseMeasured('abc'), null);
+  near(printCorrection(5.75), 6 / 5.75);
+  assert.equal(printCorrection(0), 1); // nothing measured: as is
+  assert.equal(printCorrection(12), 1); // not a 6" ruler
+});
