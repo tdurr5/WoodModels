@@ -315,6 +315,75 @@ def _build(unit_meter, scale, up_axis, leg_as, transforms, sketchup2023=False, s
 '''
 
 
+
+def build_looks():
+    """A stool the way uploads really arrive, for the rendering checks: drawn
+    far from SketchUp's origin, its wood painted with a photo under a name
+    that says nothing ("Material12"), a fabric cushion with its own photo,
+    a round dowel, and one leg written the way other exporters do it - each
+    face once, some of them inside-out. Everything else back-to-back, like
+    SketchUp. Textures: wood.png and fabric.png next to the .dae."""
+    ox, oy, oz = 400.0, -300.0, 12.0
+    geoms, nodes = [], []
+
+    def add(name, verts, tris, mat, back_to_back=True):
+        gid = f'g{len(geoms)}'
+        verts = [(x + ox, y + oy, z + oz) for x, y, z in verts]
+        if back_to_back:
+            tris = tris + [(a, c, b) for a, b, c in tris]
+        geoms.append(f'''<geometry id="{gid}"><mesh>
+      <source id="{gid}-p"><float_array id="{gid}-pa" count="{len(verts) * 3}">{floats(v for p in verts for v in p)}</float_array>
+        <technique_common><accessor source="#{gid}-pa" count="{len(verts)}" stride="3"><param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/></accessor></technique_common></source>
+      <vertices id="{gid}-v"><input semantic="POSITION" source="#{gid}-p"/></vertices>
+      <triangles count="{len(tris)}" material="m"><input semantic="VERTEX" source="#{gid}-v" offset="0"/><p>{' '.join(str(i) for t in tris for i in t)}</p></triangles>
+    </mesh></geometry>''')
+        nodes.append(f'''<node name="{name}"><instance_geometry url="#{gid}"><bind_material><technique_common>
+      <instance_material symbol="m" target="#{mat}"/></technique_common></bind_material></instance_geometry></node>''')
+
+    def box(x0, y0, z0, lx, ly, lz):
+        c = [(x0 + x, y0 + y, z0 + z) for x in (0, lx) for y in (0, ly) for z in (0, lz)]
+        tris = []
+        for a, b, cc, d in QUADS:
+            tris += [(a, b, cc), (a, cc, d)]
+        return c, tris
+
+    def dowel(cx, cy, z0, r, h, n=24):
+        v = [(cx + r * math.cos(2 * math.pi * k / n), cy + r * math.sin(2 * math.pi * k / n), z0 + dz) for dz in (0, h) for k in range(n)]
+        v += [(cx, cy, z0), (cx, cy, z0 + h)]
+        tris = []
+        for k in range(n):
+            k2 = (k + 1) % n
+            tris += [(k, k2, n + k2), (k, n + k2, n + k), (2 * n, k2, k), (2 * n + 1, n + k, n + k2)]
+        return v, tris
+
+    add('Seat', *box(0, 0, 16, 18, 16, 1), 'mat_wood')
+    for i, (x, y) in enumerate([(1, 1), (15, 1), (1, 13)]):
+        add(f'Leg_{i + 1}', *box(x, y, 0, 2, 2, 16), 'mat_wood')
+    v, tris = box(15, 13, 0, 2, 2, 16)  # the other exporter's leg: one-sided, every third face inside-out
+    add('Leg_4', v, [(a, c, b) if k % 3 == 0 else (a, b, c) for k, (a, b, c) in enumerate(tris)], 'mat_wood', back_to_back=False)
+    add('Stretcher', *dowel(9, 8, 6, 0.5, 8), 'mat_wood')
+    add('Cushion', *box(1, 1, 17, 16, 14, 2), 'mat_fabric')
+
+    def material(mid, name, image):
+        return (f'<effect id="{mid}-fx"><profile_COMMON><newparam sid="{mid}-surf"><surface type="2D"><init_from>{mid}-img</init_from></surface></newparam>'
+                f'<newparam sid="{mid}-samp"><sampler2D><source>{mid}-surf</source></sampler2D></newparam>'
+                f'<technique sid="c"><lambert><diffuse><texture texture="{mid}-samp" texcoord="UV"/></diffuse></lambert></technique></profile_COMMON></effect>',
+                f'<material id="{mid}" name="{name}"><instance_effect url="#{mid}-fx"/></material>',
+                f'<image id="{mid}-img"><init_from>{image}</init_from></image>')
+    mats = [material('mat_wood', 'Material12', 'wood.png'), material('mat_fabric', 'Fabric_Blue', 'fabric.png')]
+    return f'''<?xml version="1.0" encoding="utf-8"?>
+<COLLADA xmlns="{NS}" version="1.4.1">
+  <asset><unit name="inch" meter="0.0254"/><up_axis>Z_UP</up_axis></asset>
+  <library_images>{''.join(m[2] for m in mats)}</library_images>
+  <library_effects>{''.join(m[0] for m in mats)}</library_effects>
+  <library_materials>{''.join(m[1] for m in mats)}</library_materials>
+  <library_geometries>{''.join(geoms)}</library_geometries>
+  <library_visual_scenes><visual_scene id="scene"><node name="SketchUp"><node name="Stool">{''.join(nodes)}</node></node></visual_scene></library_visual_scenes>
+  <scene><instance_visual_scene url="#scene"/></scene>
+</COLLADA>
+'''
+
+
 if __name__ == '__main__':
     out = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fixtures', 'mini.dae')
     os.makedirs(os.path.dirname(out), exist_ok=True)

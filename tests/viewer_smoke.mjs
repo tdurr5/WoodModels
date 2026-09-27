@@ -709,6 +709,93 @@ with zipfile.ZipFile(${JSON.stringify(zipPath)}, 'w', zipfile.ZIP_DEFLATED) as z
   }
 }
 
+// ---------- how a new model looks (look.js) ----------
+{
+  console.log('how a new model looks');
+  const tmp = fs.mkdtempSync(path.join(OUT, 'looks-'));
+  const zipPath = path.join(tmp, 'Stool.zip');
+  execFileSync('python3', ['-c', `
+import sys, zipfile, zlib, struct, math
+sys.path.insert(0, ${JSON.stringify(path.join(ROOT, 'tests'))})
+import make_fixture
+def png(w, h, px):
+    raw = b''.join(b'\\x00' + b''.join(bytes(px(x, y)) for x in range(w)) for y in range(h))
+    chunk = lambda t, d: struct.pack('>I', len(d)) + t + d + struct.pack('>I', zlib.crc32(t + d) & 0xffffffff)
+    return b'\\x89PNG\\r\\n\\x1a\\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b'')
+def wood(x, y):
+    t = 0.5 + 0.5 * math.sin(x * 0.35 + 3 * math.sin(y * 0.02))
+    return [int(150 + 50 * t), int(95 + 35 * t), int(55 + 20 * t)]
+with zipfile.ZipFile(${JSON.stringify(zipPath)}, 'w', zipfile.ZIP_DEFLATED) as z:
+    z.writestr('stool/model.dae', make_fixture.build_looks())
+    z.writestr('stool/wood.png', png(32, 64, wood))
+    z.writestr('stool/fabric.png', png(32, 32, lambda x, y: [40, 70 + 30 * ((x // 4 + y // 4) % 2), 150]))
+`]);
+  const b2 = await chromium.launch(launchOpts);
+  const p2 = await b2.newPage({ viewport: { width: 1200, height: 800 } });
+  const errs = [];
+  p2.on('pageerror', (e) => errs.push(e.message));
+  const loaded = () => p2.waitForFunction(() => document.getElementById('loading').style.display === 'none', null, { timeout: 30000 });
+  try {
+    await p2.goto(base);
+    await loaded();
+    await p2.locator('#clLibrary').click();
+    await p2.locator('#libFile').setInputFiles(zipPath);
+    await p2.locator('#setup').waitFor({ state: 'visible', timeout: 30000 });
+    const cats = Object.fromEntries(await p2.locator('#setup select[data-mat]').evaluateAll((els) => els.map((e) => [e.dataset.mat, e.value])));
+    check(cats.Material12 === 'Wood', `a material with an unhelpful name but a photo of wood counts as wood (${cats.Material12})`);
+    check(cats.Fabric_Blue === 'Other', `a fabric photo doesn't (${cats.Fabric_Blue})`);
+    await Promise.all([p2.waitForEvent('load'), p2.locator('#setup .setup-save').click()]);
+    await loaded();
+    const look = await p2.evaluate(() => {
+      const { THREE, scene, renderer } = window.__viewer;
+      const meshes = [];
+      scene.traverse((o) => { if (o.isMesh && o.parent && !o.parent.isMesh && o.name && o.geometry.attributes.endGrain) meshes.push(o); });
+      const box = new THREE.Box3();
+      meshes.forEach((m) => box.expandByObject(m));
+      const grid = scene.getObjectByName('ground').children[0];
+      const by = (re) => window.__viewer.rows().find((r) => re.test(r.name));
+      const meshOf = (row) => row && window.__viewer.meshesOf(row.name)[0];
+      // signed volume: positive when every face points out
+      const volume = (g) => {
+        const p = g.attributes.position, a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+        let v = 0;
+        for (let i = 0; i < p.count; i += 3) { a.fromBufferAttribute(p, i); b.fromBufferAttribute(p, i + 1); c.fromBufferAttribute(p, i + 2); v += a.dot(b.cross(c)) / 6; }
+        return v;
+      };
+      const legs = window.__viewer.rows().filter((r) => /leg/i.test(r.name)).flatMap((r) => window.__viewer.meshesOf(r.name));
+      const dowel = meshOf(by(/dowel|stretcher/i));
+      const normals = new Set();
+      const n = dowel?.geometry.attributes.normal;
+      for (let i = 0; n && i < n.count; i++) normals.add([n.getX(i), n.getY(i), n.getZ(i)].map((v) => v.toFixed(2)).join());
+      const cushion = meshOf(by(/cushion|fabric/i));
+      const all = window.__viewer.rows().flatMap((r) => window.__viewer.meshesOf(r.name));
+      return {
+        groundY: grid.position.y, minY: box.min.y,
+        gridOff: Math.hypot(grid.position.x - (box.min.x + box.max.x) / 2, grid.position.z - (box.min.z + box.max.z) / 2),
+        legVolumes: legs.map((m) => volume(m.geometry)),
+        dowelNormals: normals.size,
+        cushionPhoto: cushion?.material.map?.image?.width,
+        outlined: all.filter((m) => m.children.some((c) => c.isLineSegments && c.geometry.attributes.position.count > 0)).length,
+        parts: all.length,
+        shadows: renderer.shadowMap.enabled && all.every((m) => m.castShadow),
+      };
+    });
+    check(Math.abs(look.groundY - look.minY) < 0.1 && look.gridOff < 1, `the ground sits under the model, though it was drawn far from the origin (ground ${look.groundY.toFixed(2)}, feet ${look.minY.toFixed(2)}, ${look.gridOff.toFixed(2)}" off centre)`);
+    // SketchUp's back-to-back legs sum to nothing; the one-sided leg must be +2x2x16
+    const oneSided = look.legVolumes.filter((v) => Math.abs(v) > 1);
+    check(look.legVolumes.length === 4 && oneSided.length === 1 && Math.abs(oneSided[0] - 64) < 0.5, `faces written inside-out by another exporter are turned to face out (${look.legVolumes.map((v) => v.toFixed(1)).join(', ')})`);
+    check(look.dowelNormals > 20, `a round part is shaded round (${look.dowelNormals} normals)`);
+    check(look.cushionPhoto === 32, `a fabric part shows its own photo (${look.cushionPhoto})`);
+    check(look.outlined === look.parts, `every part is outlined (${look.outlined} of ${look.parts})`);
+    check(look.shadows, 'parts cast shadows');
+    await p2.locator('#viewport').screenshot({ path: path.join(OUT, '44-new-model-look.png') });
+    check(errs.length === 0, `no page errors (${errs.join('; ')})`);
+  } finally {
+    await b2.close();
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
 // ---------- uploading models (3D Warehouse Collada zip / KMZ / .dae) ----------
 {
   console.log('upload a model');

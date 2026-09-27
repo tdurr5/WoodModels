@@ -174,7 +174,7 @@ npm test           # python parser tests, node unit tests, headless browser smok
 - `tests/test_parse_dae.py` runs the parser on a synthetic SketchUp-style COLLADA file (`tests/make_fixture.py`) and checks the committed viewer data for consistency.
 - `tests/unit.test.mjs` covers fractions, rough stock, board feet, compound angles and the board-nesting packer, including a randomized overlap/overhang check.
 - `tests/parser_parity.mjs` runs the Python parser and the browser parser (`viewer/collada.js`) on the same COLLADA variants (units, Y-up, polygons, translate/rotate, COLLADA 1.5, no namespace) and checks they produce identical data. `PARITY_SAMPLES=/folder` adds your own `.dae` files.
-- `tests/viewer_smoke.mjs` drives the real viewer in headless Chromium through every feature, including uploading a Warehouse-style zip, a KMZ and a `.skp`. It also checks that nothing is fetched from outside the viewer folder, and writes screenshots, a CSV and PDF cut sheet/template to `test-output/`.
+- `tests/viewer_smoke.mjs` drives the real viewer in headless Chromium through every feature, including uploading a Warehouse-style zip, a KMZ and a `.skp`. A stool built the way uploads really arrive (drawn far from the origin, an unnamed wood photo, a fabric photo, a leg written inside-out by another exporter, a round dowel) checks how a new model looks: ground under it, photos shown, faces turned out, round parts shaded round, every part outlined and casting shadows. It also checks that nothing is fetched from outside the viewer folder, and writes screenshots, a CSV and PDF cut sheet/template to `test-output/`.
 
 CI runs the same `npm test` (`.github/workflows/test.yml`).
 
