@@ -320,6 +320,19 @@ class StarterConfig(unittest.TestCase):
             parse_dae.main([dae, '-o', out, '-q'])
             self.assertEqual(load_json(out, 'model.json')['title'], 'Edited')
 
+    def test_photo_of_a_material_that_is_not_wood_is_kept(self):
+        info = {
+            'm1': {'name': 'Walnut', 'color': None, 'image': 'textures/walnut.jpg'},
+            'm2': {'name': 'Fabric_Blue', 'color': None, 'image': 'textures\\fabric.png'},
+            'm3': {'name': 'Steel', 'color': (0.5, 0.5, 0.5, 1), 'image': None},
+        }
+        cfg = parse_dae.starter_config('x.dae', {'m1': 'Walnut', 'm2': 'Fabric_Blue', 'm3': 'Steel'}, info)
+        self.assertEqual(cfg['materials']['Walnut']['texture']['image'], 'walnut.jpg')
+        self.assertNotIn('photo', cfg['materials']['Walnut'])
+        self.assertEqual(cfg['materials']['Fabric_Blue']['photo'], 'fabric.png')
+        self.assertNotIn('texture', cfg['materials']['Fabric_Blue'])
+        self.assertNotIn('photo', cfg['materials']['Steel'])
+
     def test_guess_category(self):
         self.assertEqual(parse_dae.guess_category('White_Oak'), 'Wood')
         self.assertEqual(parse_dae.guess_category('_____Metal'), 'Hardware')

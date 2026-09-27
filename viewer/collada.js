@@ -771,11 +771,15 @@ export function starterConfig(fileName, matKeyToName, info) {
     const c = ((byName.get(name) || {}).color) || [0.7, 0.55, 0.35, 1];
     const hex = '#' + c.slice(0, 3).map((v) => Math.max(0, Math.min(255, roundHalfEven(v * 255))).toString(16).padStart(2, '0')).join('');
     const entry = { category: guessCategory(name), color: hex };
+    const image = (byName.get(name) || {}).image;
     if (entry.category === 'Wood') {
       entry.texture = { base: '#c9975c', streak: '#a06f3b', ring: '#8a5a2c', tile: 5 };
-      const image = (byName.get(name) || {}).image;
       // the model's own photo of the wood (kept with an upload; see library.js)
       if (image) entry.texture.image = image.replace(/^.*[\\/]/, '');
+    } else if (image) {
+      // a photo-textured material that isn't (known to be) wood: fabric,
+      // stone, or wood under a name that doesn't say so
+      entry.photo = image.replace(/^.*[\\/]/, '');
     }
     materials[name] = entry;
   }

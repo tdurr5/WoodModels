@@ -931,12 +931,16 @@ def starter_config(dae_path, mat_key_to_name, material_info):
         color = (info_by_name.get(name) or {}).get('color') or (0.7, 0.55, 0.35, 1)
         hexcolor = '#' + ''.join(f'{max(0, min(255, round(c * 255))):02x}' for c in color[:3])
         entry = {'category': guess_category(name), 'color': hexcolor}
+        image = (info_by_name.get(name) or {}).get('image')
         if entry['category'] == 'Wood':
             entry['texture'] = {'base': '#c9975c', 'streak': '#a06f3b', 'ring': '#8a5a2c', 'tile': 5}
-            image = (info_by_name.get(name) or {}).get('image')
             if image:
                 # the model's own photo of the wood (copied next to scene.obj; see write_obj)
                 entry['texture']['image'] = re.sub(r'^.*[\\/]', '', image)
+        elif image:
+            # a photo-textured material that isn't (known to be) wood: fabric,
+            # stone, or wood under a name that doesn't say so
+            entry['photo'] = re.sub(r'^.*[\\/]', '', image)
         materials[name] = entry
     return {
         'title': title,

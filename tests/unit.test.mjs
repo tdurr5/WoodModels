@@ -775,3 +775,26 @@ test('non-wood materials are recognised from their names', () => {
   assert.equal(materialKind('Other', 'Or'), 'brass'); // French gold
   assert.equal(materialKind('Other', 'Coral'), 'plain'); // not "or" inside a word
 });
+
+import { applySetup } from '../viewer/library.js';
+import { looksLikeWood } from '../viewer/woodtex.js';
+
+test('a material keeps its own photo when Set up moves it in or out of Wood', () => {
+  const cfg = { title: 'T', materials: { Material12: { category: 'Other', color: '#999999', photo: 'p.jpg' }, Oak: { category: 'Wood', color: '#c9975c', texture: { base: '#c9975c', image: 'oak.jpg' } } } };
+  const out = applySetup(cfg, { categories: { Material12: 'Wood', Oak: 'Other' } });
+  assert.equal(out.materials.Material12.texture.image, 'p.jpg');
+  assert.equal(out.materials.Material12.photo, undefined);
+  assert.equal(out.materials.Oak.texture, undefined);
+  assert.equal(out.materials.Oak.photo, 'oak.jpg');
+  const back = applySetup(out, { categories: { Material12: 'Other', Oak: 'Wood' } });
+  assert.equal(back.materials.Material12.photo, 'p.jpg');
+  assert.equal(back.materials.Oak.texture.image, 'oak.jpg');
+});
+
+test('a photo is taken for wood when it is streaky and wood-coloured', () => {
+  assert.equal(looksLikeWood(100, 40, '#a0703f'), true); // brown, grain one way
+  assert.equal(looksLikeWood(100, 90, '#a0703f'), false); // brown but no grain (leather, cork)
+  assert.equal(looksLikeWood(100, 40, '#3050a0'), false); // striped blue fabric
+  assert.equal(looksLikeWood(100, 40, '#808080'), false); // brushed steel
+  assert.equal(looksLikeWood(40, 100, '#5a3d28'), true); // walnut, grain the other way
+});

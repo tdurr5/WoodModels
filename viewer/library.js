@@ -8,7 +8,8 @@ import {
   saveModel, listModels, getModelFiles, getModelConfig, putModelFile, deleteModel, getModelMeta,
 } from './modelstore.js';
 import { escapeHtml, looksLikeSheetGoods, SHEET } from './format.js';
-import { SPECIES, GRAINS, speciesFor } from './woodtex.js';
+import { SPECIES, GRAINS, speciesFor, photoWood } from './woodtex.js';
+import { materialKind } from './look.js';
 
 const DATA_FILES = ['scene.obj', 'scene.mtl', 'materials.json', 'object_dims.json', 'parts_report.json', 'model.json'];
 export const CATEGORIES = ['Wood', 'Sheet goods', 'Hardware', 'Leather', 'Other'];
@@ -58,16 +59,37 @@ export async function importFile(file, onStatus = () => {}) {
     const label = defaultMaterialLabel(name, m);
     if (!m.label && label !== name) m.label = label;
   });
-  files['model.json'] = JSON.stringify(cfg, null, 2);
   // the model's own photos of its woods (3D Warehouse zips carry them), shown on the parts
   const images = zipEntries && woodImages(cfg, zipEntries.entries, zipEntries.names);
-  if (images) files.images = images;
+  if (images) {
+    files.images = images;
+    await woodFromPhotos(cfg, images);
+  }
+  files['model.json'] = JSON.stringify(cfg, null, 2);
   return { name: cfg.title, files, parts: stats.parts };
 }
 
-// { file name: bytes } of the wood photos model.json refers to, found in the zip
+// Warehouse models often paint wood with a photo under a name that says
+// nothing ("Material12", "Texture_3"). A material like that whose photo is
+// streaky and wood-coloured is wood: it counts in the cut list and is shown
+// with its photo. Set up can always say otherwise.
+async function woodFromPhotos(cfg, images) {
+  await Promise.all(Object.entries(cfg.materials || {}).map(async ([name, m]) => {
+    if (!m.photo || m.category !== 'Other' || !images[m.photo] || materialKind('Other', name, m.label) !== 'plain') return;
+    try {
+      const bmp = await createImageBitmap(new Blob([images[m.photo]]));
+      if (!photoWood(bmp, m.photo).woody) return;
+      m.category = 'Wood';
+      m.texture = { base: '#c9975c', streak: '#a06f3b', ring: '#8a5a2c', tile: 5, image: m.photo };
+      delete m.photo;
+    } catch { /* not an image the browser can read */ }
+  }));
+}
+
+// { file name: bytes } of the photos model.json refers to (wood, and other
+// textured materials), found in the zip
 function woodImages(cfg, entries, names) {
-  const wanted = new Set(Object.values(cfg.materials || {}).map((m) => m.texture?.image).filter(Boolean));
+  const wanted = new Set(Object.values(cfg.materials || {}).flatMap((m) => [m.texture?.image, m.photo]).filter(Boolean));
   const images = {};
   const base = (n) => n.split('/').pop();
   const decode = (n) => { try { return decodeURIComponent(n); } catch { return n; } };
@@ -138,8 +160,15 @@ export function applySetup(cfg, { title, subtitle, categories, front, labels = {
     const m = (out.materials[name] = out.materials[name] || (name === '(none)' ? { color: '#c9975c', label: 'No material' } : { color: '#999999' }));
     m.category = cat;
     if (changed.includes(name)) m.userCategory = true; // don't second-guess a choice (e.g. plywood as Wood)
-    if ((cat === 'Wood' || cat === 'Sheet goods') && !m.texture) m.texture = { base: '#c9975c', streak: '#a06f3b', ring: '#8a5a2c', tile: 5 };
-    if (cat !== 'Wood' && cat !== 'Sheet goods') delete m.texture;
+    // the model's own photo goes with the material either way
+    if ((cat === 'Wood' || cat === 'Sheet goods') && !m.texture) {
+      m.texture = { base: '#c9975c', streak: '#a06f3b', ring: '#8a5a2c', tile: 5, ...(m.photo ? { image: m.photo } : {}) };
+      delete m.photo;
+    }
+    if (cat !== 'Wood' && cat !== 'Sheet goods') {
+      if (m.texture?.image) m.photo = m.texture.image;
+      delete m.texture;
+    }
   });
   // how the wood looks ('' = guess from its names)
   Object.entries(species).forEach(([name, sp]) => {

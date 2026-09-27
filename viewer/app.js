@@ -187,7 +187,7 @@ const AXIS_COLORS = { Length: '#ff6b4a', Width: '#7ee08a', Thickness: '#6ab7ff' 
 let woodPhotos = new Map();
 async function loadWoodPhotos(cfg, files) {
   const out = new Map();
-  const wanted = [...new Set(Object.values(cfg.materials || {}).map((m) => m.texture?.image).filter(Boolean))];
+  const wanted = [...new Set(Object.values(cfg.materials || {}).flatMap((m) => [m.texture?.image, m.photo]).filter(Boolean))];
   await Promise.all(wanted.map(async (name) => {
     try {
       let blob = files.images?.[name] ? new Blob([files.images[name]]) : null;
@@ -546,8 +546,14 @@ function prepareMeshes(materialNames) {
       // steel, brass, paint, leather... lit the same way as the wood (look.js)
       const kind = materialKind(mc?.category, mc?.label, realName, rowByMeshName.get(child.name)?.name);
       const name = child.material.name;
-      child.material = surfaceMaterial(kind, child.material.color);
+      const photo = woodPhotos.get(mc?.photo);
+      child.material = surfaceMaterial(kind, photo ? 0xffffff : child.material.color);
       child.material.name = name;
+      if (photo) {
+        // its own photo (fabric, stone, a textured finish), laid on like the wood's
+        generateGrainUV(child.geometry, 6, objectDims[child.name]);
+        child.material.map = photo.map;
+      }
     }
     smoothNormals(child.geometry); // round parts shade round, square edges stay crisp
     child.castShadow = child.receiveShadow = true;
