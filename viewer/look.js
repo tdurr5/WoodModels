@@ -43,13 +43,19 @@ function faceKey(a, b, c) {
   return `${a},${b},${c}`;
 }
 
+// Faces meeting at more than this are a corner: shaded crisp and outlined.
+// Less, and they're facets of one round surface: shaded smooth, no line.
+// (A 24-sided dowel's facets meet at 15°, a 12-sided bolt's at 30°; a
+// chamfer at 45°, a board's corner at 90°.)
+export const CREASE_DEG = 35;
+
 // ---------- smooth shading ----------
 // The OBJ has no normals, so every triangle is shaded flat and a dowel shows
 // its 24 facets. Average each corner's normal with the neighbouring faces
 // that meet it at less than `creaseDeg` - round things go smooth, while a
 // board's square edges (90°) and a chamfer (45°) stay crisp. SketchUp's
 // back-to-back face pairs point opposite ways and never mix.
-export function smoothNormals(geometry, creaseDeg = 35) {
+export function smoothNormals(geometry, creaseDeg = CREASE_DEG) {
   const pos = geometry.attributes.position;
   if (geometry.index || !pos || pos.count < 3) return geometry;
   const n = pos.count;
@@ -193,8 +199,10 @@ export function orientFaces(geometry) {
 // at more than `creaseDeg` (a board's corners, a chamfer, a tenon's
 // shoulder), and the edge of an open surface - but not the diagonals across
 // a flat face or the seams between a dowel's facets. Returns line-segment
-// positions (x,y,z pairs) for THREE.LineSegments.
-export function featureEdges(geometry, creaseDeg = 30) {
+// positions (x,y,z pairs) for THREE.LineSegments. A carving or sculpted
+// figure, where every facet meets the next at an angle, would be a scribble
+// of lines: past `maxEdges` it gets none.
+export function featureEdges(geometry, creaseDeg = CREASE_DEG, maxEdges = 1500) {
   const pos = geometry.attributes.position;
   const tris = pos.count / 3 | 0;
   const { vid, pts } = weld(geometry);
@@ -232,7 +240,7 @@ export function featureEdges(geometry, creaseDeg = 30) {
     }
     if (crease) out.push(pts[i * 3], pts[i * 3 + 1], pts[i * 3 + 2], pts[j * 3], pts[j * 3 + 1], pts[j * 3 + 2]);
   });
-  return new Float32Array(out);
+  return out.length / 6 > maxEdges ? new Float32Array(0) : new Float32Array(out);
 }
 
 // Lines drawn exactly on a part's edges lose the depth test to its faces half

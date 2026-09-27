@@ -868,3 +868,16 @@ test("outlines: a dowel shows its end's rim, not the seams between its facets", 
   assert.equal(featureEdges(flatCylinder(24)).length / 6, 48);
   assert.equal(featureEdges(flatCylinder(24, true)).length / 6, 48);
 });
+
+test('outlines: a carving gets none rather than a scribble of lines', () => {
+  const g = new THREE3.SphereGeometry(2, 64, 48);
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const s = 1 + 0.08 * Math.sin(p.getX(i) * 9) * Math.cos(p.getY(i) * 7) + 0.05 * Math.sin(p.getZ(i) * 13);
+    p.setXYZ(i, p.getX(i) * s, p.getY(i) * s, p.getZ(i) * s);
+  }
+  assert.equal(featureEdges(g.toNonIndexed()).length, 0);
+  // while a board keeps real coordinates for its lines
+  const board = featureEdges(new THREE3.BoxGeometry(1, 2, 3).toNonIndexed());
+  assert.ok([...board].some((v) => Math.abs(v) === 1.5));
+});
