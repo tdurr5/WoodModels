@@ -149,7 +149,7 @@ scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnviron
 const stage = createStage(scene, renderer);
 // every part's outline, SketchUp-style (look.js featureEdges); one material
 // for plain parts and one for the highlighted part, recoloured with the theme
-const edgeMats = { plain: edgeMaterial(0x000000, 0.4), hl: edgeMaterial(0x5a1a00, 0.55), hover: edgeMaterial(0xffa640, 0.95) };
+const edgeMats = { plain: edgeMaterial(0x000000, 0.4), hl: edgeMaterial(0x5a1a00, 0.55), hover: edgeMaterial(0xffa640, 0.95), ghost: edgeMaterial(0xffffff, 0.14) };
 let hoverRow = null; // the part under the pointer: its outline lights up
 
 // ---------- state ----------
@@ -645,8 +645,9 @@ function applyMaterials() {
 // Outlines on solid parts only: a ghosted part is just a hint, and wireframe draws its own
 function showEdges(m, info) {
   const hover = hoverRow && info.row === hoverRow;
-  info.edges.visible = !wireOn && (hover || m.material !== info.dim);
-  info.edges.material = hover ? edgeMats.hover : m.material === info.hl || m.material === info.hlPiece ? edgeMats.hl : edgeMats.plain;
+  info.edges.visible = !wireOn;
+  info.edges.material = hover ? edgeMats.hover : m.material === info.dim ? edgeMats.ghost
+    : m.material === info.hl || m.material === info.hlPiece ? edgeMats.hl : edgeMats.plain;
 }
 function setHoverRow(row) {
   if (row === hoverRow) return;
@@ -802,6 +803,8 @@ function applyTheme() {
   const t = THEMES[name];
   scene.background = new THREE.Color(t.bg);
   stage.setTheme(name);
+  // a ghosted part's outline is seen against the background, not the part
+  edgeMats.ghost.color.set(name === 'light' ? 0x000000 : 0xffffff);
   $('themeBtn').textContent = name === 'light' ? 'Dark' : 'Light';
 }
 
