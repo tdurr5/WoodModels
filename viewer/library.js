@@ -51,8 +51,8 @@ export async function importFile(file, onStatus = () => {}) {
   const cfg = JSON.parse(files['model.json']);
   // readable species names up front, so texture variants of one wood total up as one
   Object.entries(cfg.materials || {}).forEach(([name, m]) => {
-    const clean = cleanMaterialName(name);
-    if (!m.label && clean !== name) m.label = clean;
+    const label = defaultMaterialLabel(name, m);
+    if (!m.label && label !== name) m.label = label;
   });
   files['model.json'] = JSON.stringify(cfg, null, 2);
   return { name: cfg.title, files, parts: stats.parts };
@@ -83,6 +83,14 @@ export function cleanMaterialName(name) {
     .replace(/\s+/g, ' ')
     .trim();
   return out || String(name || '').replace(/^_+/, '');
+}
+
+// What a material is called before you name it: the species for a wood we
+// recognise ("Mélèse_Horizontal1" and "Mélèse_Verticale1" are both Larch, so
+// they total up as one), otherwise its texture name without the clutter.
+export function defaultMaterialLabel(name, m = {}) {
+  const sp = m.category === 'Wood' ? speciesFor(name) : null;
+  return sp ? SPECIES[sp].name : cleanMaterialName(name);
 }
 
 // the category a material is treated as (cutlist.js prepareRows does the same)
@@ -240,7 +248,7 @@ export function initLibrary({ current, onOpen, builtIn }) {
       ${mats.map((m) => `<tr><td><span class="mat-swatch" style="background:${escapeHtml(cfg.materials[m].color || '#999')}"></span>${escapeHtml(m === '(none)' ? 'No material (unpainted)' : m.replace(/^_+/, ''))}</td>
         <td class="num">${uses[m] || 0} pc</td>
         <td><select data-mat="${escapeHtml(m)}" data-initial="${escapeHtml(effectiveCategory(m, cfg.materials[m]))}">${CATEGORIES.map((c) => `<option${c === effectiveCategory(m, cfg.materials[m]) ? ' selected' : ''}>${c}</option>`).join('')}</select></td>
-        <td><input data-label="${escapeHtml(m)}" value="${escapeHtml(cfg.materials[m].label || (m === '(none)' ? 'No material' : cleanMaterialName(m)))}" /></td>
+        <td><input data-label="${escapeHtml(m)}" value="${escapeHtml(cfg.materials[m].label || (m === '(none)' ? 'No material' : defaultMaterialLabel(m, cfg.materials[m])))}" /></td>
         <td><select data-species="${escapeHtml(m)}"><option value="">${escapeHtml(SPECIES[speciesFor(cfg.materials[m].label, m)]?.name ? `Auto (${SPECIES[speciesFor(cfg.materials[m].label, m)].name})` : 'Auto')}</option>${Object.entries(SPECIES).map(([k, sp]) => `<option value="${k}"${cfg.materials[m].species === k ? ' selected' : ''}>${escapeHtml(sp.name)}</option>`).join('')}</select></td></tr>`).join('')}
       </tbody></table>
       <p class="muted small">Only <b>Wood</b> parts go into rough stock, board feet, the cutting diagram and templates. Give materials the same name (e.g. all the oak textures "Red oak") to total them as one species.</p>`;

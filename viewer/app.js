@@ -272,7 +272,7 @@ async function init() {
     history.replaceState(null, '', `${location.pathname}?model=${encodeURIComponent(MODEL_REF)}${location.hash}`); // a reload shouldn't reopen it
     library.openSetup(LOCAL_ID);
   }
-  else if (!settings().seenIntro) $('introTip').style.display = 'block';
+  else if (!settings().seenIntro && !seenIntroAnywhere()) $('introTip').style.display = 'block';
 }
 
 // Model library (uploads). Opening a model reloads the page on it, so every
@@ -288,10 +288,14 @@ const library = initLibrary({
 let builtInTitle = 'Built-in model';
 fetchText('model.json').then((t) => { builtInTitle = JSON.parse(t).title || builtInTitle; }).catch(() => {});
 
+// the welcome tips once per browser, not again for every model you upload
+const INTRO_KEY = 'woodmodels:seenIntro';
+function seenIntroAnywhere() { try { return !!localStorage.getItem(INTRO_KEY); } catch { return false; } }
 function dismissIntro() {
   if ($('introTip').style.display === 'none') return;
   $('introTip').style.display = 'none';
   updateSettings({ seenIntro: true });
+  try { localStorage.setItem(INTRO_KEY, '1'); } catch { /* storage unavailable */ }
 }
 $('introClose').addEventListener('click', dismissIntro);
 

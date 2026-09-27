@@ -515,3 +515,17 @@ test('sheet goods are laid out on 4x8 sheets per material and thickness', () => 
   const layouts = sheetLayouts(rows, { length: 96, width: 48, kerf: 0.125 });
   assert.deepEqual(layouts.map((g) => [g.material, g.thicknessLabel, g.sheets.length, g.pieces.length]), [['Plywood', '1/4"', 1, 1], ['Plywood', '3/4"', 1, 2]]);
 });
+
+import { defaultMaterialLabel } from '../viewer/library.js';
+
+test('uploaded wood materials are named after their species, so texture variants total up', () => {
+  const wood = { category: 'Wood' };
+  assert.equal(defaultMaterialLabel('Mélèse_Horizontal1_1', wood), 'Larch');
+  assert.equal(defaultMaterialLabel('Mélèse_Verticale1', wood), 'Larch');
+  assert.equal(defaultMaterialLabel('Oak_-Red', wood), 'Red oak');
+  assert.equal(defaultMaterialLabel('Red_Oak', wood), 'Red oak');
+  assert.equal(defaultMaterialLabel('qcg_7587_zm_mexican_walnut_copy_2', wood), 'Walnut');
+  // not a species we know, or not wood: just tidied
+  assert.equal(defaultMaterialLabel('Wood_Board_Dark_1', wood), 'Wood Board Dark');
+  assert.equal(defaultMaterialLabel('Walnut_Stain_Handle', { category: 'Hardware' }), 'Walnut Stain Handle');
+});
