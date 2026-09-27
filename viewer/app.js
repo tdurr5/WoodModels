@@ -669,6 +669,54 @@ function prepareMeshes(materialNames) {
     const info = meshInfo.get(m);
     info.groupCenter = groupBoxes.get(info.row?.top_group || '?').getCenter(new THREE.Vector3());
   });
+  explodeUnits();
+}
+
+// What comes apart in the exploded view. Pieces of one part that touch are
+// one thing drawn in pieces - a bolt head modeled as six facets, a roller
+// modeled as segments - and move as one. Hardware (a bolt with its head and
+// nut) rides with the wood it's fastened through instead of flying off on
+// its own. Pieces of a part that don't touch (a pair of legs) still come
+// apart.
+function explodeUnits() {
+  const box = (m) => m.geometry.boundingBox.clone().expandByScalar(0.03);
+  const parent = new Map(meshes.map((m) => [m, m]));
+  const find = (m) => { while (parent.get(m) !== m) m = parent.get(m); return m; };
+  const join = (a, b) => parent.set(find(a), find(b));
+  const hw = (m) => meshInfo.get(m).row?.category === 'Hardware';
+  const boxes = new Map(meshes.map((m) => [m, box(m)]));
+  meshes.forEach((a, i) => {
+    for (let j = i + 1; j < meshes.length; j++) {
+      const b = meshes[j];
+      const sameRow = meshInfo.get(a).row && meshInfo.get(a).row === meshInfo.get(b).row;
+      if ((sameRow || (hw(a) && hw(b))) && boxes.get(a).intersectsBox(boxes.get(b))) join(a, b);
+    }
+  });
+  const units = new Map();
+  meshes.forEach((m) => {
+    const r = find(m);
+    if (!units.has(r)) units.set(r, []);
+    units.get(r).push(m);
+  });
+  units.forEach((list) => {
+    const b = new THREE.Box3();
+    list.forEach((m) => b.union(m.geometry.boundingBox));
+    const center = b.getCenter(new THREE.Vector3());
+    // hardware: the wood it overlaps most carries it
+    let anchor = null;
+    if (list.every(hw)) {
+      let best = 0;
+      meshes.forEach((o) => {
+        if (hw(o)) return;
+        const ov = boxes.get(o).clone().intersect(b.clone().expandByScalar(0.03));
+        if (ov.isEmpty()) return;
+        const s = ov.getSize(new THREE.Vector3());
+        const vol = (s.x + 0.01) * (s.y + 0.01) * (s.z + 0.01);
+        if (vol > best) { best = vol; anchor = o; }
+      });
+    }
+    list.forEach((m) => { const info = meshInfo.get(m); info.unitCenter = center; info.anchor = anchor; });
+  });
 }
 
 // ---------- materials / visibility ----------
@@ -861,10 +909,11 @@ function setWireframe(on) {
 function setExplodePositions(f) {
   requestRender();
   const reach = new THREE.Box3();
+  const offset = (info) => info.groupCenter.clone().sub(modelCenter).multiplyScalar(f)
+    .add(info.unitCenter.clone().sub(info.groupCenter).multiplyScalar(f * 0.6));
   meshes.forEach((m) => {
-    const { baseCenter, groupCenter } = meshInfo.get(m);
-    m.position.copy(groupCenter).sub(modelCenter).multiplyScalar(f)
-      .add(baseCenter.clone().sub(groupCenter).multiplyScalar(f * 0.6));
+    const info = meshInfo.get(m);
+    m.position.copy(offset(info.anchor ? meshInfo.get(info.anchor) : info)); // hardware moves with its wood
     if (isShownPart(m)) reach.union(m.geometry.boundingBox.clone().translate(m.position));
   });
   fitStage(reach); // the floor drops with parts pulled below it, and shadows follow them out
