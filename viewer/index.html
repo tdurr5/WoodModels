@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
 <title>Cut List Viewer</title>
 <link rel="stylesheet" href="style.css" />
 <link rel="manifest" href="manifest.webmanifest" />
@@ -14,14 +14,14 @@
   <div id="viewport">
     <div id="toolbar">
       <div class="tb-group" id="viewBtns"></div>
-      <div class="tb-group">
+      <div class="tb-group tb-display">
         <button id="orthoBtn" title="Orthographic (no perspective) - true-scale elevations (O)">Ortho</button>
         <button id="resetBtn" title="Show the whole model and clear the selection">Show all</button>
         <button id="isolateBtn" title="Hide other parts instead of ghosting them (I)">Isolate</button>
         <button id="tagsBtn" title="Label every part with its cut-list letter (T) - try it with Explode">Labels</button>
         <button id="wireBtn" title="Wireframe (W)">Wireframe</button>
       </div>
-      <div class="tb-group">
+      <div class="tb-group tb-measure">
         <button id="measureDistBtn" title="Measure distance between two points (D)">Distance</button>
         <button id="measureAngleBtn" title="Measure an angle from three points (A)">Angle</button>
         <button id="measureBevelBtn" title="Angle between two faces - the bevel gauge setting (B)">Bevel</button>
@@ -36,14 +36,17 @@
     <div id="measureHint"></div>
     <div id="loading">Loading model…</div>
     <div id="dimCard"></div>
+    <div id="buildPanel"></div>
     <div id="axisLabels"></div>
     <div id="measureLabels"></div>
     <div id="partTags" style="display:none"></div>
     <div id="introTip" style="display:none">
       <button id="introClose" title="Got it">×</button>
-      <b>Welcome!</b> Click any part (here or in the list) for its size, angles, joints and a full-size template.
+      <span class="if-mouse"><b>Welcome!</b> Click any part (here or in the list) for its size, angles, joints and a full-size template.
       Try <b>Explode</b> + <b>Labels</b>, the <b>Section</b> cut, and <b>Shopping list &amp; cutting diagram</b> in the sidebar.
-      <b>Print cut sheet</b> gives you a shop-ready checklist. Press <kbd>?</kbd> any time for shortcuts.
+      <b>Print cut sheet</b> gives you a shop-ready checklist, and <b>▶ Build</b> walks you through the parts one at a time. Press <kbd>?</kbd> any time for shortcuts.</span>
+      <span class="if-touch"><b>Welcome!</b> Tap any part (here or in the list below) for its size and joints. Drag to turn the model, pinch to zoom, two fingers to move it.
+      In the shop, <b>▶ Build</b> walks you through the parts one at a time.</span>
     </div>
     <div id="hoverTip"></div>
     <div id="toast" role="status" aria-live="polite"></div>
@@ -69,8 +72,20 @@
 <div id="help">
   <div class="help-box">
     <button id="helpClose" title="Close">×</button>
-    <h2>Shortcuts</h2>
-    <table>
+    <h2 class="if-mouse">Shortcuts</h2>
+    <h2 class="if-touch">Touch</h2>
+    <table class="if-touch-block help-touch">
+      <tr><td>Tap</td><td>Select a part (in the model or the list); tap empty space to clear</td></tr>
+      <tr><td>Drag</td><td>Turn the model</td></tr>
+      <tr><td>Pinch</td><td>Zoom</td></tr>
+      <tr><td>Two-finger drag</td><td>Move the model</td></tr>
+      <tr><td>Double-tap</td><td>Zoom to the selected part</td></tr>
+      <tr><td>Group heading</td><td>Tap a group's name to see the whole group, and rename, set aside or delete it</td></tr>
+      <tr><td>▶ Build</td><td>Step through the parts one at a time, big, with the model assembling as you go</td></tr>
+      <tr><td>☰</td><td>Hide the cut list for a full-screen model</td></tr>
+      <tr><td>Measuring</td><td>Distance / Angle / Bevel in the toolbar; tap × on the tip to stop</td></tr>
+    </table>
+    <table class="if-mouse-block">
       <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>Previous / next part</td></tr>
       <tr><td><kbd>Esc</kbd></td><td>Cancel tool / clear selection</td></tr>
       <tr><td><kbd>F</kbd> or double-click</td><td>Zoom to selection</td></tr>
@@ -86,6 +101,7 @@
       <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>Undo (measure point, delete, set aside, rename)</td></tr>
       <tr><td><kbd>Del</kbd></td><td>Delete the selected part from the model (restore it from Deleted at the bottom of the cut list)</td></tr>
       <tr><td><kbd>F2</kbd></td><td>Rename the selected part</td></tr>
+      <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>Build mode: previous / next part</td></tr>
       <tr><td><kbd>/</kbd></td><td>Filter the cut list</td></tr>
       <tr><td><kbd>C</kbd></td><td>Shopping list &amp; cutting diagram</td></tr>
       <tr><td><kbd>M</kbd></td><td>Models: upload / switch</td></tr>
@@ -107,6 +123,7 @@
       </select></label>
       <label>Board width <input id="cdWidth" type="number" min="2" step="0.25" /> in</label>
       <label>Kerf <input id="cdKerf" type="number" min="0" step="0.0625" /> in</label>
+      <label>Sheet <select id="cdSheet"><option value="96x48">4' × 8'</option><option value="120x60">5' × 10'</option><option value="60x60">5' × 5' (Baltic birch)</option><option value="48x48">4' × 4'</option><option value="48x24">2' × 4'</option></select></label>
       <button class="cd-close" title="Close (Esc)">×</button>
       <div class="cd-prices" title="Price per board foot, for a cost estimate (optional)"></div>
     </div>
@@ -118,7 +135,7 @@
   <div class="lib-box">
     <div class="lib-head"><h2>Models</h2><button class="lib-close" title="Close (Esc)">×</button></div>
     <div class="lib-drop" role="button" tabindex="0">
-      <b>Upload a model</b> - click, or drop a file anywhere on the page<br>
+      <b>Upload a model</b> - <span class="if-mouse">click, or drop a file anywhere on the page</span><span class="if-touch">tap to choose a file</span><br>
       <span class="muted small">From <b>3D Warehouse</b>: Download → <b>Collada File</b> (.zip) or <b>KMZ</b>. Also accepts .dae files and models downloaded from this list. SketchUp .skp files can't be read in a browser.</span>
       <input id="libFile" type="file" accept=".dae,.zip,.kmz,.skp" hidden />
     </div>
@@ -129,7 +146,7 @@
 </div>
 
 <div id="setup">
-  <div class="lib-box">
+  <div class="lib-box setup-box">
     <div class="lib-head"><h2>Set up this model</h2></div>
     <div class="setup-body"></div>
     <div class="setup-actions"><button class="setup-cancel card-btn">Cancel</button> <button class="setup-save card-btn primary">Save</button></div>

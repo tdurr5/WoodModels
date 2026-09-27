@@ -13,7 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { chromium } from 'playwright';
+import { chromium, devices } from 'playwright';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const VIEWER = path.join(ROOT, 'viewer');
@@ -67,6 +67,14 @@ const cardName = () => page.locator('#dimCard .part-name .pn-text').innerText();
 async function selectPart(name) {
   await page.locator('#clList .row', { hasText: name }).first().click();
   await page.waitForTimeout(500);
+}
+
+// Runs in the page: where the selected part's middle is on screen.
+function partScreenCenter() {
+  const { THREE, camera, current } = window.__viewer;
+  const c = current.box.getCenter(new THREE.Vector3()).project(camera);
+  const r = document.querySelector('#viewport canvas').getBoundingClientRect();
+  return { x: r.left + (c.x * 0.5 + 0.5) * r.width, y: r.top + (0.5 - c.y * 0.5) * r.height };
 }
 
 // Runs in the page: screen points on `n` visible faces of the selected part
@@ -125,6 +133,18 @@ try {
   await page.screenshot({ path: path.join(OUT, '01-loaded.png') });
   await page.locator('#introClose').click();
   check(!(await page.locator('#introTip').isVisible()), 'tips can be dismissed');
+  await page.waitForTimeout(1500);
+  const frames = await page.evaluate(async () => {
+    const info = window.__viewer.renderer.info.render;
+    const a = info.frame;
+    await new Promise((r) => setTimeout(r, 1000));
+    const b = info.frame;
+    window.__viewer.controls.rotateLeft?.(0.2);
+    window.__viewer.requestRender();
+    await new Promise((r) => setTimeout(r, 300));
+    return { idle: b - a, after: info.frame - b };
+  });
+  check(frames.idle === 0 && frames.after > 0, `nothing is redrawn while the model sits still, and it redraws when asked (${frames.idle} idle frames, ${frames.after} after)`);
 
   console.log('select from sidebar');
   const bench = page.locator('#clList .row', { hasText: 'Bench' }).first();
@@ -145,8 +165,11 @@ try {
   console.log('angled part');
   await page.locator('#clList .row', { hasText: 'Leg Rear' }).first().click();
   await page.waitForTimeout(300);
+  check(!/off plumb/.test(await page.locator('#dimCard').innerText()) && !(await page.locator('#axisLabels .axisLabel').allInnerTexts()).some((t) => t.includes('°')),
+    'the part\'s own angles are hidden until asked for (only your measurements show)');
+  await page.locator('#dimCard [data-act=angles]').click();
   const legCard = await page.locator('#dimCard').innerText();
-  check(/off plumb/.test(legCard), 'splayed rear leg reports a compound angle');
+  check(/off plumb/.test(legCard) && (await page.locator('#axisLabels .axisLabel').allInnerTexts()).some((t) => t.includes('°')), '"Show angles" shows the splayed rear leg\'s compound angle');
   await page.screenshot({ path: path.join(OUT, '03-leg-rear.png') });
 
   console.log('click on model');
@@ -635,7 +658,8 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     await p2.locator('#libFile').setInputFiles(warehouseZip);
     await p2.waitForURL(/\?model=local%3A\w+&setup=1/, { timeout: 30000 });
     await loaded();
-    check(await p2.locator('#setup').isVisible(), 'a new upload opens straight into its setup');
+    // (it opens once the saved model has been read back, which can lag the page on a slow machine)
+    check(await p2.locator('#setup').waitFor({ state: 'visible', timeout: 15000 }).then(() => true, () => false), 'a new upload opens straight into its setup');
     check(!new URL(p2.url()).searchParams.has('setup'), 'the setup flag leaves the URL (a reload will not reopen it)');
     check((await p2.locator('#setup [name=title]').inputValue()) === 'Shaker Side Table', 'model is named after the uploaded file');
     const mats = await p2.locator('#setup select[data-mat]').evaluateAll((els) => els.map((e) => [e.dataset.mat, e.value]));
@@ -686,6 +710,10 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     await p2.locator('#clList .row', { hasText: 'Dowel' }).first().click();
     await p2.locator('#dimCard [data-act=aside]').click();
     check(/Set aside "Dowel"/.test(await p2.locator('#toast').innerText()), 'setting a part aside says so, with Undo');
+    await p2.locator('#toast [data-act=undo]').click();
+    check((await rowNames()).includes('Dowel'), 'the notice\'s Undo button puts it back');
+    await p2.locator('#clList .row', { hasText: 'Dowel' }).first().click();
+    await p2.locator('#dimCard [data-act=aside]').click();
     check(!(await rowNames()).includes('Dowel') && await p2.locator('.aside-section .row', { hasText: 'Dowel' }).count() === 1, 'a set-aside part moves to "Set aside · not in the build"');
     check(await woodPieces() === piecesBefore - 1, `set-aside parts leave the wood totals (${piecesBefore} -> ${await woodPieces()})`);
     check(await p2.locator('#dimCard .card-aside').isVisible(), 'its card says it is set aside while still selected');
@@ -696,7 +724,7 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     await p2.locator('.aside-section .show-aside').check();
     check(await dowelShown(), '"Show" draws set-aside parts again');
     await p2.locator('.aside-section .show-aside').uncheck();
-    await p2.locator('#toast [data-act=undo]').click();
+    await p2.keyboard.press('Control+z');
     check((await rowNames()).includes('Dowel'), 'Undo puts it back');
 
     await p2.locator('#clList .row', { hasText: 'Square stock' }).first().click();
@@ -815,6 +843,22 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     await p2.locator('#clList > .row', { hasText: 'Board' }).first().click();
     await p2.locator('#dimCard [data-act=del-overlap]').click();
     check(JSON.stringify(await boardRows()) === JSON.stringify(['1" × 4" × 10" ×2']) && !/Overlaps/.test(await p2.locator('#clList > .row', { hasText: 'Board' }).first().innerText()), '"Delete the overlapping copy" removes one piece and the warning');
+
+    // sheet goods: choose it in Set up
+    await p2.locator('#clSetup').click();
+    await p2.locator('#setup select[data-mat="Wood"]').selectOption('Sheet goods');
+    await Promise.all([p2.waitForEvent('load'), p2.locator('#setup .setup-save').click()]);
+    await loaded();
+    const sum = await p2.locator('#clSummary').innerText();
+    check(/Sheet goods: 1 sheet of 1" Wood \(4' × 8'\)/.test(sum), `a material set to Sheet goods is laid out on sheets (${sum.split('\n').find((l) => /Sheet/.test(l))})`);
+    await p2.locator('#clDiagram').click();
+    const shopText = await p2.locator('#diagram .cd-shop').innerText();
+    const sheetGroups = await p2.locator('#diagram .cd-group h3', { hasText: 'sheet' }).allInnerTexts();
+    // one layout per thickness: the 1" boards and the 1-1/2" leg
+    check(/Sheet goods to buy/.test(shopText) && sheetGroups.length === 2 && /^1" Wood/.test(sheetGroups[0]), `the cutting diagram shows a sheet layout per thickness (${sheetGroups.join(' / ')})`);
+    await p2.locator('#cdSheet').selectOption('60x60');
+    check(/5' × 5'/.test(await p2.locator('#diagram .cd-shop').innerText()), 'sheet size can be changed');
+    await p2.screenshot({ path: path.join(OUT, '46-sheet-goods.png') });
     check(errs.length === 0, `no page errors (${errs.join('; ')})`);
   } finally {
     await b2.close();
@@ -853,7 +897,7 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     // one piece of a part with several
     await p2.locator('#clList .row', { hasText: 'Bench' }).first().click();
     await p2.waitForTimeout(300);
-    const benchLabels = await p2.locator('#axisLabels .axisLabel').allInnerTexts();
+    const benchLabels = await p2.locator('#axisLabels .axisLabel').allTextContents();
     check(benchLabels.filter((t) => t === '46-3/8"').length === 2, `every piece of a part gets its own dimensions (${benchLabels.join(' ')})`);
     const [pt] = await p2.evaluate(visibleFacePoints, 1);
     await p2.mouse.click(pt.x, pt.y);
@@ -865,6 +909,155 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     check(/qty 1/.test(await p2.locator('#dimCard').innerText()), 'the card updates to the pieces left');
     await p2.keyboard.press('Control+z');
     check(/×2/.test(await p2.locator('#clList > .row', { hasText: 'Bench' }).first().innerText()), 'undo brings the piece back');
+  } finally {
+    await b2.close();
+  }
+}
+
+// ---------- build mode ----------
+{
+  console.log('build mode');
+  const b2 = await chromium.launch(launchOpts);
+  const p2 = await b2.newPage({ viewport: { width: 1400, height: 900 } });
+  const errs = [];
+  p2.on('pageerror', (e) => errs.push(e.message));
+  const loaded = () => p2.waitForFunction(() => document.getElementById('loading').style.display === 'none', null, { timeout: 30000 });
+  const stepName = () => p2.locator('#buildPanel .bp-name').evaluate((e) => e.childNodes[1].textContent.trim());
+  const stepNo = () => p2.locator('#buildPanel .bp-steps').inputValue();
+  try {
+    await p2.goto(base);
+    await loaded();
+    await p2.locator('#introClose').click();
+    await p2.locator('#clBuild').click();
+    check(await p2.locator('#buildPanel').isVisible() && !(await p2.locator('#dimCard').isVisible()), 'Build opens the step-by-step panel');
+    const first = await stepName();
+    check(/Leg/.test(first), `assembly order starts from the ground up (${first})`);
+    check(/\d/.test(await p2.locator('#buildPanel .bp-size').innerText()) && /rough/.test(await p2.locator('#buildPanel .bp-sub').innerText()), 'a step shows the finished and rough size');
+    await p2.locator('#buildPanel .bp-next').click();
+    check(await stepNo() === '1', 'Next goes to the next part');
+    const ghosts = await p2.evaluate(() => {
+      const v = window.__viewer;
+      const now = v.currentSelectionMeshes();
+      const all = v.rows().flatMap((r) => v.meshesOf(r.name));
+      return { hl: now.every((m) => m.material.emissiveIntensity > 0), ghosted: all.some((m) => m.material.transparent && m.visible), solid: all.some((m) => !m.material.transparent && !now.includes(m)) };
+    });
+    check(ghosts.hl && ghosts.ghosted && ghosts.solid, 'the model assembles as you go: earlier parts solid, this one highlighted, later ones ghosted');
+    const name2 = await stepName();
+    await p2.locator('#buildPanel .bp-cut input').click(); // (check() would re-tick the next step's box)
+    // the panel re-renders (a fresh <select> each time), so poll fresh queries rather than watch a node
+    await p2.waitForFunction(() => document.querySelector('#buildPanel .bp-steps')?.value === '2', null, { timeout: 3000 }).catch(() => {});
+    check(await stepNo() === '2', 'ticking "Cut" moves on to the next part');
+    check(await p2.locator('#clList .row', { hasText: name2 }).first().locator('.cut-box').isChecked(), 'and ticks it off in the cut list');
+    await p2.keyboard.press('ArrowLeft');
+    check(await stepNo() === '1', 'arrow keys step back and forth');
+    await p2.locator('#buildPanel .bp-exit').click();
+    check(!(await p2.locator('#buildPanel').isVisible()), 'Exit leaves build mode');
+    await p2.reload();
+    await loaded();
+    await p2.locator('#clBuild').click();
+    check(await stepNo() === '1', 'build mode picks up where you left off');
+    await p2.locator('#buildPanel .bp-order').click();
+    check(/Cutting order/.test(await p2.locator('#buildPanel .bp-order').innerText()) && await stepName() === name2, 'cutting order keeps you on the same part');
+    const firstCut = await p2.locator('#buildPanel .bp-steps option').first().innerText();
+    check(!/Leg Rear/.test(firstCut), `cutting order is different (${firstCut})`);
+    await p2.screenshot({ path: path.join(OUT, '45-build-mode.png') });
+    // edits while building: the steps follow
+    const before = await p2.locator('#buildPanel .bp-steps option').count();
+    const gone = await stepName();
+    await p2.keyboard.press('Delete');
+    await p2.waitForTimeout(300);
+    const opts = await p2.locator('#buildPanel .bp-steps option').allInnerTexts();
+    check(opts.length === before - 1 && !opts.some((t) => t.includes(gone)) && await stepName() !== gone, `deleting the step's part drops its step and moves on (${await stepName()})`);
+    await p2.keyboard.press('Control+z');
+    await p2.waitForTimeout(300);
+    check(await p2.locator('#buildPanel .bp-steps option').count() === before, 'undo puts the step back');
+    await p2.locator('#clDiagram').click();
+    await p2.keyboard.press('Escape');
+    check(!(await p2.locator('#diagram').isVisible()) && await p2.locator('#buildPanel').isVisible(), 'Esc closes a dialog opened in build mode, not build mode');
+    check(errs.length === 0, `no page errors in build mode (${errs.join('; ')})`);
+  } finally {
+    await b2.close();
+  }
+}
+
+// ---------- phone (touch) ----------
+{
+  console.log('phone');
+  const b2 = await chromium.launch(launchOpts);
+  const ctx = await b2.newContext({ ...devices['iPhone 13'] });
+  const p2 = await ctx.newPage();
+  const errs = [];
+  p2.on('pageerror', (e) => errs.push(e.message));
+  try {
+    await p2.goto(base);
+    await p2.waitForFunction(() => document.getElementById('loading').style.display === 'none', null, { timeout: 30000 });
+    await p2.locator('#introClose').tap();
+    const tops = await p2.locator('#toolbar button').evaluateAll((els) => [...new Set(els.map((e) => Math.round(e.getBoundingClientRect().top)))]);
+    check(tops.length === 1, `the toolbar is one row that scrolls sideways (${tops.length} rows)`);
+    const angleX = await p2.locator('#measureAngleBtn').evaluate((e) => e.getBoundingClientRect().right);
+    check(angleX < 390, 'the measuring tools are on screen without scrolling');
+    check(await p2.evaluate(() => getComputedStyle(document.documentElement).touchAction) === 'manipulation', 'no double-tap zoom on buttons (touch-action: manipulation)');
+    await p2.locator('#measureAngleBtn').tap();
+    const tb = await p2.locator('#toolbar').boundingBox(), hint = await p2.locator('#measureHint').boundingBox();
+    check(hint.y >= tb.y + 34, 'the measuring tip sits below the toolbar, not over its buttons');
+    check(/Tap the corner/.test(await p2.locator('#measureHint').innerText()), 'the tip says tap, not click');
+    await p2.locator('#measureHint .hint-x').tap();
+    check(!(await p2.locator('#measureHint').isVisible()) && await p2.locator('#measureAngleBtn.on').count() === 0, 'the tip\'s × stops measuring (no Esc key on a phone)');
+    const q = await p2.evaluate(() => {
+      const { THREE, camera } = window.__viewer; const m = window.__viewer.meshesOf('Bench')[0];
+      const c = new THREE.Box3().setFromObject(m).getCenter(new THREE.Vector3()).project(camera);
+      const r = document.querySelector('#viewport canvas').getBoundingClientRect();
+      return { x: r.left + (c.x * 0.5 + 0.5) * r.width, y: r.top + (0.5 - c.y * 0.5) * r.height };
+    });
+    await p2.touchscreen.tap(q.x, q.y);
+    await p2.waitForTimeout(300);
+    check((await p2.locator('#dimCard .pn-text').innerText().catch(() => '')) === 'Bench', 'tapping a part selects it');
+    const stacked = await p2.evaluate(() => {
+      const shown = [...document.querySelectorAll('#axisLabels .axisLabel')].filter((e) => e.style.display !== 'none' && e.style.visibility !== 'hidden').map((e) => ({ t: e.textContent, r: e.getBoundingClientRect() }));
+      return shown.filter((a, i) => shown.some((b, j) => j > i && a.t === b.t && a.r.left < b.r.right && b.r.left < a.r.right && a.r.top < b.r.bottom && b.r.top < a.r.bottom)).length;
+    });
+    check(stacked === 0, 'the same measurement on two pieces isn\'t stacked on top of itself');
+    check(await p2.locator('.group-title .gt-actions').first().isHidden(), 'group buttons stay out of the way on touch (tap the group name instead)');
+    await p2.locator('#clBuild').tap();
+    const bp = await p2.locator('#buildPanel').boundingBox();
+    check(bp && bp.width > 350 && await p2.locator('#sidebar').isHidden(), 'build mode on a phone: full-width panel, cut list out of the way');
+    await p2.waitForTimeout(600);
+    const stepAt = await p2.evaluate(partScreenCenter);
+    check(stepAt.y < bp.y - 20 && stepAt.y > 60, `the step's part is framed above the panel, not under it (at y=${Math.round(stepAt.y)}, panel at ${Math.round(bp.y)})`);
+    await p2.screenshot({ path: path.join(OUT, '51-phone-build.png') });
+    await p2.locator('#buildPanel .bp-exit').tap();
+    await p2.locator('#helpBtn').tap();
+    check(await p2.locator('#help .help-touch').isVisible() && !(await p2.locator('#help .if-mouse-block').isVisible()), 'help shows touch gestures instead of keyboard shortcuts');
+    await p2.screenshot({ path: path.join(OUT, '50-phone-help.png') });
+    check(errs.length === 0, `no page errors on a phone (${errs.join('; ')})`);
+  } finally {
+    await b2.close();
+  }
+}
+
+// ---------- phone held sideways ----------
+{
+  console.log('phone, landscape');
+  const b2 = await chromium.launch(launchOpts);
+  const ctx = await b2.newContext({ ...devices['iPhone 13 landscape'] });
+  const p2 = await ctx.newPage();
+  const errs = [];
+  p2.on('pageerror', (e) => errs.push(e.message));
+  try {
+    await p2.goto(base);
+    await p2.waitForFunction(() => document.getElementById('loading').style.display === 'none', null, { timeout: 30000 });
+    await p2.locator('#introClose').tap();
+    const vp = await p2.locator('#viewport').boundingBox(), sb = await p2.locator('#sidebar').boundingBox();
+    check(sb.x >= vp.x + vp.width - 1 && vp.height > 300, `sideways, the model and the cut list sit side by side (model ${Math.round(vp.width)}×${Math.round(vp.height)})`);
+    await p2.locator('#clBuild').tap();
+    await p2.waitForTimeout(600);
+    const bp = await p2.locator('#buildPanel').boundingBox();
+    const next = await p2.locator('#buildPanel .bp-next').boundingBox();
+    check(bp.x > 300 && next.y + next.height <= bp.y + bp.height, 'build mode sideways: the step down the side, Next on screen');
+    const stepAt = await p2.evaluate(partScreenCenter);
+    check(stepAt.x < bp.x - 20, `the step's part is framed beside the panel (at x=${Math.round(stepAt.x)}, panel at ${Math.round(bp.x)})`);
+    await p2.screenshot({ path: path.join(OUT, '52-phone-landscape-build.png') });
+    check(errs.length === 0, `no page errors sideways (${errs.join('; ')})`);
   } finally {
     await b2.close();
   }

@@ -10,12 +10,15 @@ const DEFAULTS = {
   hiddenCategories: [],
   cut: [],          // row keys ticked off as cut / done
   isolate: false,   // hide (rather than ghost) unselected parts
-  stock: { length: 96, width: 8, kerf: 0.125 }, // lumber for cutting diagrams
+  stock: { length: 96, width: 8, kerf: 0.125, sheetLength: 96, sheetWidth: 48 }, // lumber and sheet goods for cutting diagrams
   theme: 'dark',    // 'dark' | 'light'
   prices: {},       // $ per board foot by material label, for cost estimates
   userNotes: {},    // row key -> the user's own note for that part
   seenIntro: false, // first-visit tips dismissed
   showAside: false, // draw parts that are set aside (not in the build) in 3D
+  buildStep: '',    // build mode: the part (row key) you were on
+  buildOrder: 'assembly', // build mode: 'assembly' (ground up) or 'cutting' (by species and stock thickness)
+  showPartAngles: false, // the lean/splay angles drawn on a selected angled part (your own measurements always show)
 };
 
 let storageKey = 'woodmodels:settings';

@@ -42,10 +42,6 @@ export function formatLength(inches, units = 'in16') {
   }
 }
 
-export function formatDims(dims, units) {
-  return dims.map((d) => formatLength(d, units)).join(' × ');
-}
-
 // Board feet = L x W x T (inches) / 144.
 export function boardFeet(l, w, t) {
   return (l * w * t) / 144;
@@ -92,6 +88,14 @@ export function roughStock(dims, allowance = {}) {
 // solid-tool results... (parse_dae.py GENERIC_NAME)
 const GENERIC_NAME = /^(?:group|component|instance|mesh|object|geometry|node|id|sketchup|difference|outershell|union|intersection|trim|split|solid|untitled|default)?[\s_#.-]*\d*$/i;
 export const isGenericName = (name) => GENERIC_NAME.test(name || '');
+
+// Sheet goods (plywood, MDF, hardboard...): cut from 4x8 sheets, not boards.
+export const SHEET = 'Sheet goods';
+const SHEET_WORDS = /(^| )(plywood|ply|mdf|osb|masonite|hardboard|particle ?board|chipboard|melamine|baltic|luan|lauan)( |$)/;
+export const looksLikeSheetGoods = (...names) => SHEET_WORDS.test(names.map((n) => String(n || '').normalize('NFKD')
+  .replace(/[^\x00-\x7F]/g, '').replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase().replace(/[^a-z]+/g, ' ')).join(' '));
+// parts you cut from wood stock: boards or sheets (cut list ticks, templates, finish area)
+export const isCut = (row) => row.category === 'Wood' || row.category === SHEET;
 
 export function displayName(label, overrides = {}) {
   if (overrides[label]) return overrides[label];

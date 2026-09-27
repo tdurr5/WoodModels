@@ -22,7 +22,9 @@ kbd { background: var(--hover); border: 1px solid var(--border-2); border-bottom
 .muted { color: var(--muted); }
 .small { font-size: 10.5px; }
 
-#app { display: flex; height: 100%; }
+#app { display: flex; height: 100%; box-sizing: border-box;
+  /* iPhone notch and home bar (the page runs edge to edge: viewport-fit=cover) */
+  padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0); }
 #viewport { flex: 1; position: relative; min-width: 0; }
 #viewport canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
 #sidebar { width: 390px; overflow-y: auto; background: var(--panel); border-left: 1px solid var(--line); padding: 12px; box-sizing: border-box; }
@@ -47,11 +49,12 @@ body.sidebar-collapsed #sidebar { display: none; }
 #bottombar button:disabled, #bottombar input:disabled { opacity: 0.4; }
 
 #measureHint {
-  position: absolute; top: 50px; left: 10px; z-index: 5; display: none; max-width: min(640px, calc(100% - 40px));
+  position: absolute; top: 50px; left: 10px; z-index: 5; display: none; max-width: min(640px, calc(100% - 40px)); pointer-events: none;
   background: var(--hint-bg); border: 1px solid var(--accent); color: var(--accent-text);
   padding: 6px 10px; border-radius: 6px; font-size: 12px;
 }
 #measureHint .muted { color: var(--hint-muted); }
+#measureHint .hint-x { pointer-events: auto; float: right; margin: -3px -5px 0 8px; background: none; border: none; color: var(--accent-text); font-size: 18px; line-height: 1; padding: 2px 6px; cursor: pointer; }
 .measureLabel {
   position: absolute; transform: translate(-50%, -50%); pointer-events: none;
   background: var(--accent); color: var(--bg); font-size: 12px; font-weight: 700;
@@ -93,8 +96,8 @@ body.sidebar-collapsed #sidebar { display: none; }
 #dimCard .card-note { font-size: 11px; color: var(--text-2); margin-top: 4px; font-style: italic; }
 #dimCard .card-note.warn { color: var(--warn); font-style: normal; }
 #dimCard .card-rel { font-size: 11.5px; color: var(--text-2); margin-top: 4px; line-height: 1.45; }
-#dimCard .card-rel a { color: var(--blue); text-decoration: none; }
-#dimCard .card-rel a:hover { text-decoration: underline; }
+#dimCard .card-rel a, #buildPanel .card-rel a { color: var(--blue); text-decoration: none; }
+#dimCard .card-rel a:hover, #buildPanel .card-rel a:hover { text-decoration: underline; }
 #dimCard .card-mynote { margin-top: 6px; font-size: 11.5px; }
 #dimCard .card-mynote summary { cursor: pointer; color: var(--muted); }
 #dimCard .card-mynote textarea { width: 100%; box-sizing: border-box; margin-top: 4px; background: var(--input-bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 4px 6px; font: inherit; font-size: 12px; resize: vertical; }
@@ -147,7 +150,6 @@ h1 { font-size: 16px; margin: 0 0 2px; }
 .group-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--blue); margin: 10px 0 4px; border-bottom: 1px solid var(--line); padding-bottom: 2px;; display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 18px; }
 .group-title .gt-actions { display: flex; gap: 3px; opacity: 0; transition: opacity 0.12s; }
 .group-title:hover .gt-actions, .group-title:focus-within .gt-actions { opacity: 1; }
-@media (hover: none) { .group-title .gt-actions { opacity: 1; } }
 .group-title .gt-actions button, .aside-actions button {
   background: none; border: 1px solid var(--border-2); color: var(--text-2); border-radius: 4px; font-size: 10px; padding: 0 5px;
   cursor: pointer; text-transform: none; letter-spacing: 0; line-height: 16px;
@@ -208,13 +210,14 @@ h1 { font-size: 16px; margin: 0 0 2px; }
 
 /* ---------- cutting diagram ---------- */
 #diagram { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 20; }
-.cd-box { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; width: min(1100px, calc(100% - 24px)); max-height: calc(100% - 24px); display: flex; flex-direction: column; }
+.cd-box { position: relative; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; width: min(1100px, calc(100% - 24px)); max-height: calc(100% - 24px); display: flex; flex-direction: column; }
 .cd-head { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 12px 16px; border-bottom: 1px solid var(--line); font-size: 12.5px; }
 .cd-head h2 { margin: 0 auto 0 0; font-size: 16px; }
 .cd-head input, .cd-head select { width: 64px; background: var(--input-bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px; padding: 2px 4px; }
 .cd-prices { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 14px; justify-content: flex-end; color: var(--muted); }
 .cd-prices:empty { display: none; }
-.cd-close { background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; }
+.cd-close { position: absolute; top: 6px; right: 8px; background: none; border: none; color: var(--muted); font-size: 22px; cursor: pointer; padding: 4px 8px; }
+.cd-head { padding-right: 44px; }
 .cd-body { overflow: auto; padding: 12px 16px 16px; }
 .cd-shop { background: var(--summary-bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; font-size: 12.5px; }
 .cd-shop ul { margin: 4px 0 0; padding-left: 18px; line-height: 1.6; }
@@ -275,12 +278,41 @@ body.dragging #dropHint { display: flex; }
   #app { flex-direction: column; }
   #viewport { flex: 1 1 55%; }
   #sidebar { width: 100%; flex: 1 1 45%; border-left: none; border-top: 1px solid var(--line); }
-  #toolbar { right: 50px; }
-  .tb-group button { padding: 5px 7px; font-size: 11px; }
+  /* one row that scrolls sideways, instead of three rows over the model */
+  #toolbar { right: 50px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; pointer-events: auto; padding-bottom: 4px; }
+  #toolbar::-webkit-scrollbar { display: none; }
+  .tb-group { flex: none; }
+  .tb-measure { order: 1; } .tb-display { order: 2; } #toolbar > .tb-group:last-child { order: 3; }
+  .tb-group button { padding: 6px 9px; font-size: 12px; white-space: nowrap; }
+  #measureHint { top: 48px; right: 10px; max-width: none; }
+  /* iOS zooms into text boxes with small type */
+  input, select, textarea { font-size: 16px !important; }
   #bottombar { gap: 6px; right: 10px; padding: 4px 6px; flex-wrap: nowrap; font-size: 11px; }
   #bottombar label { gap: 3px; }
   #bottombar input[type=range] { width: 56px; min-width: 0; }
-  #dimCard { width: auto; left: 10px; bottom: 50px; max-height: 45%; overflow: auto; }
+  #dimCard { width: auto; left: 8px; right: 8px; bottom: 50px; max-height: 48%; overflow: auto; }
+  #toast { bottom: 50px; }
+  .cd-head { gap: 8px 12px; }
+  .cd-prices { justify-content: flex-start; gap: 8px 12px; }
+}
+/* a phone held sideways: model and cut list side by side, not a sliver of
+   model over the list */
+@media (orientation: landscape) and (max-height: 500px) {
+  #app { flex-direction: row; }
+  #viewport { flex: 1 1 auto; }
+  #sidebar { width: 42%; max-width: 390px; flex: none; border-top: none; border-left: 1px solid var(--line); }
+  #toolbar { top: 6px; }
+  #measureHint { top: 44px; }
+  #dimCard { max-height: calc(100% - 100px); }
+}
+/* touch screens: no double-tap zoom or tap delay on controls, bigger targets */
+html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
+@media (pointer: coarse) {
+  .tb-group button { min-height: 34px; }
+  .card-btn { padding: 6px 10px; font-size: 12.5px; }
+  .row { padding: 8px; }
+  .group-title .gt-actions { display: none; }
+  .group-title .gt-name { text-decoration: underline dotted; text-underline-offset: 3px; }
 }
 
 /* ---------- printed cut sheet ---------- */
@@ -336,6 +368,24 @@ body.dragging #dropHint { display: flex; }
   .ps-diagrams .board-svg text, .ps-diagrams .board-svg text.dim { fill: #000; }
 }
 .setup-mats input { width: 100%; min-width: 90px; box-sizing: border-box; }
+.lib-box.setup-box { width: min(760px, calc(100% - 24px)); }
+@media (max-width: 800px) { .setup-mats th:nth-child(2), .setup-mats td:nth-child(2) { display: none; } }
+/* phones: each material as a small card - name, then its choices - instead of a table wider than the screen */
+@media (max-width: 600px) {
+  .setup-mats thead { display: none; }
+  .setup-mats, .setup-mats tbody { display: block; }
+  .setup-mats tr { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .setup-mats td { display: block; border: none; padding: 0; min-width: 0; }
+  .setup-mats td:first-child { grid-column: 1 / -1; font-weight: 600; overflow-wrap: anywhere; }
+  .setup-mats td:nth-child(3) { grid-column: 1; grid-row: 2; }
+  .setup-mats td:nth-child(5) { grid-column: 2; grid-row: 2; }
+  .setup-mats td:nth-child(4) { grid-column: 1 / -1; grid-row: 3; }
+  .setup-mats td:nth-child(n+3)::before { display: block; font-size: 11px; color: var(--muted); margin-bottom: 2px; }
+  .setup-mats td:nth-child(3)::before { content: 'Counts as'; }
+  .setup-mats td:nth-child(4)::before { content: 'Called'; }
+  .setup-mats td:nth-child(5)::before { content: 'Looks like'; }
+  .setup-mats select, .setup-mats input { width: 100%; min-width: 0; box-sizing: border-box; }
+}
 .group-title .gt-name { cursor: pointer; }
 .group-title .gt-name:hover { text-decoration: underline; }
 .group-title.active .gt-name { color: var(--accent-text); }
@@ -344,3 +394,57 @@ body.dragging #dropHint { display: flex; }
 #dimCard .card-variants { margin: 3px 0 0 0; padding-left: 16px; font-style: normal; }
 #dimCard .card-variants li { margin: 1px 0; }
 #dimCard .card-piece { margin-top: 6px; font-size: 11.5px; color: var(--text-2); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+#dimCard .angle-toggle { margin-top: 5px; }
+.if-touch, .if-touch-block { display: none; }
+@media (pointer: coarse) {
+  .if-touch { display: inline; } .if-touch-block { display: table; } .if-mouse, .if-mouse-block { display: none; }
+  h2.if-touch { display: block; }
+}
+.help-touch td:first-child { font-weight: 600; white-space: nowrap; padding-right: 12px; }
+
+/* ---------- build mode ---------- */
+#buildPanel {
+  position: absolute; left: 10px; bottom: 54px; width: min(460px, calc(100% - 20px)); z-index: 7; display: none; box-sizing: border-box;
+  background: var(--card-bg); border: 1.5px solid var(--accent); border-radius: 10px; padding: 10px 14px 12px; max-height: calc(100% - 110px); overflow: auto;
+}
+body.build-mode #dimCard, body.build-mode #bottombar, body.build-mode #introTip { display: none !important; }
+.bp-top { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-2); }
+.bp-steps { max-width: 55%; min-width: 0; flex: 1 1 auto; background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 5px; padding: 3px 4px; font-weight: 600; }
+.bp-order { white-space: nowrap; }
+.bp-of { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bp-progress { height: 4px; background: var(--track); border-radius: 2px; margin: 8px 0 6px; overflow: hidden; }
+.bp-progress div { height: 100%; background: var(--accent); }
+.bp-name { font-size: 20px; font-weight: 700; color: var(--accent-text); }
+.bp-qty { color: var(--text); font-weight: 700; margin-left: 4px; }
+.bp-size { font-size: 26px; font-weight: 800; margin: 2px 0; letter-spacing: 0.01em; }
+.bp-sub { font-size: 12px; color: var(--text-3); margin-bottom: 4px; }
+#buildPanel .card-rel { font-size: 12.5px; margin-top: 4px; }
+#buildPanel .card-note { font-size: 12px; margin-top: 4px; }
+#buildPanel .card-note.warn { color: var(--warn); }
+#buildPanel .card-note.mine { color: var(--blue); }
+.bp-nav { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.bp-nav button { flex: 1; font-size: 16px; font-weight: 700; padding: 10px; border-radius: 8px; border: 1px solid var(--border-2); background: var(--panel-2); color: var(--text); cursor: pointer; }
+.bp-nav .bp-next { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.bp-nav button:disabled { opacity: 0.35; }
+.bp-cut { display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 600; white-space: nowrap; }
+.bp-cut input { width: 22px; height: 22px; accent-color: var(--accent); }
+#clBuild.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 700; }
+@media (max-width: 800px) {
+  body.build-mode #sidebar { display: none; }
+  .bp-of { display: none; }
+  #buildPanel { left: 8px; right: 8px; width: auto; bottom: 8px; max-height: 58%; }
+  .bp-size { font-size: 24px; }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  /* sideways: the step down the right-hand side, the model to its left */
+  #buildPanel { left: auto; right: 8px; top: 8px; bottom: 8px; width: min(46%, 400px); max-height: none; padding: 8px 12px; }
+  .bp-top { flex-wrap: wrap; }
+  .bp-steps { max-width: 100%; flex: 1 1 100%; }
+  .bp-size { font-size: 20px; }
+  .bp-name { font-size: 17px; }
+  .bp-nav button { padding: 8px; }
+}
+@media print { #buildPanel { display: none !important; } }
+.cd-other { margin: 4px 0; } .cd-other summary { cursor: pointer; font-weight: 600; } .cd-other ul { margin-top: 4px; }
+@media print { .cd-other:not([open]) ul { display: block; } }
+#help, #diagram, #library, #setup { box-sizing: border-box; padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0); }

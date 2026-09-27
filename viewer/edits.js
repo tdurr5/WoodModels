@@ -105,5 +105,3 @@ export function withGroupName(edits, group, name) {
   if (name && name.trim()) next.groups[group] = name.trim(); else delete next.groups[group];
   return next;
 }
-
-export const hasEdits = (e) => ['names', 'groups', 'status', 'pieces', 'joins', 'splits'].some((k) => Object.keys(e[k]).length > 0);

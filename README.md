@@ -13,11 +13,14 @@ A 3D cut-list viewer for woodworking plans, starting with the Lie-Nielsen/Brian 
   - `cutlist.js` - sidebar cut list, totals, CSV export, printable cut sheet
   - `diagram.js`, `nesting.js` - shopping list, cost estimate, cutting diagrams
   - `template.js` - printable full-size part templates
-  - `geometry.js` - oriented-box contact tests (what joins what, where holes go)
+  - `geometry.js` - oriented-box contact tests (what joins what, where holes go), overlapping pieces and joining them
+  - `autofix.js` - tells a board modeled as two overlapping pieces, or a stray copy, from a lap joint (automatic fixes on load)
   - `measure.js` - distance / angle / bevel tools with snapping
   - `angles.js`, `format.js` - compound-angle math, fractions, rough stock, board feet (pure, unit-tested)
   - `library.js`, `collada.js`, `zip.js`, `modelstore.js` - uploading models in the browser: COLLADA parser (a port of `parse_dae.py`), zip/KMZ reading, saved models (IndexedDB)
   - `edits.js` - your renames, deleted parts and parts set aside, per model
+  - `woodtex.js` - species wood textures (side and end grain) generated in the browser
+  - `build.js` - build mode's step order (assembly or cutting)
   - `settings.js` - per-browser preferences (units, allowances, parts ticked off)
   - `model.json` - per-model settings: title, friendly part names, notes, materials, axis names, view presets
   - `vendor/three/` - pinned three.js 0.160 build and the three addons used (MIT)
@@ -47,6 +50,8 @@ The viewer is an installable web app that keeps working offline once it has been
 
 It only publishes when you run it by hand. Open the published page once while online, then use "Add to Home Screen". After that it opens without a connection, model included.
 
+On a phone the layout follows how you hold it (model above the list upright, side by side sideways), measuring snaps from further away for a fingertip, and the ? help lists the touch gestures. The 3D view only redraws when something changes, so an idle page doesn't drain the battery.
+
 ## Using it
 
 **Cut list** (right sidebar)
@@ -58,14 +63,24 @@ It only publishes when you run it by hand. Open the published page once while on
 - **Shopping list & cutting diagram** (`C`):
   - Lays the rough parts out on boards of your stock size (length, width, kerf), grouped by species and thickness. Shows how many boards to buy and how much of each is used, and flags when an offcut will do.
   - Cuts follow a real sequence: crosscut into sections, rip into strips, crosscut the parts. Click a piece to find it in 3D.
-  - Hardware is totalled per size, e.g. rod pieces and the stock length to buy.
+  - **Sheet goods** (plywood, MDF, OSB, Masonite/hardboard, particle board, melamine...) are laid out on full sheets instead - 4×8 by default, or 5×10, 5×5, 4×4 or 2×4 - per material and thickness, at finished size. Materials whose name says what they are are detected automatically; otherwise pick **Sheet goods** in **Set up**.
+  - Hardware is totalled per size, e.g. rod pieces and the stock length to buy. Anything that is neither wood nor hardware is folded away under *Other parts*.
   - Enter a price per board foot for a lumber cost estimate.
 - **Your notes**: add a note to any part from its card; it shows in the list, CSV and printout.
 - ⚠ notes flag known problems in the source model (e.g. rods whose name says 8-1/4" but are modeled 6-7/8").
 
+**Build mode** (▶ Build at the top of the cut list) - the plan as a step-by-step guide for the shop, made for a phone:
+- One part per step, big: letter, name, quantity, finished and rough size, what it joins, its holes and your notes. Tick **Cut** and it moves on to the next part.
+- The model assembles as you go: parts from earlier steps solid, this one highlighted with its dimensions, the rest ghosted. Tap any part to jump to its step.
+- **Assembly order** builds from the ground up, assembly by assembly; **Cutting order** groups the wood by species and stock thickness, widest and longest first, the way you'd mill it.
+- It remembers where you were. ← / → (or Back / Next) step through; Esc leaves.
+- The phone's screen stays on while you're in build mode (where the browser allows it), and the steps follow any edits you make along the way.
+- Sideways on a phone, the step sits down the side with the model beside it.
+
 **3D view**
+- **Realistic wood**: each species has its own look - colour, growth rings with cathedral grain along the board, open pores in oak and ash, oak's ray fleck, knots in pine - with end grain on the ends of boards. The species is guessed from the material's name (in several languages); pick it yourself under **Looks like** in Set up. Textures are generated in the browser, so they work offline.
 - Click a part (on the model or in the list) to isolate it. You'll see its dimensions drawn on the part's own axes and a card with size, quantity and angles.
-- Angled parts show their lean as arcs: total lean from plumb (or level), split into front-to-back and side-to-side components. Legs also get the chairmaker's resultant/sightline angle and a bevel-gauge setting.
+- Angled parts can show their lean: click **∠ Show angles** on the part's card (it's off until you ask, so only your own measurements are drawn). You get the total lean from plumb (or level) as arcs, split into front-to-back and side-to-side components. Legs also get the chairmaker's resultant/sightline angle and a bevel-gauge setting.
 - The card lists what the part **joins** (click to jump there) and its **holes**, e.g. "4 × ⌀1/2" for Threaded Rod". A rod's card is a drilling list of the parts it passes through.
 - **Print full-size template** (on a wood part's card): face and edge views at 1:1, tiled across letter pages with a 1" check square. Tape the tiles together and trace the part onto your stock.
 - **3D / Front / Side / Top** views (`1`-`4`). Straight-on views switch to **Ortho** for true-scale elevations (`O` toggles it).
@@ -89,7 +104,7 @@ Click **Models** at the top of the sidebar (or press `M`), then choose a file - 
 
 1. On 3D Warehouse, open the model and use **Download → Collada File** (a `.zip`) or **KMZ**. The SketchUp `.skp` download can't be read in a browser; in SketchUp itself, **File → Export → 3D Model → COLLADA (.dae)** works too.
 2. Upload the `.zip`, `.kmz` or `.dae`. It's measured in the browser the same way `parse_dae.py` does it (any units, Z-up or Y-up, other exporters' COLLADA 1.4/1.5), so every tool - cut list, rough stock, joins, templates, cutting diagram, angle tools - works on it.
-3. A **Set up** dialog opens: name it, pick which materials count as **Wood** (only wood goes into rough stock, board feet and the cutting diagram), what each material is **called** (give the several textures a model uses for one species the same name, e.g. "Larch", and they total up as one), and which way the front of the piece faces. You can reopen it any time from the **Set up** button in the sidebar.
+3. A **Set up** dialog opens: name it, pick which materials count as **Wood** (only wood goes into rough stock, board feet and the cutting diagram) or **Sheet goods**, what each wood **looks like** (the species used for its grain in 3D), what each material is **called** (textures of a species it recognises are named after it for you - "Mélèse_Horizontal1" and "Mélèse_Verticale1" both become "Larch" - and any you give the same name total up as one), and which way the front of the piece faces. You can reopen it any time from the **Set up** button in the sidebar.
 
 Uploads are saved in this browser (nothing is sent anywhere), and the page reopens the model you had open last. Ticked-off parts, notes and preferences are kept per model. In the Models list you can switch between models, **Download** one as a zip of the six data files (to back it up, move it to another device - just upload the zip there - or add it to the repo as a `?model=` folder), or **Delete** it.
 

@@ -5,12 +5,13 @@
 import { parseCollada } from './collada.js';
 import { unzip, isZip, text as bytesToText, zip } from './zip.js';
 import {
-  saveModel, listModels, getModelFiles, putModelFile, deleteModel, getModelMeta,
+  saveModel, listModels, getModelFiles, getModelConfig, putModelFile, deleteModel, getModelMeta,
 } from './modelstore.js';
-import { escapeHtml } from './format.js';
+import { escapeHtml, looksLikeSheetGoods, SHEET } from './format.js';
+import { SPECIES, speciesFor } from './woodtex.js';
 
 const DATA_FILES = ['scene.obj', 'scene.mtl', 'materials.json', 'object_dims.json', 'parts_report.json', 'model.json'];
-export const CATEGORIES = ['Wood', 'Hardware', 'Leather', 'Other'];
+export const CATEGORIES = ['Wood', 'Sheet goods', 'Hardware', 'Leather', 'Other'];
 
 // ---------- import ----------
 
@@ -50,8 +51,8 @@ export async function importFile(file, onStatus = () => {}) {
   const cfg = JSON.parse(files['model.json']);
   // readable species names up front, so texture variants of one wood total up as one
   Object.entries(cfg.materials || {}).forEach(([name, m]) => {
-    const clean = cleanMaterialName(name);
-    if (!m.label && clean !== name) m.label = clean;
+    const label = defaultMaterialLabel(name, m);
+    if (!m.label && label !== name) m.label = label;
   });
   files['model.json'] = JSON.stringify(cfg, null, 2);
   return { name: cfg.title, files, parts: stats.parts };
@@ -84,15 +85,34 @@ export function cleanMaterialName(name) {
   return out || String(name || '').replace(/^_+/, '');
 }
 
-export function applySetup(cfg, { title, subtitle, categories, front, labels = {} }) {
+// What a material is called before you name it: the species for a wood we
+// recognise ("Mélèse_Horizontal1" and "Mélèse_Verticale1" are both Larch, so
+// they total up as one), otherwise its texture name without the clutter.
+export function defaultMaterialLabel(name, m = {}) {
+  const sp = m.category === 'Wood' ? speciesFor(name) : null;
+  return sp ? SPECIES[sp].name : cleanMaterialName(name);
+}
+
+// the category a material is treated as (cutlist.js prepareRows does the same)
+const effectiveCategory = (name, m) => ((m.category === 'Wood' || m.category === 'Other') && !m.userCategory && looksLikeSheetGoods(name, m.label) ? SHEET : m.category);
+
+// changed: materials whose category you picked yourself (kept as chosen)
+export function applySetup(cfg, { title, subtitle, categories, front, labels = {}, species = {}, changed = [] }) {
   const out = structuredClone(cfg);
   out.title = title || out.title;
   out.subtitle = subtitle ?? out.subtitle;
   Object.entries(categories || {}).forEach(([name, cat]) => {
     const m = (out.materials[name] = out.materials[name] || (name === '(none)' ? { color: '#c9975c', label: 'No material' } : { color: '#999999' }));
     m.category = cat;
-    if (cat === 'Wood' && !m.texture) m.texture = { base: '#c9975c', streak: '#a06f3b', ring: '#8a5a2c', tile: 5 };
-    if (cat !== 'Wood') delete m.texture;
+    if (changed.includes(name)) m.userCategory = true; // don't second-guess a choice (e.g. plywood as Wood)
+    if ((cat === 'Wood' || cat === 'Sheet goods') && !m.texture) m.texture = { base: '#c9975c', streak: '#a06f3b', ring: '#8a5a2c', tile: 5 };
+    if (cat !== 'Wood' && cat !== 'Sheet goods') delete m.texture;
+  });
+  // how the wood looks ('' = guess from its names)
+  Object.entries(species).forEach(([name, sp]) => {
+    const m = out.materials[name];
+    if (!m) return;
+    if (sp && SPECIES[sp]) m.species = sp; else delete m.species;
   });
   // materials given the same name are one species: totals and shopping list combine them
   Object.entries(labels).forEach(([name, label]) => {
@@ -224,37 +244,59 @@ export function initLibrary({ current, onOpen, builtIn }) {
       <label class="setup-field">Front of the piece faces
         <select name="front">${Object.keys(FRONTS).map((k) => `<option value="${k}"${k === frontOf(cfg) ? ' selected' : ''}>${k} (${k.includes('X') ? 'red' : 'blue'} axis ${k.startsWith('+') ? 'positive' : 'negative'})</option>`).join('')}</select></label>
       <p class="muted small">Tip: use the Front view button afterwards - if you see the back, pick the opposite direction.</p>
-      <table class="setup-mats"><thead><tr><th>Material</th><th>Used by</th><th>Counts as</th><th title="Species or material name. Materials with the same name are added up together.">Called</th></tr></thead><tbody>
+      <table class="setup-mats"><thead><tr><th>Material</th><th>Used by</th><th>Counts as</th><th title="Species or material name. Materials with the same name are added up together.">Called</th><th title="How the wood looks in 3D">Looks like</th></tr></thead><tbody>
       ${mats.map((m) => `<tr><td><span class="mat-swatch" style="background:${escapeHtml(cfg.materials[m].color || '#999')}"></span>${escapeHtml(m === '(none)' ? 'No material (unpainted)' : m.replace(/^_+/, ''))}</td>
         <td class="num">${uses[m] || 0} pc</td>
-        <td><select data-mat="${escapeHtml(m)}">${CATEGORIES.map((c) => `<option${c === cfg.materials[m].category ? ' selected' : ''}>${c}</option>`).join('')}</select></td>
-        <td><input data-label="${escapeHtml(m)}" value="${escapeHtml(cfg.materials[m].label || (m === '(none)' ? 'No material' : cleanMaterialName(m)))}" /></td></tr>`).join('')}
+        <td><select data-mat="${escapeHtml(m)}" data-initial="${escapeHtml(effectiveCategory(m, cfg.materials[m]))}">${CATEGORIES.map((c) => `<option${c === effectiveCategory(m, cfg.materials[m]) ? ' selected' : ''}>${c}</option>`).join('')}</select></td>
+        <td><input data-label="${escapeHtml(m)}" value="${escapeHtml(cfg.materials[m].label || (m === '(none)' ? 'No material' : defaultMaterialLabel(m, cfg.materials[m])))}" /></td>
+        <td><select data-species="${escapeHtml(m)}"><option value="">${escapeHtml(SPECIES[speciesFor(cfg.materials[m].label, m)]?.name ? `Auto (${SPECIES[speciesFor(cfg.materials[m].label, m)].name})` : 'Auto')}</option>${Object.entries(SPECIES).map(([k, sp]) => `<option value="${k}"${cfg.materials[m].species === k ? ' selected' : ''}>${escapeHtml(sp.name)}</option>`).join('')}</select></td></tr>`).join('')}
       </tbody></table>
       <p class="muted small">Only <b>Wood</b> parts go into rough stock, board feet, the cutting diagram and templates. Give materials the same name (e.g. all the oak textures "Red oak") to total them as one species.</p>`;
     setup.dataset.id = id;
     setup.style.display = 'flex';
   }
-  setup.querySelector('.setup-save').addEventListener('click', async () => {
+  const saveBtn = setup.querySelector('.setup-save');
+  saveBtn.addEventListener('click', async () => {
+    if (saveBtn.disabled) return;
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving…';
+    try {
+      await saveSetup();
+      saveBtn.textContent = 'Save';
+    } catch (e) {
+      saveBtn.textContent = 'Couldn\'t save - try again';
+      saveBtn.title = e.message || String(e);
+    }
+    saveBtn.disabled = false;
+  });
+  async function saveSetup() {
     const id = setup.dataset.id;
-    const files = await getModelFiles(id);
-    const cfg = JSON.parse(files['model.json']);
+    const cfg = JSON.parse(await getModelConfig(id));
     delete (cfg.materials || {}).default;
     const body = setup.querySelector('.setup-body');
     const categories = {};
-    body.querySelectorAll('select[data-mat]').forEach((s) => { categories[s.dataset.mat] = s.value; });
+    const changed = [];
+    body.querySelectorAll('select[data-mat]').forEach((s) => {
+      categories[s.dataset.mat] = s.value;
+      if (s.value !== s.dataset.initial) changed.push(s.dataset.mat);
+    });
     const labels = {};
     body.querySelectorAll('input[data-label]').forEach((i) => { labels[i.dataset.label] = i.value; });
+    const species = {};
+    body.querySelectorAll('select[data-species]').forEach((sel) => { species[sel.dataset.species] = sel.value; });
     const next = applySetup(cfg, {
       title: body.querySelector('[name=title]').value.trim(),
       subtitle: body.querySelector('[name=subtitle]').value.trim(),
       front: body.querySelector('[name=front]').value,
       categories,
       labels,
+      species,
+      changed,
     });
     await putModelFile(id, 'model.json', JSON.stringify(next, null, 2), { name: next.title });
     setup.style.display = 'none';
-    onOpen(`local:${id}`, { reload: true });
-  });
+    onOpen(`local:${id}`);
+  }
   setup.querySelector('.setup-cancel').addEventListener('click', () => { setup.style.display = 'none'; });
 
   return { open, close, openSetup, isOpen: () => modal.style.display === 'flex' || setup.style.display === 'flex', handleFile };

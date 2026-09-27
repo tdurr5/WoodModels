@@ -2,13 +2,17 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
-import { formatLength, escapeHtml, toFraction } from './format.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { woodMaterial, addEndGrain, endMapOf, speciesFor, generateGrainUV } from './woodtex.js';
+import { classifyOverlaps as classifyOverlapsIn, singleSidedGeometry } from './autofix.js';
+import { formatLength, escapeHtml, toFraction, isCut } from './format.js';
 import { compoundAngle, describeAngle, round1, DEFAULT_AXIS_NAMES } from './angles.js';
 import { initSettings, settings, updateSettings, onSettingsChange, resetSettings } from './settings.js';
 import {
   prepareRows, renderCutList, renderRows, markActive, visibleRows, focusSearch, finishedDims, buildPrintSheet, isRod, userNote,
-  millingPlanHTML, setCutListRows, inlineEdit, markActiveGroup,
+  millingPlanHTML, setCutListRows, inlineEdit, markActiveGroup, roughDims, roughFor, sheetLayouts,
 } from './cutlist.js';
+import { buildOrder } from './build.js';
 import {
   normalizeEdits, withStatus, withName, withGroupName, withPieceStatus, withJoin, withSplit, withAutoFixes, joinKey,
 } from './edits.js';
@@ -27,9 +31,16 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1b1c1f);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
-renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // 3x phones: no visible gain for 2.25x the pixels
 renderer.localClippingEnabled = true;
 viewport.prepend(renderer.domElement); // first, so the HTML overlays paint on top
+
+// Draw only when something may have changed - input, the camera moving, an
+// edit - and for a moment after. An idle phone on the bench shouldn't spend
+// its battery redrawing the same picture 60 times a second.
+let renderUntil = 0;
+function requestRender(ms = 500) { renderUntil = Math.max(renderUntil, performance.now() + ms); }
+['pointerdown', 'pointermove', 'pointerup', 'wheel', 'keydown', 'input', 'change', 'click'].forEach((t) => window.addEventListener(t, () => requestRender(), { capture: true, passive: true }));
 
 const perspCamera = new THREE.PerspectiveCamera(45, 1, 0.05, 2000);
 const orthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, -2000, 4000);
@@ -51,10 +62,34 @@ function resize() {
   const w = viewport.clientWidth, h = viewport.clientHeight;
   if (!w || !h || `${w}x${h}` === lastSize) return;
   lastSize = `${w}x${h}`;
+  requestRender();
   renderer.setSize(w, h, false);
   perspCamera.aspect = w / h;
   perspCamera.updateProjectionMatrix();
   updateOrthoFrustum();
+  updateFreeArea();
+}
+
+// The part of the view the build panel leaves free, where framing centers
+// the model - on a phone the panel covers the bottom (or, sideways, the
+// right) of the screen. Null: the whole view.
+let freeArea = null;
+function updateFreeArea() {
+  const w = viewport.clientWidth, h = viewport.clientHeight;
+  const panel = $('buildPanel');
+  let f = null;
+  if (build && w && h && panel.style.display !== 'none') {
+    const v = viewport.getBoundingClientRect(), p = panel.getBoundingClientRect();
+    const top = 48; // under the toolbar
+    if (p.width > w * 0.6 && p.top - v.top > h * 0.3) f = { x: 0, y: top, w, h: p.top - v.top - top };
+    else if (p.height > h * 0.6 && p.left - v.left > w * 0.35) f = { x: 0, y: top, w: p.left - v.left, h: h - top };
+  }
+  freeArea = f;
+  // shift the picture so the view's center sits in the middle of the free part
+  [perspCamera, orthoCamera].forEach((c) => {
+    if (f) c.setViewOffset(w, h, w / 2 - (f.x + f.w / 2), h / 2 - (f.y + f.h / 2), w, h);
+    else if (c.view?.enabled) c.clearViewOffset();
+  });
 }
 new ResizeObserver(resize).observe(viewport);
 
@@ -104,7 +139,9 @@ renderer.domElement.addEventListener('wheel', (e) => {
   camera.position.copy(controls.target).add(offset);
 }, { passive: false, capture: true });
 
-scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+// soft studio light for reflections, so finished wood has some life to it
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(renderer), 0.04).texture;
+scene.add(new THREE.AmbientLight(0xffffff, 0.45));
 const sun1 = new THREE.DirectionalLight(0xffffff, 1.1);
 sun1.position.set(1, 2, 1.5);
 scene.add(sun1);
@@ -147,89 +184,6 @@ let diagram = null; // cutting-diagram modal
 const dimCard = $('dimCard');
 const axisLabelsEl = $('axisLabels');
 const AXIS_COLORS = { Length: '#ff6b4a', Width: '#7ee08a', Thickness: '#6ab7ff' };
-
-// ---------- procedural wood grain (no external texture assets needed) ----------
-// Texture streaks run along the texture's V axis, so map V to the part's own
-// length axis: grain then runs along every board the way it's cut, whatever
-// its orientation in the model. U is whichever cross axis lies in the face.
-// Parts without dimension data fall back to world-axis box mapping.
-function generateGrainUV(geometry, tileSize, dims) {
-  if (!geometry.attributes.normal) geometry.computeVertexNormals();
-  const pos = geometry.attributes.position;
-  const norm = geometry.attributes.normal;
-  const uv = new Float32Array(pos.count * 2);
-  const byRole = dims ? Object.fromEntries(dims.axes.map((a) => [a.role, new THREE.Vector3(...a.direction)])) : {};
-  const L = byRole.Length, W = byRole.Width, T = byRole.Thickness;
-  const c = dims ? new THREE.Vector3(...dims.center) : new THREE.Vector3();
-  const p = new THREE.Vector3(), n = new THREE.Vector3();
-  for (let i = 0; i < pos.count; i++) {
-    p.fromBufferAttribute(pos, i);
-    n.fromBufferAttribute(norm, i);
-    let u, v;
-    if (L && W && T) {
-      p.sub(c);
-      const nl = Math.abs(n.dot(L)), nw = Math.abs(n.dot(W)), nt = Math.abs(n.dot(T));
-      if (nl > nw && nl > nt) { u = p.dot(W); v = p.dot(T); } // end grain
-      else { u = nw > nt ? p.dot(T) : p.dot(W); v = p.dot(L); }
-    } else {
-      const ax = Math.abs(n.x), ay = Math.abs(n.y), az = Math.abs(n.z);
-      if (ax >= ay && ax >= az) { u = p.y; v = p.z; }
-      else if (ay >= ax && ay >= az) { u = p.x; v = p.z; }
-      else { u = p.x; v = p.y; }
-    }
-    uv[i * 2] = u / tileSize;
-    uv[i * 2 + 1] = v / tileSize;
-  }
-  geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-}
-
-// Seeded so the grain looks the same on every load (and in screenshots).
-function mulberry32(seed) {
-  return () => {
-    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-const woodTextureCache = new Map();
-function getWoodTexture(key, { base, streak, ring }) {
-  if (woodTextureCache.has(key)) return woodTextureCache.get(key);
-  const rand = mulberry32([...key].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7));
-  const size = 512;
-  const canvas = document.createElement('canvas');
-  canvas.width = size; canvas.height = size;
-  const g = canvas.getContext('2d');
-  g.fillStyle = base;
-  g.fillRect(0, 0, size, size);
-  for (let i = 0; i < 90; i++) {
-    let x = rand() * size;
-    g.strokeStyle = rand() < 0.5 ? streak : ring;
-    g.globalAlpha = 0.06 + rand() * 0.16;
-    g.lineWidth = 0.5 + rand() * 2.2;
-    g.beginPath();
-    g.moveTo(x, 0);
-    for (let y = 0; y <= size; y += 14) { x += (rand() - 0.5) * 9; g.lineTo(x, y); }
-    g.stroke();
-  }
-  for (let i = 0; i < 2; i++) {
-    if (rand() < 0.5) continue;
-    const kx = rand() * size, ky = rand() * size, kr = 6 + rand() * 10;
-    const grad = g.createRadialGradient(kx, ky, 1, kx, ky, kr);
-    grad.addColorStop(0, streak);
-    grad.addColorStop(1, base);
-    g.globalAlpha = 0.5;
-    g.fillStyle = grad;
-    g.beginPath(); g.arc(kx, ky, kr, 0, Math.PI * 2); g.fill();
-  }
-  g.globalAlpha = 1;
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  woodTextureCache.set(key, tex);
-  return tex;
-}
 
 // ---------- loading ----------
 // Which model to show:
@@ -293,9 +247,9 @@ async function init() {
   allPartRows.forEach((r) => (r.obj_names || []).forEach((n) => rowByMeshName.set(n, r)));
 
   renderCutList($('sidebar'), allPartRows, cfg, {
-    onSelect: (r) => selectRow(r), onPrint: printSheet, onDiagram: () => diagram.open(),
+    onSelect: (r) => pickRow(r), onPrint: printSheet, onDiagram: () => diagram.open(),
     onLibrary: () => library.open(), onSetup: LOCAL_ID ? () => library.openSetup(LOCAL_ID) : null,
-    onSetStatus: setPartStatus, onRenameGroup: renameGroup, onSelectGroup: selectGroup,
+    onSetStatus: setPartStatus, onRenameGroup: renameGroup, onSelectGroup: selectGroup, onBuild: () => startBuild(),
   });
   diagram = initDiagramModal({ rows, onSelectRow: (r) => selectRow(r), finishArea: () => (model ? woodSurfaceArea() : 0) });
   buildViewButtons();
@@ -318,7 +272,7 @@ async function init() {
     history.replaceState(null, '', `${location.pathname}?model=${encodeURIComponent(MODEL_REF)}${location.hash}`); // a reload shouldn't reopen it
     library.openSetup(LOCAL_ID);
   }
-  else if (!settings().seenIntro) $('introTip').style.display = 'block';
+  else if (!settings().seenIntro && !seenIntroAnywhere()) $('introTip').style.display = 'block';
 }
 
 // Model library (uploads). Opening a model reloads the page on it, so every
@@ -334,10 +288,14 @@ const library = initLibrary({
 let builtInTitle = 'Built-in model';
 fetchText('model.json').then((t) => { builtInTitle = JSON.parse(t).title || builtInTitle; }).catch(() => {});
 
+// the welcome tips once per browser, not again for every model you upload
+const INTRO_KEY = 'woodmodels:seenIntro';
+function seenIntroAnywhere() { try { return !!localStorage.getItem(INTRO_KEY); } catch { return false; } }
 function dismissIntro() {
   if ($('introTip').style.display === 'none') return;
   $('introTip').style.display = 'none';
   updateSettings({ seenIntro: true });
+  try { localStorage.setItem(INTRO_KEY, '1'); } catch { /* storage unavailable */ }
 }
 $('introClose').addEventListener('click', dismissIntro);
 
@@ -348,17 +306,20 @@ $('introClose').addEventListener('click', dismissIntro);
 // edits too (e.g. a downloaded model added to the repo).
 const editsStorageKey = () => `woodmodels:${modelKey}:edits`;
 function loadEdits(cfg) {
-  if (!LOCAL_ID) {
-    try {
-      const saved = JSON.parse(localStorage.getItem(editsStorageKey()) || 'null');
-      if (saved) return normalizeEdits(saved);
-    } catch { /* storage unavailable */ }
-  }
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(editsStorageKey()) || 'null'); } catch { /* storage unavailable */ }
+  if (!LOCAL_ID) return normalizeEdits(saved || cfg.edits);
+  // uploaded model: its model.json, unless the quick copy below is newer (a
+  // reload right after an edit can beat the model's asynchronous save)
+  if (saved?.t && saved.t > (cfg.editsSavedAt || 0)) return normalizeEdits(saved.edits);
   return normalizeEdits(cfg.edits);
 }
 function saveEdits() {
   if (LOCAL_ID) {
+    const t = Date.now();
+    try { localStorage.setItem(editsStorageKey(), JSON.stringify({ t, edits })); } catch { /* storage unavailable */ }
     config.edits = edits;
+    config.editsSavedAt = t;
     putModelFile(LOCAL_ID, 'model.json', JSON.stringify(config, null, 2))
       .catch((e) => showToast(`Couldn't save your change: ${e.message || e}`));
   } else {
@@ -443,81 +404,11 @@ function computeRows() {
   addOverlapNotes(allPartRows);
 }
 
-// ---------- automatic fixes for rough models ----------
-// Same-size pieces lying in the same space (findOverlaps) are looked at
-// closely: sample points in the shared stretch and test whether each is
-// inside both meshes. Both, over most of it: the pieces really fill the same
-// space - one longer piece modeled as two (join them) or a copy left in place
-// (drop it). Each board in only one: a lap joint, real joinery - leave it.
-const insideRay = new THREE.Raycaster();
-const solidCache = new Map();
-function isInside(mesh, p, dirs) {
-  let solid = solidCache.get(mesh);
-  if (!solid) {
-    solid = new THREE.Mesh(singleSidedGeometry(mesh.geometry), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
-    solid.updateMatrixWorld();
-    solidCache.set(mesh, solid);
-  }
-  return dirs.every((d) => {
-    insideRay.set(p, d);
-    let n = 0, last = -1;
-    insideRay.intersectObject(solid, false).forEach((h) => { if (h.distance - last > 1e-4) { n++; last = h.distance; } });
-    return n % 2 === 1;
-  });
-}
-
-function classifyOverlap(o) {
-  const A = baseObjectDims[o.a], B = baseObjectDims[o.b];
-  const ma = meshByName.get(o.a), mb = meshByName.get(o.b);
-  if (!A || !B || !ma || !mb) return 'unsure';
-  const [L, W, T] = A.axes.map((a) => new THREE.Vector3(...a.direction).normalize());
-  const [lenA, wA, tA] = A.axes.map((a) => a.length);
-  const lenB = B.axes[0].length;
-  const cA = new THREE.Vector3(...A.center);
-  const t = new THREE.Vector3(...B.center).sub(cA).dot(L);
-  const lo = Math.max(-lenA / 2, t - lenB / 2), hi = Math.min(lenA / 2, t + lenB / 2);
-  let both = 0, one = 0, total = 0;
-  for (let i = 0; i < 5; i++) {
-    const s = lo + (hi - lo) * (0.1 + 0.2 * i);
-    for (const [fw, ft] of [[0.25, 0.25], [0.25, -0.25], [-0.25, 0.25], [-0.25, -0.25]]) {
-      const p = cA.clone().addScaledVector(L, s).addScaledVector(W, fw * wA).addScaledVector(T, ft * tA);
-      const ia = isInside(ma, p, [W, T]), ib = isInside(mb, p, [W, T]);
-      total++;
-      if (ia && ib) both++; else if (ia || ib) one++;
-    }
-  }
-  if (both / total >= 0.75) return o.span <= Math.max(lenA, lenB) + 1 / 16 ? 'dupe' : 'join';
-  if (both / total <= 0.1 && one / total >= 0.5) return 'lap';
-  return 'unsure';
-}
-
+// ---------- automatic fixes for rough models (autofix.js) ----------
 // Fills overlapKind and autoFixes; true if there's anything to fix.
 function classifyOverlaps() {
-  overlapKind = new Map();
-  const dupes = new Set();
-  const joinPairs = [];
-  overlaps.forEach((o) => {
-    const kind = classifyOverlap(o);
-    overlapKind.set(`${o.a}|${o.b}`, kind);
-    if (kind === 'dupe') {
-      // drop the shorter one (the one inside the other); the second if equal
-      const la = baseObjectDims[o.a].axes[0].length, lb = baseObjectDims[o.b].axes[0].length;
-      dupes.add(la < lb - 1 / 64 ? o.a : o.b);
-    } else if (kind === 'join') joinPairs.push(o);
-  });
-  // chains of overlapping boards become one piece each
-  const parent = new Map();
-  const find = (x) => { while (parent.get(x) !== x) x = parent.get(x); return x; };
-  joinPairs.forEach(({ a, b }) => {
-    if (dupes.has(a) || dupes.has(b)) return;
-    [a, b].forEach((n) => { if (!parent.has(n)) parent.set(n, n); });
-    parent.set(find(a), find(b));
-  });
-  const chains = new Map();
-  [...parent.keys()].forEach((n) => { const r = find(n); if (!chains.has(r)) chains.set(r, []); chains.get(r).push(n); });
-  const joins = [...chains.values()].map((names) => names.sort());
-  autoFixes = { joins, dupes: [...dupes] };
-  return joins.length + dupes.size > 0;
+  ({ kinds: overlapKind, fixes: autoFixes } = classifyOverlapsIn(overlaps, baseObjectDims, (n) => meshByName.get(n)));
+  return autoFixes.joins.length + autoFixes.dupes.length > 0;
 }
 
 // Say what was fixed automatically, once per model (and after it changes).
@@ -564,6 +455,7 @@ function refreshRows() {
       renderGroupCard(groupBox(groupSel));
     } else clearSelection();
   }
+  if (build) refreshBuild();
 }
 
 // Parts drawn in 3D: not deleted, and set-aside ones only when shown.
@@ -586,7 +478,7 @@ function showToast(msg, { undo = false, ms = 0 } = {}) {
   el.classList.add('show');
   el.querySelector('[data-act="undo"]')?.addEventListener('click', () => undoEdit());
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), ms || (undo ? 6000 : 2500));
+  toastTimer = setTimeout(() => el.classList.remove('show'), ms || (undo ? 9000 : 3000));
 }
 
 function prepareMeshes(materialNames) {
@@ -595,23 +487,27 @@ function prepareMeshes(materialNames) {
     // parts with SketchUp's default (no) material are configured as "(none)"
     const mtlName = materialNames[child.material && child.material.name];
     const realName = mtlName === 'default' && config.materials?.['(none)'] ? '(none)' : mtlName;
-    const tex = config.materials?.[realName]?.texture;
-    if (tex) {
-      generateGrainUV(child.geometry, tex.tile || 5, objectDims[child.name]);
-      child.material = new THREE.MeshStandardMaterial({ map: getWoodTexture(realName, tex), roughness: 0.85, metalness: 0.0 });
+    const mc = config.materials?.[realName];
+    if (mc?.texture || mc?.species) {
+      // wood: the species set in Set up, else guessed from the material's names
+      const seed = [...child.name].reduce((h, ch) => (Math.imul(h, 31) + ch.charCodeAt(0)) | 0, 17);
+      generateGrainUV(child.geometry, 6, objectDims[child.name], seed);
+      child.material = woodMaterial(mc.species || speciesFor(mc.label, realName), mc.texture);
+      child.material.color.multiplyScalar(0.9 + 0.14 * (((seed >>> 0) % 97) / 97)); // no two boards quite the same shade
     } else {
       child.material = child.material.clone(); // own copy so clipping/wireframe flags are per mesh
     }
     const orig = child.material;
-    const dim = orig.clone();
+    const endMap = endMapOf(orig);
+    const dim = addEndGrain(orig.clone(), endMap);
     dim.transparent = true;
     dim.opacity = 0.18;
     dim.depthWrite = false;
-    const hl = orig.clone();
+    const hl = addEndGrain(orig.clone(), endMap);
     hl.emissive = new THREE.Color(0xff5b3d);
     hl.emissiveIntensity = 0.55;
     if (!hl.map) hl.color = new THREE.Color(0xff8a66);
-    const hlPiece = hl.clone(); // the one piece clicked of a part with several
+    const hlPiece = addEndGrain(hl.clone(), endMap); // the one piece clicked of a part with several
     hlPiece.emissive = new THREE.Color(0xffb020);
     if (!hlPiece.map) hlPiece.color = new THREE.Color(0xffc266);
     const row = rowByMeshName.get(child.name);
@@ -645,12 +541,22 @@ function allMaterials() {
 }
 
 function applyMaterials() {
+  requestRender();
   const s = settings();
   const hidden = new Set(s.hiddenCategories);
   const selected = new Set(current ? current.meshes : []);
   meshes.forEach((m) => {
     const info = meshInfo.get(m);
     const catHidden = info.row && hidden.has(info.row.category);
+    if (build) {
+      // build mode: parts from earlier steps solid, this step highlighted, the rest ghosted
+      const step = build.stepOf.get(info.row?.key);
+      const done = step !== undefined && step < build.i;
+      const now = selected.has(m);
+      m.visible = now || (isShownPart(m) && !catHidden);
+      m.material = now ? info.hl : done ? info.orig : info.dim;
+      return;
+    }
     const inGroup = !current && groupSel !== null && info.row?.top_group === groupSel;
     const isSel = selected.has(m) || inGroup;
     m.visible = isSel || (isShownPart(m) && !catHidden && !(s.isolate && (current || groupSel !== null) && !isSel));
@@ -668,26 +574,6 @@ function applyMaterials() {
 let capMesh = null;
 const stencilHelpers = [];
 
-const singleSidedCache = new WeakMap();
-function singleSidedGeometry(geo) {
-  if (singleSidedCache.has(geo)) return singleSidedCache.get(geo);
-  const src = geo.index ? geo.toNonIndexed() : geo;
-  const pos = src.attributes.position.array;
-  const seen = new Set();
-  const keep = [];
-  const k = (i) => `${pos[i].toFixed(4)},${pos[i + 1].toFixed(4)},${pos[i + 2].toFixed(4)}`;
-  for (let t = 0; t + 8 < pos.length; t += 9) {
-    const key = [k(t), k(t + 3), k(t + 6)].sort().join('|');
-    if (seen.has(key)) continue;
-    seen.add(key);
-    for (let j = 0; j < 9; j++) keep.push(pos[t + j]);
-  }
-  const out = new THREE.BufferGeometry();
-  out.setAttribute('position', new THREE.Float32BufferAttribute(keep, 3));
-  singleSidedCache.set(geo, out);
-  return out;
-}
-
 // Total wood surface in square inches (one side of each double-sided face),
 // for estimating how much finish to buy.
 function woodSurfaceArea() {
@@ -695,7 +581,7 @@ function woodSurfaceArea() {
   const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), tri = new THREE.Triangle();
   meshes.forEach((m) => {
     const row = rowByMeshName.get(m.name);
-    if (!row || row.category !== 'Wood' || row.status) return;
+    if (!row || !isCut(row) || row.status) return;
     const pos = singleSidedGeometry(m.geometry).attributes.position;
     for (let i = 0; i + 2 < pos.count; i += 3) {
       a.fromBufferAttribute(pos, i); b.fromBufferAttribute(pos, i + 1); c.fromBufferAttribute(pos, i + 2);
@@ -763,6 +649,7 @@ function placeCap() {
 }
 
 function applySection() {
+  requestRender();
   const on = section.axis !== 'off';
   if (on) {
     const i = { x: 0, y: 1, z: 2 }[section.axis];
@@ -787,6 +674,7 @@ function setWireframe(on) {
 }
 
 function setExplodePositions(f) {
+  requestRender();
   meshes.forEach((m) => {
     const { baseCenter, groupCenter } = meshInfo.get(m);
     m.position.copy(groupCenter).sub(modelCenter).multiplyScalar(f)
@@ -835,6 +723,7 @@ function applySettingsToScene() {
 }
 
 onSettingsChange((s, patch) => {
+  requestRender();
   if ('units' in patch || 'showRough' in patch || 'allowance' in patch || 'cut' in patch || 'hiddenCategories' in patch || 'userNotes' in patch || 'showAside' in patch) renderRows();
   if ('showAside' in patch && model) updateModelBox();
   if ('units' in patch && model && overlaps.length) refreshRows(); // overlap notes are written in the units shown
@@ -858,8 +747,9 @@ function fitDistance(box, dir) {
   const right = new THREE.Vector3().crossVectors(up, dir).normalize();
   const trueUp = new THREE.Vector3().crossVectors(dir, right).normalize();
   const center = box.getCenter(new THREE.Vector3());
-  const tanV = Math.tan(THREE.MathUtils.degToRad(perspCamera.fov / 2));
-  const tanH = tanV * (perspCamera.aspect || 1);
+  const full = Math.tan(THREE.MathUtils.degToRad(perspCamera.fov / 2));
+  const tanV = full * (freeArea ? freeArea.h / viewport.clientHeight : 1);
+  const tanH = full * (perspCamera.aspect || 1) * (freeArea ? freeArea.w / viewport.clientWidth : 1);
   let persp = 1, lateral = 1;
   for (let i = 0; i < 8; i++) {
     const c = new THREE.Vector3(i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : box.min.y, i & 4 ? box.max.z : box.min.z).sub(center);
@@ -1009,6 +899,7 @@ function disposeOverlays() {
 }
 
 function buildSelectionOverlays() {
+  requestRender();
   disposeOverlays();
   const box = new THREE.Box3();
   current.meshes.forEach((m) => box.expandByObject(m));
@@ -1035,7 +926,7 @@ function buildSelectionOverlays() {
     const sub = new THREE.Group();
     sub.position.copy(m.position); // exploded-view offset
     if (i < (current.row.customDims ? 1 : MAX_DIMENSIONED)) buildDimensionGizmo(sub, data, labelSpecs, m.position, i ? first : null);
-    buildAngleGizmo(sub, data, labelSpecs, m.position);
+    if (settings().showPartAngles) buildAngleGizmo(sub, data, labelSpecs, m.position);
     // several versions of the part: number each piece by its version
     if (variants.length > 1) {
       const v = variants.findIndex((g) => g.meshes.includes(m));
@@ -1054,7 +945,7 @@ function buildSelectionOverlays() {
     if (spec.differs) el.title = 'Different from the first piece';
     if (spec.cls === 'version') el.title = `Version ${spec.text} of this part - see the part card`;
     axisLabelsEl.appendChild(el);
-    return { pos: spec.pos, el };
+    return { pos: spec.pos, el, text: spec.text };
   });
   renderDimCard();
 }
@@ -1278,7 +1169,7 @@ function contactHtml(row) {
   const link = ({ row: r, n }) => `<a href="#part=${encodeURIComponent(partRef(r))}" data-key="${escapeHtml(r.key)}">${escapeHtml(r.name)}</a>${n > 1 ? ` ×${n}` : ''}`;
   const units = settings().units;
   if (isRod(row)) {
-    const wood = list.filter((c) => c.row.category === 'Wood');
+    const wood = list.filter((c) => isCut(c.row));
     return wood.length ? `<div class="card-rel"><b>Bore ⌀${escapeHtml(formatLength(row.dims[1], units))}</b> (plus clearance) through: ${wood.map(link).join(', ')}</div>` : '';
   }
   // Hardware facets (bolt heads, nuts) are one mesh per face; they're listed
@@ -1306,7 +1197,7 @@ function drillingHtml() {
   const units = settings().units;
   const items = rows.filter((r) => isRod(r) && r.clickable).map((r) => {
     const mesh = meshByName.get(r.obj_names[0]);
-    const wood = mesh ? pieceContacts(mesh, r).filter((c) => c.row.category === 'Wood') : [];
+    const wood = mesh ? pieceContacts(mesh, r).filter((c) => isCut(c.row)) : [];
     if (!wood.length) return '';
     const through = wood.map((c) => `${escapeHtml(c.row.name)}${c.n > 1 ? ` ×${c.n}` : ''}`).join(', ');
     return `<tr><td class="ps-chk"><span class="box"></span></td><td><b>${escapeHtml(r.name)}</b> <span class="ps-grp">${escapeHtml(formatLength(r.dims[0], units))} long</span></td>
@@ -1378,6 +1269,142 @@ function mergePositions(geos) {
   return g;
 }
 
+// ---------- build mode ----------
+// A step-by-step guide for the shop (build.js orders the parts): one part per
+// step, big, with its size, rough stock, joins and notes and a "cut" tick; the
+// model assembles as you go.
+let build = null; // { order: rows, stepOf: key -> index, i }
+
+function buildSteps() {
+  const boxOf = (r) => {
+    const box = new THREE.Box3();
+    (r.obj_names || []).forEach((n) => { const m = meshByName.get(n); if (m) box.expandByObject(m); });
+    if (box.isEmpty()) return null;
+    const sz = box.getSize(new THREE.Vector3());
+    return { minY: box.min.y, volume: sz.x * sz.y * sz.z };
+  };
+  return buildOrder(rows.filter((r) => r.clickable), boxOf, settings().buildOrder, (r) => roughFor(r)?.thickness || r.dims[2]);
+}
+const buildState = (order, i) => ({ order, stepOf: new Map(order.map((r, k) => [r.key, k])), i });
+
+// Keep the screen on while building: a phone propped up on the bench
+// shouldn't go dark between cuts. (The lock drops when the tab is hidden.)
+let wakeLock = null;
+async function keepAwake(on) {
+  try {
+    if (on && !wakeLock && navigator.wakeLock && document.visibilityState === 'visible') {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => { wakeLock = null; });
+    } else if (!on && wakeLock) await wakeLock.release();
+  } catch { /* not allowed (e.g. battery saver): the screen sleeps as usual */ }
+}
+document.addEventListener('visibilitychange', () => { if (build) keepAwake(true); });
+
+function startBuild() {
+  if (!model) return;
+  const order = buildSteps();
+  if (!order.length) return;
+  build = buildState(order, Math.max(0, order.findIndex((r) => r.key === settings().buildStep)));
+  keepAwake(true);
+  document.body.classList.add('build-mode');
+  measure.cancel();
+  syncToolButtons();
+  dismissIntro();
+  showStep(true);
+}
+
+// after an edit (renamed, deleted, set aside): fresh steps, same part if it's still there
+function refreshBuild() {
+  const order = buildSteps();
+  if (!order.length) { exitBuild(); return; }
+  const k = order.findIndex((r) => r.key === build.order[build.i].key);
+  build = buildState(order, k >= 0 ? k : Math.min(build.i, order.length - 1));
+  if (k >= 0 && current) renderBuildPanel(); else showStep(true);
+}
+
+// a part picked in the list: in build mode, go to its step
+function pickRow(r) {
+  const k = build ? build.order.findIndex((x) => x.key === r.key) : -1;
+  if (k >= 0) { build.i = k; showStep(true); } else selectRow(r);
+}
+
+function exitBuild() {
+  build = null;
+  keepAwake(false);
+  document.body.classList.remove('build-mode');
+  $('buildPanel').style.display = 'none';
+  updateFreeArea();
+  clearSelection();
+  frameBox(focusBox(), null);
+}
+
+function stepBuild(delta) {
+  if (!build) return;
+  build.i = Math.min(build.order.length - 1, Math.max(0, build.i + delta));
+  showStep(true);
+}
+
+function showStep(frame) {
+  const row = build.order[build.i];
+  selectRow(row, { frame: false });
+  updateSettings({ buildStep: row.key });
+  renderBuildPanel();
+  // frame once the panel is up: its height changes with the step
+  updateFreeArea();
+  if (frame && current?.box) frameBox(current.box, null);
+}
+
+function renderBuildPanel() {
+  const el = $('buildPanel');
+  const row = build.order[build.i];
+  const units = settings().units;
+  const cutSet = new Set(settings().cut);
+  const n = build.order.length;
+  const rough = row.category === 'Wood' ? roughDims(row, units) : '';
+  const mine = userNote(row);
+  el.innerHTML = `
+    <div class="bp-top">
+      <select class="bp-steps" title="Jump to a step">${build.order.map((r, k) => `<option value="${k}"${k === build.i ? ' selected' : ''}>${k + 1}. ${escapeHtml(r.letter)} ${escapeHtml(r.name)}${cutSet.has(r.key) ? ' ✓' : ''}</option>`).join('')}</select>
+      <span class="bp-of">of ${n} · ${escapeHtml(row.groupName)}</span>
+      <button class="bp-order card-btn" title="Step through the parts in assembly order (ground up) or cutting order (by species and stock thickness)">${settings().buildOrder === 'cutting' ? 'Cutting order' : 'Assembly order'}</button>
+      <button class="bp-exit card-btn" title="Leave build mode (Esc)">Exit</button>
+    </div>
+    <div class="bp-progress"><div style="width:${Math.round(((build.i + 1) / n) * 100)}%"></div></div>
+    <div class="bp-name"><span class="letter">${row.letter}</span>${escapeHtml(row.name)} <span class="bp-qty">×${row.count}</span></div>
+    <div class="bp-size">${escapeHtml(finishedDims(row, units))}</div>
+    <div class="bp-sub">${row.customDims ? '' : 'Thickness × Width × Length'}${rough ? ` · rough <b>${escapeHtml(rough)}</b>` : ''} · ${escapeHtml(row.materialLabel)}</div>
+    ${contactHtml(row)}
+    ${row.notes.map((t) => `<div class="card-note${row.warn ? ' warn' : ''}">${escapeHtml(t)}</div>`).join('')}
+    ${mine ? `<div class="card-note mine">✎ ${escapeHtml(mine)}</div>` : ''}
+    <div class="bp-nav">
+      <button class="bp-prev" ${build.i === 0 ? 'disabled' : ''}>◀ Back</button>
+      <label class="bp-cut"><input type="checkbox" ${cutSet.has(row.key) ? 'checked' : ''} /> ${isCut(row) ? 'Cut' : 'Done'}</label>
+      <button class="bp-next" ${build.i === n - 1 ? 'disabled' : ''}>Next ▶</button>
+    </div>`;
+  el.style.display = 'block';
+  el.querySelector('.bp-exit').addEventListener('click', () => exitBuild());
+  el.querySelector('.bp-order').addEventListener('click', () => {
+    updateSettings({ buildOrder: settings().buildOrder === 'cutting' ? 'assembly' : 'cutting' });
+    startBuild(); // same part, new order
+  });
+  el.querySelector('.bp-prev').addEventListener('click', () => stepBuild(-1));
+  el.querySelector('.bp-next').addEventListener('click', () => stepBuild(1));
+  el.querySelector('.bp-steps').addEventListener('change', (e) => { build.i = +e.target.value; showStep(true); });
+  el.querySelector('.bp-cut input').addEventListener('change', (e) => {
+    const next = new Set(settings().cut);
+    if (e.target.checked) next.add(row.key); else next.delete(row.key);
+    updateSettings({ cut: [...next] });
+    // ticking a part off moves on to the next one
+    if (e.target.checked && build.i < n - 1) setTimeout(() => stepBuild(1), 250);
+    else renderBuildPanel();
+  });
+  el.querySelectorAll('.card-rel a').forEach((a) => a.addEventListener('click', (e) => {
+    e.preventDefault();
+    const k = build.order.findIndex((r) => r.key === a.dataset.key);
+    if (k >= 0) { build.i = k; showStep(true); }
+  }));
+}
+
 function renameSelected() {
   if (!current) return;
   if (cardCollapsed) { cardCollapsed = false; renderDimCard(); }
@@ -1397,7 +1424,8 @@ function renderDimCard() {
     ${row.status === 'aside' ? '<div class="card-aside">Set aside - not in the build (not counted in totals, shopping list or prints)</div>' : ''}
     <div class="dim-big">${escapeHtml(finishedDims(row))}</div>
     <div class="dim-axes">${row.customDims ? '' : 'Thickness × Width × Length'}</div>
-    ${angleHtml(data)}
+    ${settings().showPartAngles ? angleHtml(data) : ''}
+    ${angleHtml(data) ? `<button class="card-btn angle-toggle" data-act="angles" title="The part's lean / splay angles, worked out from the model">${settings().showPartAngles ? 'Hide angles' : '∠ Show angles'}</button>` : ''}
     <div class="meta">qty ${row.count} · ${escapeHtml(row.materialLabel)} · ${escapeHtml(row.groupName)}</div>
     ${variantsHtml(current.variants)}
     ${contactHtml(row)}
@@ -1414,7 +1442,7 @@ function renderDimCard() {
       <button class="card-btn" data-act="piece-aside" title="Set aside just this piece">Set aside</button>
       <button class="card-btn danger" data-act="piece-delete" title="Delete just this piece, not all ${row.count}">Delete</button></div>` : ''}
     <div class="card-actions">
-      ${data && row.category === 'Wood' && !row.status ? '<button class="card-btn" data-act="template" title="Print this part at full size to trace onto your stock">Print full-size template</button>' : ''}
+      ${data && isCut(row) && !row.status ? '<button class="card-btn" data-act="template" title="Print this part at full size to trace onto your stock">Print full-size template</button>' : ''}
       ${row.status === 'aside'
     ? '<button class="card-btn" data-act="build" title="Put this part back in the build">Put back in build</button>'
     : `<button class="card-btn" data-act="aside" title="Keep it with its sizes, but leave it out of the build: totals, shopping list, prints (e.g. a tool drawn on the bench)">Set aside${row.count > 1 ? ` all ×${row.count}` : ''}</button>`}
@@ -1442,6 +1470,7 @@ function renderDimCard() {
   const tplBtn = dimCard.querySelector('[data-act="template"]');
   if (tplBtn) tplBtn.addEventListener('click', () => printTemplate());
   dimCard.querySelector('.pn-edit').addEventListener('click', () => renameSelected());
+  dimCard.querySelector('[data-act="angles"]')?.addEventListener('click', () => updateSettings({ showPartAngles: !settings().showPartAngles }));
   dimCard.querySelector('[data-act="aside"]')?.addEventListener('click', () => setPartStatus([row], 'aside'));
   dimCard.querySelector('[data-act="build"]')?.addEventListener('click', () => setPartStatus([row], null));
   dimCard.querySelector('[data-act="delete"]').addEventListener('click', () => setPartStatus([row], 'deleted'));
@@ -1551,6 +1580,8 @@ function selectionGuideAxes() {
 const DRAG_PX = 5;
 let downAt = null;
 renderer.domElement.addEventListener('pointerdown', (e) => { downAt = { x: e.clientX, y: e.clientY }; }, true);
+// like wasDrag, without consuming the press (pointerup comes before click)
+const wasDragAt = (e) => !!downAt && Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > DRAG_PX;
 function wasDrag(e) {
   const drag = !!downAt && Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > DRAG_PX;
   if (e.type === 'click') downAt = null; // one pointerdown per click
@@ -1561,8 +1592,9 @@ renderer.domElement.addEventListener('click', (e) => {
   if (!model || wasDrag(e)) return;
   if (measure.handleClick(e)) return;
   const hit = raycastAt(e.clientX, e.clientY, meshes.filter((m) => m.visible));
-  if (!hit) { if (current) clearSelection(); return; }
+  if (!hit) { if (current && !build) clearSelection(); return; }
   const row = rowByMeshName.get(hit.object.name);
+  if (build && row) { const k = build.order.findIndex((r) => r.key === row.key); if (k >= 0 && k !== build.i) { build.i = k; showStep(false); return; } }
   if (row && (!current || row.key !== current.row.key)) selectRow(row, { frame: false });
   // remember which of the part's pieces was clicked (to delete just that one)
   if (current && row && row.key === current.row.key && current.piece !== hit.object) {
@@ -1572,6 +1604,16 @@ renderer.domElement.addEventListener('click', (e) => {
   }
 });
 renderer.domElement.addEventListener('dblclick', (e) => { if (current?.box && !wasDrag(e)) frameBox(current.box, null); });
+// double-tap: not every mobile browser sends dblclick for a canvas
+let lastTap = null;
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (e.pointerType !== 'touch' || wasDragAt(e)) return;
+  const now = e.timeStamp;
+  if (lastTap && now - lastTap.t < 350 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 30 && current?.box) {
+    frameBox(current.box, null);
+    lastTap = null;
+  } else lastTap = { t: now, x: e.clientX, y: e.clientY };
+});
 
 let pendingMove = null;
 renderer.domElement.addEventListener('pointermove', (e) => { if (e.buttons === 0) pendingMove = e; });
@@ -1599,6 +1641,15 @@ $('wireBtn').addEventListener('click', () => setWireframe(!wireOn));
 $('isolateBtn').addEventListener('click', () => updateSettings({ isolate: !settings().isolate }));
 $('orthoBtn').addEventListener('click', () => { settingsOrthoAuto = false; setOrtho(!camera.isOrthographicCamera); });
 const toolButtons = { distance: $('measureDistBtn'), angle: $('measureAngleBtn'), bevel: $('measureBevelBtn') };
+// the hint's × stops measuring (phones have no Esc key)
+$('measureHint').addEventListener('click', (e) => {
+  if (!e.target.closest('.hint-x')) return;
+  measure.cancel();
+  syncToolButtons();
+});
+// iOS Safari: a pinch outside the 3D view would zoom the whole page
+document.addEventListener('gesturestart', (e) => e.preventDefault());
+
 function syncToolButtons() {
   Object.entries(toolButtons).forEach(([k, b]) => b.classList.toggle('on', k === measure.mode));
   if (!measure.mode) renderer.domElement.style.cursor = '';
@@ -1812,9 +1863,10 @@ window.addEventListener('beforeprint', () => {
   const img = model ? [captureOverview(), captureOverview({ exploded: 1 })] : null;
   // print-sized diagrams: 7.5" printable width at 96 css px per inch
   const layouts = computeLayouts(rows);
-  const longest = Math.max(...layouts.flatMap((g) => g.boards.map((b) => b.length)), 1);
-  const diagrams = layouts.length
-    ? `<div class="ps-diagrams"><h2>Shopping list &amp; cutting diagrams</h2>${layoutsHTML(layouts, { pxPerInch: 700 / longest, units: settings().units, colorFor: diagram.colorFor, hardware: rows, finishArea: woodSurfaceArea() })}</div>`
+  const sheets = sheetLayouts(rows);
+  const longest = Math.max(...layouts.flatMap((g) => g.boards.map((b) => b.length)), ...sheets.flatMap((g) => g.sheets.map((b) => b.length)), 1);
+  const diagrams = layouts.length || sheets.length
+    ? `<div class="ps-diagrams"><h2>Shopping list &amp; cutting diagrams</h2>${layoutsHTML(layouts, { pxPerInch: 700 / longest, units: settings().units, colorFor: diagram.colorFor, hardware: rows, finishArea: woodSurfaceArea(), sheets })}</div>`
     : '';
   const mill = millingPlanHTML(rows);
   buildPrintSheet($('printSheet'), rows, config, img, drillingHtml() + (mill ? `<h2>Milling plan</h2>${mill}` : '') + diagrams);
@@ -1872,11 +1924,14 @@ window.addEventListener('keydown', (e) => {
   }
   const viewKeys = Object.keys(config.views || {});
   const k = e.key;
+  if (build && ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', ' '].includes(k)) { stepBuild(k === 'ArrowLeft' || k === 'ArrowUp' ? -1 : 1); e.preventDefault(); return; }
   if (k === 'Escape') {
+    // the thing on top first: a dialog, then measuring, then build mode
     if ($('help').style.display === 'flex') toggleHelp(false);
     else if (library.isOpen()) { $('library').style.display = 'none'; $('setup').style.display = 'none'; }
     else if (diagram && diagram.isOpen()) diagram.close();
     else if (measure.cancel()) syncToolButtons();
+    else if (build) exitBuild();
     else clearSelection();
   } else if (k === 'ArrowDown' || k === 'j') { stepSelection(1); e.preventDefault(); }
   else if (k === 'ArrowUp' || k === 'k') { stepSelection(-1); e.preventDefault(); }
@@ -1911,11 +1966,20 @@ function project(worldPos) {
 
 function updateOverlays() {
   if (current) {
-    (current.labels || []).forEach(({ pos, el }) => {
-      const s = project(pos);
-      el.style.display = s.behind ? 'none' : 'block';
-      el.style.left = `${s.x}px`;
-      el.style.top = `${s.y}px`;
+    // The same measurement on several pieces (a pair of legs side by side)
+    // often lands on top of itself: show it once there. A measurement that
+    // differs, or anything else, always shows.
+    const shown = [];
+    (current.labels || []).forEach((l) => {
+      const s = project(l.pos);
+      l.el.style.display = s.behind ? 'none' : 'block';
+      l.el.style.left = `${s.x}px`;
+      l.el.style.top = `${s.y}px`;
+      if (s.behind) return;
+      if (!l.w) { l.w = l.el.offsetWidth; l.h = l.el.offsetHeight; }
+      const dupe = shown.some((o) => o.text === l.text && Math.abs(o.x - s.x) < (o.w + l.w) / 2 && Math.abs(o.y - s.y) < (o.h + l.h) / 2);
+      l.el.style.visibility = dupe ? 'hidden' : '';
+      if (!dupe) shown.push({ text: l.text, x: s.x, y: s.y, w: l.w, h: l.h });
     });
   }
   measure.update(project);
@@ -1925,7 +1989,8 @@ function updateOverlays() {
 function animate(now) {
   requestAnimationFrame(animate);
   stepTween(now);
-  controls.update();
+  if (controls.update() || tween) requestRender(); // moving (incl. the orbit's glide to a stop)
+  if (now > renderUntil) return; // nothing has changed: don't redraw the same picture
   if (camera.isOrthographicCamera) updateOrthoFrustumIfNeeded();
   processHover();
   updateOverlays();
@@ -1965,7 +2030,7 @@ window.__viewer = {
   currentSelectionMeshes: () => (current ? current.meshes : []),
   meshesOf: (name) => meshes.filter((m) => meshInfo.get(m).row?.name === name),
   measureClickCount: () => measure.points.length + measure.measurements.length * 2,
-  setExplode, setView, selectRow, rows: () => rows,
+  setExplode, setView, selectRow, rows: () => rows, requestRender,
   prepareTemplate,
   guidePoints: () => selectionGuidePoints(),
   guideAxes: () => selectionGuideAxes(),

@@ -453,3 +453,79 @@ test('automatic fixes apply unless you undid them or changed the same pieces', (
   assert.equal(e.pieces.x, 'build');
   assert.deepEqual([...e.autoDeleted], ['y']);
 });
+
+import { speciesFor } from '../viewer/woodtex.js';
+
+test('wood species are recognised from material names', () => {
+  assert.equal(speciesFor('Mélèse_Verticale1'), 'larch');
+  assert.equal(speciesFor('Oak_-Red'), 'red-oak');
+  assert.equal(speciesFor('Red_Oak'), 'red-oak');
+  assert.equal(speciesFor('White Oak'), 'white-oak');
+  assert.equal(speciesFor('qcg_7587_zm_mexican_walnut_copy'), 'walnut');
+  assert.equal(speciesFor('', 'Wood_Cherry_Original'), 'cherry');
+  assert.equal(speciesFor('Wood'), null);
+  assert.equal(speciesFor('Pineapple'), null, 'whole words only');
+});
+
+import { buildOrder } from '../viewer/build.js';
+
+test('build order: assemblies from the ground up, wood before hardware, big parts first', () => {
+  const rows = [
+    { key: 'top', top_group: 'Top', category: 'Wood' },
+    { key: 'bolt', top_group: 'Base', category: 'Hardware' },
+    { key: 'leg', top_group: 'Base', category: 'Wood' },
+    { key: 'foot', top_group: 'Base', category: 'Wood' },
+    { key: 'stretcher', top_group: 'Base', category: 'Wood' },
+  ];
+  const boxes = { top: [30, 100], bolt: [5, 1], leg: [0, 50], foot: [0, 80], stretcher: [6, 20] };
+  const order = buildOrder(rows, (r) => ({ minY: boxes[r.key][0], volume: boxes[r.key][1] })).map((r) => r.key);
+  assert.deepEqual(order, ['foot', 'leg', 'stretcher', 'bolt', 'top']);
+});
+
+test('cutting order: wood by species and stock thickness, widest first, then the rest', () => {
+  const rows = [
+    { key: 'w-thin', category: 'Wood', materialLabel: 'Walnut', dims: [20, 4, 0.75], top_group: 'A' },
+    { key: 'o-thick', category: 'Wood', materialLabel: 'Oak', dims: [30, 3, 1.75], top_group: 'A' },
+    { key: 'o-thin-wide', category: 'Wood', materialLabel: 'Oak', dims: [30, 6, 0.75], top_group: 'B' },
+    { key: 'o-thin', category: 'Wood', materialLabel: 'Oak', dims: [40, 2, 0.75], top_group: 'B' },
+    { key: 'bolt', category: 'Hardware', materialLabel: 'Steel', dims: [5, 0.5, 0.5], top_group: 'A' },
+  ];
+  assert.deepEqual(buildOrder(rows, () => ({ minY: 0, volume: 1 }), 'cutting').map((r) => r.key), ['o-thin-wide', 'o-thin', 'o-thick', 'w-thin', 'bolt']);
+});
+
+import { looksLikeSheetGoods } from '../viewer/format.js';
+import { sheetLayouts } from '../viewer/cutlist.js';
+
+test('sheet goods are recognised from material or part names', () => {
+  assert.ok(looksLikeSheetGoods('Plywood_Birch'));
+  assert.ok(looksLikeSheetGoods('__auto_', '', 'Shelf__1_8__Masonite'));
+  assert.ok(looksLikeSheetGoods('MDF'));
+  assert.ok(looksLikeSheetGoods('Baltic Birch'));
+  assert.ok(!looksLikeSheetGoods('Red_Oak', 'Top board'));
+  assert.ok(!looksLikeSheetGoods('Supply cabinet'), 'whole words only');
+});
+
+test('sheet goods are laid out on 4x8 sheets per material and thickness', () => {
+  const rows = prepareRows([
+    { label: 'Side', top_group: 'Case', dims: [30, 20, 0.75], count: 2, materials: ['Plywood'], obj_names: [], dims_str: 'x' },
+    { label: 'Back', top_group: 'Case', dims: [30, 40, 0.25], count: 1, materials: ['Plywood'], obj_names: [], dims_str: 'x' },
+    { label: 'Leg', top_group: 'Base', dims: [30, 2, 2], count: 4, materials: ['Oak'], obj_names: [], dims_str: 'x' },
+  ], { materials: { Plywood: { category: 'Wood' }, Oak: { category: 'Wood' } } });
+  assert.deepEqual(rows.map((r) => r.category).sort(), ['Sheet goods', 'Sheet goods', 'Wood']);
+  const layouts = sheetLayouts(rows, { length: 96, width: 48, kerf: 0.125 });
+  assert.deepEqual(layouts.map((g) => [g.material, g.thicknessLabel, g.sheets.length, g.pieces.length]), [['Plywood', '1/4"', 1, 1], ['Plywood', '3/4"', 1, 2]]);
+});
+
+import { defaultMaterialLabel } from '../viewer/library.js';
+
+test('uploaded wood materials are named after their species, so texture variants total up', () => {
+  const wood = { category: 'Wood' };
+  assert.equal(defaultMaterialLabel('Mélèse_Horizontal1_1', wood), 'Larch');
+  assert.equal(defaultMaterialLabel('Mélèse_Verticale1', wood), 'Larch');
+  assert.equal(defaultMaterialLabel('Oak_-Red', wood), 'Red oak');
+  assert.equal(defaultMaterialLabel('Red_Oak', wood), 'Red oak');
+  assert.equal(defaultMaterialLabel('qcg_7587_zm_mexican_walnut_copy_2', wood), 'Walnut');
+  // not a species we know, or not wood: just tidied
+  assert.equal(defaultMaterialLabel('Wood_Board_Dark_1', wood), 'Wood Board Dark');
+  assert.equal(defaultMaterialLabel('Walnut_Stain_Handle', { category: 'Hardware' }), 'Walnut Stain Handle');
+});
