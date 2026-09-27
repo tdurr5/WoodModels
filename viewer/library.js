@@ -8,7 +8,7 @@ import {
   saveModel, listModels, getModelFiles, getModelConfig, putModelFile, deleteModel, getModelMeta,
 } from './modelstore.js';
 import { escapeHtml, looksLikeSheetGoods, SHEET } from './format.js';
-import { SPECIES, speciesFor } from './woodtex.js';
+import { SPECIES, GRAINS, speciesFor } from './woodtex.js';
 
 const DATA_FILES = ['scene.obj', 'scene.mtl', 'materials.json', 'object_dims.json', 'parts_report.json', 'model.json'];
 export const CATEGORIES = ['Wood', 'Sheet goods', 'Hardware', 'Leather', 'Other'];
@@ -121,7 +121,7 @@ export function applySetup(cfg, { title, subtitle, categories, front, labels = {
   Object.entries(species).forEach(([name, sp]) => {
     const m = out.materials[name];
     if (!m) return;
-    if (sp && SPECIES[sp]) m.species = sp; else delete m.species;
+    if (sp && (SPECIES[sp] || GRAINS[sp])) m.species = sp; else delete m.species;
   });
   // materials given the same name are one species: totals and shopping list combine them
   Object.entries(labels).forEach(([name, label]) => {
@@ -256,7 +256,7 @@ export function initLibrary({ current, onOpen, builtIn }) {
         <td class="num">${uses[m] || 0} pc</td>
         <td><select data-mat="${escapeHtml(m)}" data-initial="${escapeHtml(effectiveCategory(m, cfg.materials[m]))}">${CATEGORIES.map((c) => `<option${c === effectiveCategory(m, cfg.materials[m]) ? ' selected' : ''}>${c}</option>`).join('')}</select></td>
         <td><input data-label="${escapeHtml(m)}" value="${escapeHtml(cfg.materials[m].label || (m === '(none)' ? 'No material' : defaultMaterialLabel(m, cfg.materials[m])))}" /></td>
-        <td><select data-species="${escapeHtml(m)}"><option value="">${escapeHtml(SPECIES[speciesFor(cfg.materials[m].label, m)]?.name ? `Auto (${SPECIES[speciesFor(cfg.materials[m].label, m)].name})` : 'Auto')}</option>${Object.entries(SPECIES).map(([k, sp]) => `<option value="${k}"${cfg.materials[m].species === k ? ' selected' : ''}>${escapeHtml(sp.name)}</option>`).join('')}</select></td></tr>`).join('')}
+        <td><select data-species="${escapeHtml(m)}"><option value="">${escapeHtml(SPECIES[speciesFor(cfg.materials[m].label, m)]?.name ? `Auto (${SPECIES[speciesFor(cfg.materials[m].label, m)].name})` : 'Auto (wide grain)')}</option><optgroup label="In the model's colour">${Object.entries(GRAINS).map(([k, g]) => `<option value="${k}"${cfg.materials[m].species === k ? ' selected' : ''}>${escapeHtml(g.name)}</option>`).join('')}</optgroup><optgroup label="Species">${Object.entries(SPECIES).map(([k, sp]) => `<option value="${k}"${cfg.materials[m].species === k ? ' selected' : ''}>${escapeHtml(sp.name)}</option>`).join('')}</optgroup></select></td></tr>`).join('')}
       </tbody></table>
       <p class="muted small">Only <b>Wood</b> parts go into rough stock, board feet, the cutting diagram and templates. Give materials the same name (e.g. all the oak textures "Red oak") to total them as one species.</p>`;
     setup.dataset.id = id;
