@@ -39,3 +39,21 @@ export function buildOrder(rows, boxOf, mode = 'assembly', thicknessOf = (r) => 
       ...list.filter((r) => !cut(r)).sort(byHeight),
     ]);
 }
+
+// Assembly order with an "assemble" step after each sub-assembly that has
+// two or more wood parts: its parts are all cut by then, so dry-fit it, then
+// glue or fasten it. The step is { assemble: true, key: 'assemble:<group>',
+// group, groupName, rows } in among the rows.
+export function withAssemblySteps(order) {
+  const out = [];
+  order.forEach((r, i) => {
+    out.push(r);
+    const g = String(r.top_group);
+    if (order[i + 1] && String(order[i + 1].top_group) === g) return; // not the group's last part
+    const rows = order.filter((x) => String(x.top_group) === g);
+    const woodPieces = rows.filter(cut).reduce((n, x) => n + (x.count || 1), 0);
+    if (woodPieces < 2) return;
+    out.push({ assemble: true, key: `assemble:${g}`, group: r.top_group, groupName: r.groupName, rows, letter: '', name: `Assemble ${r.groupName}` });
+  });
+  return out;
+}

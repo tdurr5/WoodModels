@@ -133,6 +133,7 @@ try {
   await page.screenshot({ path: path.join(OUT, '01-loaded.png') });
   await page.locator('#introClose').click();
   check(!(await page.locator('#introTip').isVisible()), 'tips can be dismissed');
+  check(/✓ Model check/.test(await page.locator('#clCheck').innerText()), 'the model check finds nothing wrong with the built-in model');
   await page.waitForTimeout(1500);
   const frames = await page.evaluate(async () => {
     const info = window.__viewer.renderer.info.render;
@@ -447,6 +448,8 @@ try {
   check(await page.locator('#printSheet .ps-diagrams .cd-board').count() >= 5, 'print sheet includes the cutting diagrams');
   const drill = await page.locator('#printSheet h2', { hasText: 'Holes to drill' }).count();
   check(drill === 1, 'print sheet includes a drilling list');
+  const joinery = await page.locator('#printSheet .ps-extra').innerText();
+  check(/Joinery[\s\S]*Ratchet Dove[\s\S]*tenon/.test(joinery), 'print sheet lists the joinery drawn in the model');
   check(printRows === 24, `print sheet lists every part (${printRows})`);
   await page.emulateMedia({ media: 'print' });
   await page.pdf({ path: path.join(OUT, 'cut-sheet.pdf'), format: 'Letter', margin: { top: '0.5in', bottom: '0.5in', left: '0.5in', right: '0.5in' } });
@@ -463,6 +466,13 @@ try {
   await page.evaluate(() => { const v = window.__viewer; v.selectRow(v.rows().find((r) => r.label === 'Shaft_1_2_-13_6_7_8')); });
   const bore = await page.locator('#dimCard .card-rel').innerText();
   check(/Bore ⌀1\/2".*Bench ×2.*Filler Rear.*Leg Rear ×2/.test(bore), `rod card is a drilling list (${bore})`);
+  await selectPart('Ratchet Dove');
+  const tenon = await page.locator('#dimCard .card-joinery').innerText().catch(() => '');
+  check(/tenon 7\/16" × 1-7\/8", 1\/2" long.*into Jaw Support/.test(tenon), `a tenon drawn into another part is sized, with where it goes (${tenon})`);
+  await page.locator('#dimCard .card-joinery a', { hasText: 'Jaw Support' }).click();
+  await page.waitForTimeout(400);
+  const mortise = await page.locator('#dimCard .card-joinery').innerText().catch(() => '');
+  check(/Mortises: 7\/16" × 1-7\/8", 1\/2" deep, for Ratchet Dove/.test(mortise), `the part it goes into lists the mortise to cut (${mortise})`);
 
   console.log('full-size template');
   await selectPart('Leg Front');
@@ -505,6 +515,23 @@ try {
   check(boardsWide <= boards, `wider stock needs no more boards (${boards} -> ${boardsWide})`);
   await page.fill('#cdWidth', '8');
   await page.locator('#cdWidth').dispatchEvent('change');
+  // a board already on the rack: used first, and the shopping list shrinks
+  const buyBefore = await page.locator('#diagram .cd-board:not(.owned)').count();
+  await page.locator('#diagram .cd-inv summary').click();
+  await page.locator('#diagram .cd-inv-add').click();
+  const inv = page.locator('#diagram .cd-inv-table tr[data-i="0"]');
+  await inv.locator('[data-k="thickness"]').selectOption('8/4');
+  await inv.locator('[data-k="width"]').fill('9');
+  await inv.locator('[data-k="width"]').dispatchEvent('change');
+  await inv.locator('[data-k="length"]').fill('96');
+  await inv.locator('[data-k="length"]').dispatchEvent('change');
+  const owned = await page.locator('#diagram .cd-board.owned').count();
+  const buyAfter = await page.locator('#diagram .cd-board:not(.owned)').count();
+  const shop8 = (await page.locator('#diagram .cd-shop li', { hasText: '8/4 Wood:' }).innerText()).trim();
+  check(owned === 1 && buyAfter === buyBefore - 1 && /plus 1 of your boards/.test(shop8), `a board you already have is used first and not bought (${buyBefore} -> ${buyAfter} to buy; ${shop8})`);
+  check(await page.locator('#diagram .cd-board.owned .part').count() > 0, 'parts are laid out on your board');
+  await page.locator('#diagram .cd-inv-del').click();
+  check(await page.locator('#diagram .cd-board.owned').count() === 0, 'removing it plans to buy them all again');
   await page.locator('#diagram .part').first().click();
   check(!(await page.locator('#diagram').isVisible()) && await page.locator('#clList .row.active').count() === 1, 'clicking a piece in the diagram selects that part');
 
@@ -535,6 +562,21 @@ try {
   check(await page.locator('#help').isVisible(), '? opens the shortcut sheet');
   await page.screenshot({ path: path.join(OUT, '13-help.png') });
   await page.keyboard.press('Escape');
+
+  const est = await page.evaluate(async () => {
+    const d = await import('./diagram.js');
+    await d.loadTypicalPrices();
+    return { walnut4: d.typicalPrice('Walnut', '4/4'), walnut8: d.typicalPrice('Black walnut', '8/4'), unknown: d.typicalPrice('Wood', '4/4') };
+  });
+  check(est.walnut4 > 5 && est.walnut8 > est.walnut4 && est.unknown === null, `typical prices (prices.json) give an estimate per species, more for thick stock (walnut 4/4 $${est.walnut4}, 8/4 $${est.walnut8})`);
+
+  console.log('share');
+  await page.locator('#clShare').click();
+  const shareText = await page.locator('#share .share-text').innerText();
+  check(/Shaving Horse - shopping list[\s\S]*Lumber \(rough\):[\s\S]*8\/4 Wood[\s\S]*Hardware:[\s\S]*Threaded Rod/.test(shareText), 'Share has the shopping list as text to send');
+  check(/can't reach/.test(await page.locator('#share .share-body').innerText()), 'on this computer (localhost) it says a phone can\'t open it, instead of a useless QR code');
+  await page.keyboard.press('Escape');
+  check(!(await page.locator('#share').isVisible()), 'Esc closes Share');
 
   console.log('part letters');
   await page.locator('#resetBtn').click();
@@ -678,6 +720,18 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     const front = await p2.evaluate(() => window.__viewer.config.views.front.dir);
     check(JSON.stringify(front) === '[0,0,1]', `setup saves which way is front (${front})`);
     await p2.screenshot({ path: path.join(OUT, '41-uploaded.png') });
+    // (the test model's parts are spaced apart, not assembled)
+    const mc = await p2.locator('#clCheck').innerText();
+    check(/Model check: 2 things to look at/.test(mc), `the model check flags parts that touch nothing (${mc.split('\n')[0]})`);
+    await p2.locator('#clCheck summary').click();
+    await p2.locator('#clCheck a', { hasText: 'Leg' }).click();
+    check(await p2.locator('#dimCard .pn-text').innerText() === 'Leg', 'its links go to the part');
+    await p2.keyboard.press('Escape');
+    // an upload lives in this browser: Share sends the model file (a download where there's no share sheet)
+    await p2.locator('#clShare').click();
+    const [sent] = await Promise.all([p2.waitForEvent('download', { timeout: 15000 }), p2.locator('#share .share-model').click()]);
+    check(/\.zip$/.test(sent.suggestedFilename()), `Share sends an uploaded model's file to move it to a phone (${sent.suggestedFilename()})`);
+    await p2.keyboard.press('Escape');
 
     // select a part, tick it, then come back without any ?model=
     await p2.locator('#clList .row', { hasText: 'Board' }).first().click();
@@ -974,6 +1028,30 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     await p2.locator('#clDiagram').click();
     await p2.keyboard.press('Escape');
     check(!(await p2.locator('#diagram').isVisible()) && await p2.locator('#buildPanel').isVisible(), 'Esc closes a dialog opened in build mode, not build mode');
+    // assembly order: an "assemble" step once a sub-assembly's parts are cut
+    await p2.locator('#buildPanel .bp-order').click();
+    const assembleOpt = p2.locator('#buildPanel .bp-steps option', { hasText: 'Assemble Jaw Lower Assy' });
+    check(await assembleOpt.count() === 1, 'assembly order has a step to assemble each sub-assembly');
+    await p2.locator('#buildPanel .bp-steps').selectOption(await assembleOpt.getAttribute('value'));
+    await p2.waitForTimeout(400);
+    const asm = await p2.locator('#buildPanel').innerText();
+    check(/Assemble Jaw Lower Assy[\s\S]*Parts:.*Jaw Lower[\s\S]*Dry-fit/.test(asm), 'the assemble step lists its parts and says how to glue it up');
+    const lit = await p2.evaluate(() => { const v = window.__viewer; return v.meshesOf('Jaw Support').every((m) => m.material.emissiveIntensity > 0); });
+    check(lit, 'and highlights the whole sub-assembly');
+    // a photo of the step, kept with the model
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFklEQVQImWP4z8DwnwEIGBgYGBgAAAgOAQFSSSQjAAAAAElFTkSuQmCC', 'base64');
+    await p2.locator('#buildPanel .bp-photo-add input').setInputFiles({ name: 'step.png', mimeType: 'image/png', buffer: png });
+    await p2.waitForSelector('#buildPanel .bp-thumb', { timeout: 10000 }).catch(() => {});
+    check(await p2.locator('#buildPanel .bp-thumb').count() === 1, 'a photo can be added to a build step');
+    await p2.reload();
+    await loaded();
+    await p2.locator('#clBuild').click();
+    await p2.waitForSelector('#buildPanel .bp-thumb', { timeout: 10000 }).catch(() => {});
+    check(await p2.locator('#buildPanel .bp-thumb').count() === 1, 'the photo is still there after a reload (build log)');
+    await p2.locator('#buildPanel .bp-thumb').click();
+    await p2.locator('#photoView .pv-delete').click();
+    await p2.waitForFunction(() => !document.querySelector('#buildPanel .bp-thumb'), null, { timeout: 15000 }).catch(() => {});
+    check(await p2.locator('#buildPanel .bp-thumb').count() === 0, 'and can be deleted');
     check(errs.length === 0, `no page errors in build mode (${errs.join('; ')})`);
   } finally {
     await b2.close();
@@ -1024,6 +1102,14 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     await p2.waitForTimeout(600);
     const stepAt = await p2.evaluate(partScreenCenter);
     check(stepAt.y < bp.y - 20 && stepAt.y > 60, `the step's part is framed above the panel, not under it (at y=${Math.round(stepAt.y)}, panel at ${Math.round(bp.y)})`);
+    const stepBefore = await p2.locator('#buildPanel .bp-steps').inputValue();
+    await p2.evaluate(({ x, y }) => {
+      const el = document.getElementById('buildPanel');
+      const ev = (type, cx) => el.dispatchEvent(new PointerEvent(type, { pointerType: 'touch', clientX: cx, clientY: y, bubbles: true }));
+      ev('pointerdown', x + 100); ev('pointerup', x - 60);
+    }, { x: bp.x + bp.width / 2, y: bp.y + 40 });
+    await p2.waitForTimeout(300);
+    check(+(await p2.locator('#buildPanel .bp-steps').inputValue()) === +stepBefore + 1, 'swiping the step panel left goes to the next step');
     await p2.screenshot({ path: path.join(OUT, '51-phone-build.png') });
     await p2.locator('#buildPanel .bp-exit').tap();
     await p2.locator('#helpBtn').tap();

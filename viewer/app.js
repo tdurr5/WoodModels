@@ -5,23 +5,24 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { woodMaterial, addEndGrain, endMapOf, speciesFor, generateGrainUV } from './woodtex.js';
 import { classifyOverlaps as classifyOverlapsIn, singleSidedGeometry } from './autofix.js';
-import { formatLength, escapeHtml, toFraction, isCut } from './format.js';
+import { formatLength, escapeHtml, toFraction, isCut, dimensionalSize } from './format.js';
 import { compoundAngle, describeAngle, round1, DEFAULT_AXIS_NAMES } from './angles.js';
 import { initSettings, settings, updateSettings, onSettingsChange, resetSettings } from './settings.js';
 import {
   prepareRows, renderCutList, renderRows, markActive, visibleRows, focusSearch, finishedDims, buildPrintSheet, isRod, userNote,
   millingPlanHTML, setCutListRows, inlineEdit, markActiveGroup, roughDims, roughFor, sheetLayouts,
 } from './cutlist.js';
-import { buildOrder } from './build.js';
+import { buildOrder, withAssemblySteps } from './build.js';
 import {
   normalizeEdits, withStatus, withName, withGroupName, withPieceStatus, withJoin, withSplit, withAutoFixes, joinKey,
 } from './edits.js';
 import { initMeasure } from './measure.js';
-import { initDiagramModal, computeLayouts, layoutsHTML } from './diagram.js';
+import { initDiagramModal, computeLayouts, layoutsHTML, STOCK_DEFAULTS, shoppingText } from './diagram.js';
+import { initShare } from './share.js';
 import { buildTemplate } from './template.js';
-import { initLibrary } from './library.js';
-import { getModelFiles, lastOpened, rememberOpened, putModelFile } from './modelstore.js';
-import { obbFromDims, partsTouch, findOverlaps, applyJoins } from './geometry.js';
+import { initLibrary, modelZip } from './library.js';
+import { getModelFiles, lastOpened, rememberOpened, putModelFile, addPhoto, listPhotos, deletePhoto } from './modelstore.js';
+import { obbFromDims, partsTouch, findOverlaps, applyJoins, endJoints } from './geometry.js';
 
 const $ = (id) => document.getElementById(id);
 const viewport = $('viewport');
@@ -250,6 +251,7 @@ async function init() {
     onSelect: (r) => pickRow(r), onPrint: printSheet, onDiagram: () => diagram.open(),
     onLibrary: () => library.open(), onSetup: LOCAL_ID ? () => library.openSetup(LOCAL_ID) : null,
     onSetStatus: setPartStatus, onRenameGroup: renameGroup, onSelectGroup: selectGroup, onBuild: () => startBuild(),
+    onShare: () => share.open(),
   });
   diagram = initDiagramModal({ rows, onSelectRow: (r) => selectRow(r), finishArea: () => (model ? woodSurfaceArea() : 0) });
   buildViewButtons();
@@ -267,6 +269,7 @@ async function init() {
   rememberOpened(LOCAL_ID ? `local:${LOCAL_ID}` : MODEL_REF);
   applySettingsToScene();
   announceAutoFixes();
+  renderModelCheck();
   selectFromHash();
   if (new URLSearchParams(location.search).has('setup') && LOCAL_ID) {
     history.replaceState(null, '', `${location.pathname}?model=${encodeURIComponent(MODEL_REF)}${location.hash}`); // a reload shouldn't reopen it
@@ -274,6 +277,15 @@ async function init() {
   }
   else if (!settings().seenIntro && !seenIntroAnywhere()) $('introTip').style.display = 'block';
 }
+
+// Share: this model on your phone, the shopping list as text (share.js)
+const share = initShare({
+  getTitle: () => config.title || 'Project',
+  localId: LOCAL_ID,
+  shoppingText: () => shoppingText(rows, config.title || 'Project'),
+  modelFile: () => modelZip(LOCAL_ID),
+  notify: (msg) => showToast(msg),
+});
 
 // Model library (uploads). Opening a model reloads the page on it, so every
 // model starts from a clean scene.
@@ -426,6 +438,7 @@ function announceAutoFixes() {
 }
 
 function refreshRows() {
+  jointCache.clear(); // parts deleted or set aside no longer take a tenon
   computeRows();
   rows = allPartRows.filter((r) => !r.status);
   rowByMeshName.clear();
@@ -456,6 +469,7 @@ function refreshRows() {
     } else clearSelection();
   }
   if (build) refreshBuild();
+  renderModelCheck();
 }
 
 // Parts drawn in 3D: not deleted, and set-aside ones only when shown.
@@ -552,7 +566,7 @@ function applyMaterials() {
       // build mode: parts from earlier steps solid, this step highlighted, the rest ghosted
       const step = build.stepOf.get(info.row?.key);
       const done = step !== undefined && step < build.i;
-      const now = selected.has(m);
+      const now = selected.has(m) || (!current && groupSel !== null && info.row?.top_group === groupSel);
       m.visible = now || (isShownPart(m) && !catHidden);
       m.material = now ? info.hl : done ? info.orig : info.dim;
       return;
@@ -727,6 +741,7 @@ onSettingsChange((s, patch) => {
   if ('units' in patch || 'showRough' in patch || 'allowance' in patch || 'cut' in patch || 'hiddenCategories' in patch || 'userNotes' in patch || 'showAside' in patch) renderRows();
   if ('showAside' in patch && model) updateModelBox();
   if ('units' in patch && model && overlaps.length) refreshRows(); // overlap notes are written in the units shown
+  else if (('units' in patch || 'stock' in patch) && model) renderModelCheck();
   // typing a note mustn't rebuild the card it's being typed into
   if (Object.keys(patch).every((k) => k === 'userNotes')) return;
   if ('hiddenCategories' in patch && current && settings().hiddenCategories.includes(current.row.category)) clearSelection();
@@ -1151,6 +1166,144 @@ function contactsOf(mesh) {
   return out;
 }
 
+// ---------- joinery: tenons, housed ends, mortises (geometry.js endJoints) ----------
+const jointCache = new Map();
+function jointsOf(mesh) {
+  if (jointCache.has(mesh)) return jointCache.get(mesh);
+  let out = [];
+  const d = objectDims[mesh.name];
+  if (d?.axes?.length === 3) {
+    const others = [];
+    meshes.forEach((o) => {
+      const r = rowByMeshName.get(o.name), dB = objectDims[o.name];
+      if (o !== mesh && r && isCut(r) && !r.status && dB) others.push({ name: o.name, box: obbFromDims(dB) });
+    });
+    out = endJoints(obbFromDims(d), meshTris(mesh), others);
+  }
+  jointCache.set(mesh, out);
+  return out;
+}
+
+// What this part's ends go into (and the shoulder-to-shoulder length that
+// leaves), the mortises other parts need cut in it, and ends that only meet
+// another part (no tenon drawn - add one's length if you'll use it).
+function joineryOf(row, mesh) {
+  if (!mesh || !isCut(row) || row.joined || row.customDims) return null;
+  const rowOf = (name) => rowByMeshName.get(name);
+  const js = jointsOf(mesh).filter((j) => rowOf(j.name));
+  const cuts = js.filter((j) => j.kind !== 'butt').map((j) => ({ ...j, row: rowOf(j.name) }));
+  const length = objectDims[mesh.name].axes[0].length;
+  const shoulders = length - cuts.reduce((a, j) => a + j.depth, 0);
+  // (almost) all of it inside the parts it joins: a loose tenon, spline or dowel
+  const loose = cuts.length === 2 && shoulders < Math.max(1 / 4, length * 0.15);
+  const holes = new Map();
+  meshes.forEach((o) => {
+    const r = rowOf(o.name);
+    if (o === mesh || !r || !isCut(r) || r.status || r.joined) return;
+    jointsOf(o).forEach((j) => {
+      if (j.name !== mesh.name || j.kind === 'butt') return;
+      const k = `${Math.round(Math.min(j.width, j.thick) * 64)}|${Math.round(Math.max(j.width, j.thick) * 64)}|${j.through ? 'through' : Math.round(j.depth * 64)}|${r.key}`;
+      const h = holes.get(k) || { j, row: r, n: 0 };
+      h.n++;
+      holes.set(k, h);
+    });
+  });
+  const butts = cuts.length ? [] : [...new Map(js.filter((j) => j.kind === 'butt').map((j) => [rowOf(j.name).key, rowOf(j.name)])).values()];
+  const buttEnds = js.filter((j) => j.kind === 'butt').length;
+  if (!cuts.length && !holes.size && !butts.length) return null;
+  return { cuts, shoulders, loose, holes: [...holes.values()], butts, buttEnds };
+}
+
+function joineryText(jy, link, units) {
+  const f = (x) => formatLength(x, units);
+  const size = (j) => `${f(Math.min(j.width, j.thick))} × ${f(Math.max(j.width, j.thick))}`;
+  const out = {};
+  if (jy.cuts.length) {
+    const texts = jy.cuts.map((j) => `${j.kind === 'tenon' ? `tenon ${size(j)}, ${f(j.depth)} long` : `goes ${f(j.depth)} in`}${j.through ? ' (through)' : ''} into ${link(j.row)}`);
+    const both = texts.length === 2 && texts[0] === texts[1];
+    out.ends = `${both ? `${texts[0]}, each end` : texts.join('; ')}. ${jy.loose
+      ? 'It sits almost wholly inside the parts it joins, like a loose tenon or dowel.'
+      : `The length includes ${jy.cuts.length > 1 ? 'both' : 'it'}: <b>${f(jy.shoulders)}</b> ${jy.cuts.length > 1 ? 'shoulder to shoulder' : 'from the shoulder to the other end'}.`}`;
+  }
+  if (jy.holes.length) {
+    out.holesLabel = jy.holes.some((h) => h.j.kind === 'tenon') ? 'Mortises' : 'Housings';
+    out.holes = jy.holes.map(({ j, row: r, n }) => `${size(j)}, ${j.through ? 'through' : `${f(j.depth)} deep`}, for ${link(r)}${n > 1 ? ` (${n})` : ''}`).join('; ');
+  }
+  if (jy.butts.length) {
+    const many = jy.buttEnds > 1;
+    out.butt = `${many ? 'Its ends meet' : 'One end meets'} ${jy.butts.map((r) => link(r)).join(', ')} with no tenon drawn. If you'll join ${many ? 'them' : 'it'} with a mortise and tenon, add the tenon's length${many ? ' at each end' : ''} to the cut length.`;
+  }
+  return out;
+}
+
+function joineryHtml(row, mesh) {
+  const jy = joineryOf(row, mesh);
+  if (!jy) return '';
+  const link = (r) => `<a href="#part=${encodeURIComponent(partRef(r))}" data-key="${escapeHtml(r.key)}">${escapeHtml(r.name)}</a>`;
+  const t = joineryText(jy, link, settings().units);
+  return [
+    t.ends && `<div class="card-rel card-joinery"><b>Joinery:</b> ${t.ends}</div>`,
+    t.holes && `<div class="card-rel card-joinery"><b>${t.holesLabel}:</b> ${t.holes}</div>`,
+    t.butt && `<div class="card-note">${t.butt}</div>`,
+  ].filter(Boolean).join('');
+}
+
+// For the printed sheet: every part with joinery drawn in the model.
+function joineryPrintHtml() {
+  const units = settings().units;
+  const name = (r) => `${r.letter ? `${r.letter} ` : ''}${escapeHtml(r.name)}`;
+  const lines = rows.filter((r) => isCut(r) && r.clickable).map((r) => {
+    const mesh = meshByName.get(r.obj_names[0]);
+    const jy = mesh && joineryOf(r, mesh);
+    if (!jy || (!jy.cuts.length && !jy.holes.length)) return '';
+    const t = joineryText(jy, name, units);
+    return `<tr><td><b>${name(r)}</b></td><td>${[t.ends, t.holes && `${t.holesLabel}: ${t.holes}`].filter(Boolean).join('<br>')}</td></tr>`;
+  }).filter(Boolean);
+  return lines.length ? `<h2>Joinery</h2><table class="ps-table ps-joinery"><tbody>${lines.join('')}</tbody></table>` : '';
+}
+
+// "2×4" when a wood part is a dimensional-lumber size (buy it, no milling)
+const stdSize = (row) => (row.category === 'Wood' && !row.customDims && row.dims?.length === 3 ? dimensionalSize(row.dims[2], row.dims[1]) : null);
+
+// ---------- model check: things in a downloaded model worth a look ----------
+// Wood that touches nothing (a leftover, or drawn in the wrong place), parts
+// drawn as a flat face (no thickness to cut), pieces still overlapping, and
+// parts wider than your boards (glue-ups), each with a link to the part.
+let checkOpen = false;
+function modelCheckItems() {
+  const units = settings().units, f = (x) => formatLength(x, units);
+  const stockW = { ...STOCK_DEFAULTS, ...(settings().stock || {}) }.width;
+  const items = [];
+  rows.filter((r) => isCut(r) && r.clickable).forEach((r) => {
+    const pieces = r.obj_names.map((n) => meshByName.get(n)).filter(Boolean);
+    if (r.dims[2] < 1 / 32) items.push({ kind: 'Flat', row: r, text: 'is drawn as a flat face with no thickness: nothing to cut. Delete it, or set it aside if it\'s a guide.' });
+    else if (pieces.length && pieces.every((m) => ![...contactsOf(m)].some((o) => { const or = rowByMeshName.get(o.name); return or && !or.status; }))) {
+      items.push({ kind: 'Floating', row: r, text: `touches no other part${r.count > 1 ? ' (none of its pieces)' : ''}: a leftover, or drawn in the wrong place?` });
+    }
+    if (r.overlapPairs?.length) items.push({ kind: 'Overlap', row: r, text: 'has a piece overlapping another: a copy, or one piece drawn as two (see its card).' });
+    if (r.category === 'Wood' && r.dims[1] > stockW + 1 / 32) {
+      const n = Math.ceil(r.dims[1] / stockW);
+      items.push({ kind: 'Glue-up', row: r, text: `is ${f(r.dims[1])} wide: glue it up from ${n} boards of your ${f(stockW)} stock${r.count > 1 ? `, for each of ${r.count}` : ''}.`, info: true });
+    }
+  });
+  return items;
+}
+function renderModelCheck() {
+  const el = $('clCheck');
+  if (!el || !model) return;
+  const items = modelCheckItems();
+  const problems = items.filter((i) => !i.info).length, info = items.length - problems;
+  if (!items.length) { el.innerHTML = '<div class="model-check ok">✓ Model check: every part touches another, nothing overlaps, no paper-thin parts.</div>'; return; }
+  const title = [problems && `${problems} thing${problems > 1 ? 's' : ''} to look at`, info && `${info} glue-up${info > 1 ? 's' : ''}`].filter(Boolean).join(' · ');
+  el.innerHTML = `<details class="model-check${problems ? ' warn' : ''}"${checkOpen ? ' open' : ''}><summary>${problems ? '⚠' : 'ℹ'} Model check: ${title}</summary><ul>${items.map((i) => `<li><span class="mc-kind">${i.kind}</span> <a href="#" data-key="${escapeHtml(i.row.key)}">${i.row.letter ? `${i.row.letter} ` : ''}${escapeHtml(i.row.name)}</a> ${escapeHtml(i.text)}</li>`).join('')}</ul></details>`;
+  el.querySelector('details').addEventListener('toggle', (e) => { checkOpen = e.target.open; });
+  el.querySelectorAll('a[data-key]').forEach((a) => a.addEventListener('click', (e) => {
+    e.preventDefault();
+    const r = rows.find((x) => x.key === a.dataset.key);
+    if (r) pickRow(r);
+  }));
+}
+
 // Contacts of one piece of the selected row, grouped by the row they belong to.
 function pieceContacts(mesh, row) {
   const byRow = new Map();
@@ -1212,14 +1365,14 @@ let cardCollapsed = window.matchMedia('(max-width: 800px)').matches;
 
 // Show a whole assembly group (e.g. to find which "Group 12" is the hand plane):
 // highlighted and framed, with a card to rename, set aside or delete it.
-function selectGroup(group) {
+function selectGroup(group, { frame = true } = {}) {
   if (!model) return;
   clearSelection();
   groupSel = group;
   markActiveGroup(group);
   applyMaterials();
   const box = groupBox(group);
-  if (!box.isEmpty()) frameBox(box, null);
+  if (frame && !box.isEmpty()) frameBox(box, null);
   renderGroupCard(box);
   dismissIntro();
 }
@@ -1283,7 +1436,8 @@ function buildSteps() {
     const sz = box.getSize(new THREE.Vector3());
     return { minY: box.min.y, volume: sz.x * sz.y * sz.z };
   };
-  return buildOrder(rows.filter((r) => r.clickable), boxOf, settings().buildOrder, (r) => roughFor(r)?.thickness || r.dims[2]);
+  const order = buildOrder(rows.filter((r) => r.clickable), boxOf, settings().buildOrder, (r) => roughFor(r)?.thickness || r.dims[2]);
+  return settings().buildOrder === 'cutting' ? order : withAssemblySteps(order);
 }
 const buildState = (order, i) => ({ order, stepOf: new Map(order.map((r, k) => [r.key, k])), i });
 
@@ -1331,6 +1485,7 @@ function pickRow(r) {
 function exitBuild() {
   build = null;
   keepAwake(false);
+  toggleVoice(false);
   document.body.classList.remove('build-mode');
   $('buildPanel').style.display = 'none';
   updateFreeArea();
@@ -1345,14 +1500,141 @@ function stepBuild(delta) {
 }
 
 function showStep(frame) {
-  const row = build.order[build.i];
-  selectRow(row, { frame: false });
-  updateSettings({ buildStep: row.key });
+  const step = build.order[build.i];
+  if (step.assemble) selectGroup(step.group, { frame: false }); else selectRow(step, { frame: false });
+  updateSettings({ buildStep: step.key });
   renderBuildPanel();
   // frame once the panel is up: its height changes with the step
   updateFreeArea();
-  if (frame && current?.box) frameBox(current.box, null);
+  const box = step.assemble ? groupBox(step.group) : current?.box;
+  if (frame && box && !box.isEmpty()) frameBox(box, null);
 }
+
+function partStepHtml(row, units) {
+  const rough = row.category === 'Wood' ? roughDims(row, units) : '';
+  const mine = userNote(row);
+  return `
+    <div class="bp-name"><span class="letter">${row.letter}</span>${escapeHtml(row.name)} <span class="bp-qty">×${row.count}</span></div>
+    <div class="bp-size">${escapeHtml(finishedDims(row, units))}</div>
+    <div class="bp-sub">${row.customDims ? '' : 'Thickness × Width × Length'}${stdSize(row) ? ` · a standard <b>${stdSize(row)}</b>` : rough ? ` · rough <b>${escapeHtml(rough)}</b>` : ''} · ${escapeHtml(row.materialLabel)}</div>
+    ${contactHtml(row)}
+    ${joineryHtml(row, current?.meshes[0])}
+    ${row.notes.map((t) => `<div class="card-note${row.warn ? ' warn' : ''}">${escapeHtml(t)}</div>`).join('')}
+    ${mine ? `<div class="card-note mine">✎ ${escapeHtml(mine)}</div>` : ''}`;
+}
+
+// A sub-assembly's parts are all cut: put it together.
+function assembleStepHtml(step) {
+  const link = (r) => `<a href="#part=${encodeURIComponent(partRef(r))}" data-key="${escapeHtml(r.key)}">${r.letter ? `${r.letter} ` : ''}${escapeHtml(r.name)}</a>${r.count > 1 ? ` ×${r.count}` : ''}`;
+  const wood = step.rows.filter(isCut), hardware = step.rows.filter((r) => !isCut(r));
+  return `
+    <div class="bp-name">Assemble ${escapeHtml(step.groupName)}</div>
+    <div class="card-rel"><b>Parts:</b> ${wood.map(link).join(', ')}</div>
+    ${hardware.length ? `<div class="card-rel"><b>Hardware:</b> ${hardware.map(link).join(', ')}</div>` : ''}
+    <ol class="bp-assemble">
+      <li><b>Dry-fit</b> it all first: every joint closes, nothing binds.</li>
+      <li>Check it's <b>square</b>: the diagonals measure the same.</li>
+      <li>Mark the parts so they go back the same way, take it apart, then <b>glue and clamp</b>${hardware.length ? ' and fit the hardware' : ''}. Check square again before the glue sets.</li>
+    </ol>`;
+}
+
+// Tick the step off (a part cut, an assembly done) and move on to the next.
+function setStepDone(on) {
+  const key = build.order[build.i].key;
+  const next = new Set(settings().cut);
+  if (on) next.add(key); else next.delete(key);
+  updateSettings({ cut: [...next] });
+  if (on && build.i < build.order.length - 1) setTimeout(() => stepBuild(1), 250);
+  else renderBuildPanel();
+}
+
+// ---- hands-free: say "next", "back" or "done" (where the browser can listen) ----
+const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
+let voice = null;
+function toggleVoice(on = !voice) {
+  if (!on) {
+    const rec = voice;
+    voice = null;
+    rec?.stop();
+    if (build) renderBuildPanel();
+    return;
+  }
+  if (!Speech || voice) return;
+  const rec = new Speech();
+  rec.continuous = true;
+  rec.interimResults = false;
+  rec.lang = navigator.language || 'en-US';
+  rec.onresult = (e) => {
+    const said = e.results[e.results.length - 1][0].transcript.toLowerCase();
+    if (!build) return;
+    if (/\b(next|forward|go on)\b/.test(said)) stepBuild(1);
+    else if (/\b(back|previous|go back)\b/.test(said)) stepBuild(-1);
+    else if (/\b(done|finished|cut|check)\b/.test(said)) setStepDone(true);
+  };
+  // browsers stop listening after a while: keep going until it's turned off
+  rec.onend = () => { if (voice === rec) { try { rec.start(); } catch { /* already started */ } } };
+  rec.onerror = (e) => {
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+      showToast('The microphone is blocked for this page - allow it in the browser\'s site settings to use voice.');
+      toggleVoice(false);
+    }
+  };
+  voice = rec;
+  try { rec.start(); } catch { voice = null; }
+  renderBuildPanel();
+}
+
+// ---- build log: photos per step (IndexedDB, modelstore.js) ----
+async function shrinkPhoto(file) {
+  try {
+    const bmp = await createImageBitmap(file);
+    const k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    return await new Promise((r) => c.toBlob((b) => r(b || file), 'image/jpeg', 0.82));
+  } catch { return file; } // e.g. a format the browser can't decode: keep it as is
+}
+let photoUrls = [];
+async function showStepPhotos(stepKey) {
+  let photos = [];
+  try { photos = await listPhotos(modelKey, stepKey); } catch { /* storage unavailable */ }
+  const box = $('buildPanel').querySelector('.bp-photos');
+  if (!build || build.order[build.i]?.key !== stepKey || !box) return; // moved on meanwhile
+  photoUrls.forEach((u) => URL.revokeObjectURL(u));
+  photoUrls = photos.map((p) => URL.createObjectURL(p.blob));
+  box.querySelectorAll('.bp-thumb').forEach((t) => t.remove());
+  photos.forEach((p, i) => {
+    const img = document.createElement('img');
+    img.className = 'bp-thumb';
+    img.src = photoUrls[i];
+    img.alt = 'Build photo';
+    img.addEventListener('click', () => showPhoto(photoUrls[i], p.key, stepKey));
+    box.insertBefore(img, box.querySelector('.bp-photo-add'));
+  });
+}
+function showPhoto(url, key, stepKey) {
+  const view = $('photoView');
+  view.querySelector('img').src = url;
+  view.style.display = 'flex';
+  view.querySelector('.pv-delete').onclick = async (e) => {
+    e.stopPropagation();
+    await deletePhoto(key).catch(() => {});
+    view.style.display = 'none';
+    showStepPhotos(stepKey);
+  };
+}
+$('photoView').addEventListener('click', () => { $('photoView').style.display = 'none'; });
+
+// swipe the step panel sideways to step through (phones)
+let swipe = null;
+$('buildPanel').addEventListener('pointerdown', (e) => { swipe = e.pointerType === 'touch' ? { x: e.clientX, y: e.clientY } : null; });
+$('buildPanel').addEventListener('pointerup', (e) => {
+  if (!swipe || !build) return;
+  const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y;
+  swipe = null;
+  if (Math.abs(dx) > 70 && Math.abs(dy) < 45) stepBuild(dx < 0 ? 1 : -1);
+});
 
 function renderBuildPanel() {
   const el = $('buildPanel');
@@ -1360,25 +1642,20 @@ function renderBuildPanel() {
   const units = settings().units;
   const cutSet = new Set(settings().cut);
   const n = build.order.length;
-  const rough = row.category === 'Wood' ? roughDims(row, units) : '';
-  const mine = userNote(row);
   el.innerHTML = `
     <div class="bp-top">
       <select class="bp-steps" title="Jump to a step">${build.order.map((r, k) => `<option value="${k}"${k === build.i ? ' selected' : ''}>${k + 1}. ${escapeHtml(r.letter)} ${escapeHtml(r.name)}${cutSet.has(r.key) ? ' ✓' : ''}</option>`).join('')}</select>
       <span class="bp-of">of ${n} · ${escapeHtml(row.groupName)}</span>
       <button class="bp-order card-btn" title="Step through the parts in assembly order (ground up) or cutting order (by species and stock thickness)">${settings().buildOrder === 'cutting' ? 'Cutting order' : 'Assembly order'}</button>
+      ${Speech ? `<button class="bp-voice card-btn${voice ? ' on' : ''}" title="Hands-free: say &quot;next&quot;, &quot;back&quot; or &quot;done&quot;">${voice ? '🎤 Listening' : '🎤'}</button>` : ''}
       <button class="bp-exit card-btn" title="Leave build mode (Esc)">Exit</button>
     </div>
     <div class="bp-progress"><div style="width:${Math.round(((build.i + 1) / n) * 100)}%"></div></div>
-    <div class="bp-name"><span class="letter">${row.letter}</span>${escapeHtml(row.name)} <span class="bp-qty">×${row.count}</span></div>
-    <div class="bp-size">${escapeHtml(finishedDims(row, units))}</div>
-    <div class="bp-sub">${row.customDims ? '' : 'Thickness × Width × Length'}${rough ? ` · rough <b>${escapeHtml(rough)}</b>` : ''} · ${escapeHtml(row.materialLabel)}</div>
-    ${contactHtml(row)}
-    ${row.notes.map((t) => `<div class="card-note${row.warn ? ' warn' : ''}">${escapeHtml(t)}</div>`).join('')}
-    ${mine ? `<div class="card-note mine">✎ ${escapeHtml(mine)}</div>` : ''}
+    ${row.assemble ? assembleStepHtml(row) : partStepHtml(row, units)}
+    <div class="bp-photos"><label class="card-btn bp-photo-add" title="Take a picture of this step for your build log">📷 Photo<input type="file" accept="image/*" capture="environment" hidden /></label></div>
     <div class="bp-nav">
       <button class="bp-prev" ${build.i === 0 ? 'disabled' : ''}>◀ Back</button>
-      <label class="bp-cut"><input type="checkbox" ${cutSet.has(row.key) ? 'checked' : ''} /> ${isCut(row) ? 'Cut' : 'Done'}</label>
+      <label class="bp-cut"><input type="checkbox" ${cutSet.has(row.key) ? 'checked' : ''} /> ${!row.assemble && isCut(row) ? 'Cut' : 'Done'}</label>
       <button class="bp-next" ${build.i === n - 1 ? 'disabled' : ''}>Next ▶</button>
     </div>`;
   el.style.display = 'block';
@@ -1390,15 +1667,18 @@ function renderBuildPanel() {
   el.querySelector('.bp-prev').addEventListener('click', () => stepBuild(-1));
   el.querySelector('.bp-next').addEventListener('click', () => stepBuild(1));
   el.querySelector('.bp-steps').addEventListener('change', (e) => { build.i = +e.target.value; showStep(true); });
-  el.querySelector('.bp-cut input').addEventListener('change', (e) => {
-    const next = new Set(settings().cut);
-    if (e.target.checked) next.add(row.key); else next.delete(row.key);
-    updateSettings({ cut: [...next] });
-    // ticking a part off moves on to the next one
-    if (e.target.checked && build.i < n - 1) setTimeout(() => stepBuild(1), 250);
-    else renderBuildPanel();
+  el.querySelector('.bp-cut input').addEventListener('change', (e) => setStepDone(e.target.checked));
+  el.querySelector('.bp-voice')?.addEventListener('click', () => toggleVoice());
+  el.querySelector('.bp-photo-add input').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      await addPhoto(modelKey, row.key, await shrinkPhoto(file));
+    } catch (err) { showToast(`Couldn't save the photo: ${err.message || err}`); }
+    showStepPhotos(row.key);
   });
-  el.querySelectorAll('.card-rel a').forEach((a) => a.addEventListener('click', (e) => {
+  showStepPhotos(row.key);
+  el.querySelectorAll('.card-rel a, .card-note a').forEach((a) => a.addEventListener('click', (e) => {
     e.preventDefault();
     const k = build.order.findIndex((r) => r.key === a.dataset.key);
     if (k >= 0) { build.i = k; showStep(true); }
@@ -1423,12 +1703,13 @@ function renderDimCard() {
     <div class="part-name">${row.letter ? `<span class="letter">${row.letter}</span>` : ''}<span class="pn-text">${escapeHtml(row.name)}</span><button class="pn-edit" title="Rename this part (F2)">✎</button></div>
     ${row.status === 'aside' ? '<div class="card-aside">Set aside - not in the build (not counted in totals, shopping list or prints)</div>' : ''}
     <div class="dim-big">${escapeHtml(finishedDims(row))}</div>
-    <div class="dim-axes">${row.customDims ? '' : 'Thickness × Width × Length'}</div>
+    <div class="dim-axes">${row.customDims ? '' : 'Thickness × Width × Length'}${stdSize(row) ? ` · <span class="card-std" title="Dimensional lumber: buy it surfaced to this size, no milling">a standard ${stdSize(row)}</span>` : ''}</div>
     ${settings().showPartAngles ? angleHtml(data) : ''}
     ${angleHtml(data) ? `<button class="card-btn angle-toggle" data-act="angles" title="The part's lean / splay angles, worked out from the model">${settings().showPartAngles ? 'Hide angles' : '∠ Show angles'}</button>` : ''}
     <div class="meta">qty ${row.count} · ${escapeHtml(row.materialLabel)} · ${escapeHtml(row.groupName)}</div>
     ${variantsHtml(current.variants)}
     ${contactHtml(row)}
+    ${joineryHtml(row, current.piece || current.meshes[0])}
     ${notes}
     <details class="card-mynote"${userNote(row) ? ' open' : ''}>
       <summary>${userNote(row) ? 'Your note' : 'Add a note'}</summary>
@@ -1452,7 +1733,7 @@ function renderDimCard() {
   dimCard.style.display = 'block';
   dimCard.querySelector('.card-close').addEventListener('click', () => clearSelection());
   dimCard.querySelector('.card-min').addEventListener('click', () => { cardCollapsed = !cardCollapsed; renderDimCard(); });
-  dimCard.querySelectorAll('.card-rel a').forEach((a) => a.addEventListener('click', (e) => {
+  dimCard.querySelectorAll('.card-rel a, .card-note a').forEach((a) => a.addEventListener('click', (e) => {
     e.preventDefault();
     const r = rows.find((x) => x.key === a.dataset.key);
     if (r) selectRow(r);
@@ -1864,12 +2145,12 @@ window.addEventListener('beforeprint', () => {
   // print-sized diagrams: 7.5" printable width at 96 css px per inch
   const layouts = computeLayouts(rows);
   const sheets = sheetLayouts(rows);
-  const longest = Math.max(...layouts.flatMap((g) => g.boards.map((b) => b.length)), ...sheets.flatMap((g) => g.sheets.map((b) => b.length)), 1);
+  const longest = Math.max(...layouts.flatMap((g) => [...g.owned, ...g.boards].map((b) => b.length)), ...sheets.flatMap((g) => g.sheets.map((b) => b.length)), 1);
   const diagrams = layouts.length || sheets.length
     ? `<div class="ps-diagrams"><h2>Shopping list &amp; cutting diagrams</h2>${layoutsHTML(layouts, { pxPerInch: 700 / longest, units: settings().units, colorFor: diagram.colorFor, hardware: rows, finishArea: woodSurfaceArea(), sheets })}</div>`
     : '';
   const mill = millingPlanHTML(rows);
-  buildPrintSheet($('printSheet'), rows, config, img, drillingHtml() + (mill ? `<h2>Milling plan</h2>${mill}` : '') + diagrams);
+  buildPrintSheet($('printSheet'), rows, config, img, drillingHtml() + joineryPrintHtml() + (mill ? `<h2>Milling plan</h2>${mill}` : '') + diagrams);
 });
 
 // ---------- part letter tags in 3D ----------
@@ -1929,6 +2210,7 @@ window.addEventListener('keydown', (e) => {
     // the thing on top first: a dialog, then measuring, then build mode
     if ($('help').style.display === 'flex') toggleHelp(false);
     else if (library.isOpen()) { $('library').style.display = 'none'; $('setup').style.display = 'none'; }
+    else if (share.isOpen()) share.close();
     else if (diagram && diagram.isOpen()) diagram.close();
     else if (measure.cancel()) syncToolButtons();
     else if (build) exitBuild();
@@ -2030,7 +2312,7 @@ window.__viewer = {
   currentSelectionMeshes: () => (current ? current.meshes : []),
   meshesOf: (name) => meshes.filter((m) => meshInfo.get(m).row?.name === name),
   measureClickCount: () => measure.points.length + measure.measurements.length * 2,
-  setExplode, setView, selectRow, rows: () => rows, requestRender,
+  setExplode, setView, selectRow, rows: () => rows, requestRender, objectDims: () => objectDims,
   prepareTemplate,
   guidePoints: () => selectionGuidePoints(),
   guideAxes: () => selectionGuideAxes(),

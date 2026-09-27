@@ -88,7 +88,7 @@ function sideGrain(sp, seed, W = 512, H = 1024) {
       const r = Math.sqrt(dx * dx * 1.2 + dy * dy) + 0.02 * fbm(X * 6, Y * 24, seed + 2);
       const phase = (r * sp.rings) % 1;
       // latewood: a darker band at the end of each ring, soft on its inner edge
-      const lateW = smooth(0.62, 0.86, phase) * (1 - smooth(0.95, 1, phase));
+      const lateW = smooth(sp.late0 ?? 0.62, sp.late1 ?? 0.86, phase) * (1 - smooth(0.95, 1, phase));
       const streak = fbm(X * 70, Y * 2.5, seed + 3); // fine fibre streaks along the grain
       const tone = fbm(X * 3, Y * 1.2, seed + 9); // broad colour variation across the board
       let t = lateW * sp.contrast + (streak - 0.5) * 0.14 + (tone - 0.5) * 0.25;
@@ -122,7 +122,7 @@ function endGrain(sp, seed, S = 512) {
       const dx = X - cx, dy = Y - cy;
       const r = Math.sqrt(dx * dx + dy * dy) + 0.015 * fbm(X * 5, Y * 5, seed + 11);
       const phase = (r * sp.rings * 1.1) % 1;
-      const lateW = smooth(0.62, 0.86, phase) * (1 - smooth(0.95, 1, phase));
+      const lateW = smooth(sp.late0 ?? 0.62, sp.late1 ?? 0.86, phase) * (1 - smooth(0.95, 1, phase));
       let t = lateW * sp.contrast * 1.2 + (noise(X * 60, Y * 60, seed + 12) - 0.5) * 0.1;
       let shade = 0.82; // end grain drinks finish and reads darker
       if (sp.pores && noise(X * 240, Y * 240, seed + 13) > (sp.pores === 'ring' && phase < 0.35 ? 0.7 : 0.9)) shade -= 0.2;
@@ -148,9 +148,24 @@ function toTexture(data, w, h, isColor) {
   return tex;
 }
 
-// A palette for wood that isn't a known species: the model's own colours.
-function paletteSpecies(tex) {
-  return { name: 'Wood', early: tex.base || '#c9975c', late: tex.ring || tex.streak || '#8a5a2c', rings: 4, contrast: 0.36, pores: 'fine', rough: 0.55 };
+// Grain styles for wood that isn't a known species, in the model's own
+// colours (light or dark): tight hardwood grain - many fine rings with thin
+// latewood lines and small pores - or wide softwood grain with bold bands.
+export const GRAINS = {
+  hardwood: { name: 'Tight grain (hardwood)', rings: 12, contrast: 0.38, late0: 0.76, late1: 0.9, pores: 'fine', rough: 0.5 },
+  softwood: { name: 'Wide grain (softwood)', rings: 4, contrast: 0.42, pores: '', rough: 0.58 },
+};
+function paletteSpecies(tex, grain = 'softwood') {
+  const g = GRAINS[grain] || GRAINS.softwood;
+  const early = tex.base || '#c9975c', late = tex.ring || tex.streak || '#8a5a2c';
+  // dark wood (walnut-like): lighter streaks between the rings and stronger
+  // rings, or its grain disappears into the colour
+  const [r, gr, b] = rgb(early);
+  if (0.2126 * r + 0.7152 * gr + 0.0722 * b < 110) {
+    const lift = (c) => Math.min(255, Math.round(c * 1.3 + 8));
+    return { ...g, early: `#${[r, gr, b].map((c) => lift(c).toString(16).padStart(2, '0')).join('')}`, late, contrast: Math.min(0.75, g.contrast * 1.6) };
+  }
+  return { ...g, early, late };
 }
 
 const cache = new Map();
@@ -163,12 +178,13 @@ function texturesFor(key, sp) {
   return cache.get(key);
 }
 
-// A material for wood of the given species (a SPECIES key) or, failing that,
-// the colours in a model.json texture entry. Faces marked as end grain (the
+// A material for wood of the given species (a SPECIES key), or in the
+// colours of a model.json texture entry with a GRAINS style ('hardwood' /
+// 'softwood'; wide grain if none). Faces marked as end grain (the
 // geometry's `endGrain` attribute, see app.js generateGrainUV) show endMap.
 export function woodMaterial(species, fallbackTexture = {}) {
-  const sp = SPECIES[species] || paletteSpecies(fallbackTexture);
-  const key = SPECIES[species] ? species : `palette:${sp.early}:${sp.late}`;
+  const sp = SPECIES[species] || paletteSpecies(fallbackTexture, species);
+  const key = SPECIES[species] ? species : `palette:${GRAINS[species] ? species : 'softwood'}:${sp.early}:${sp.late}`;
   const { map, bumpMap, endMap } = texturesFor(key, sp);
   const mat = new THREE.MeshStandardMaterial({ map, bumpMap, bumpScale: 0.6, roughness: sp.rough, metalness: 0, envMapIntensity: 0.3 });
   addEndGrain(mat, endMap);

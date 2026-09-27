@@ -8,7 +8,7 @@ import {
   saveModel, listModels, getModelFiles, getModelConfig, putModelFile, deleteModel, getModelMeta,
 } from './modelstore.js';
 import { escapeHtml, looksLikeSheetGoods, SHEET } from './format.js';
-import { SPECIES, speciesFor } from './woodtex.js';
+import { SPECIES, GRAINS, speciesFor } from './woodtex.js';
 
 const DATA_FILES = ['scene.obj', 'scene.mtl', 'materials.json', 'object_dims.json', 'parts_report.json', 'model.json'];
 export const CATEGORIES = ['Wood', 'Sheet goods', 'Hardware', 'Leather', 'Other'];
@@ -56,6 +56,15 @@ export async function importFile(file, onStatus = () => {}) {
   });
   files['model.json'] = JSON.stringify(cfg, null, 2);
   return { name: cfg.title, files, parts: stats.parts };
+}
+
+// An uploaded model as a zip of its data files in a folder named after it
+// (Download, and Share on a phone); uploading it again restores it.
+export async function modelZip(id) {
+  const [files, meta] = await Promise.all([getModelFiles(id), getModelMeta(id)]);
+  const slug = (meta?.name || 'model').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'model';
+  const bytes = zip(Object.fromEntries(DATA_FILES.map((f) => [`${slug}/${f}`, files[f]])));
+  return new File([bytes], `${slug}.zip`, { type: 'application/zip' });
 }
 
 // ---------- model setup (config editing) ----------
@@ -112,7 +121,7 @@ export function applySetup(cfg, { title, subtitle, categories, front, labels = {
   Object.entries(species).forEach(([name, sp]) => {
     const m = out.materials[name];
     if (!m) return;
-    if (sp && SPECIES[sp]) m.species = sp; else delete m.species;
+    if (sp && (SPECIES[sp] || GRAINS[sp])) m.species = sp; else delete m.species;
   });
   // materials given the same name are one species: totals and shopping list combine them
   Object.entries(labels).forEach(([name, label]) => {
@@ -180,12 +189,10 @@ export function initLibrary({ current, onOpen, builtIn }) {
     if (b.dataset.act === 'open') onOpen(ref);
     else if (b.dataset.act === 'setup' && id) { close(); openSetup(id); }
     else if (b.dataset.act === 'export' && id) {
-      const [files, meta] = await Promise.all([getModelFiles(id), getModelMeta(id)]);
-      const slug = (meta.name || 'model').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'model';
-      const blob = new Blob([zip(Object.fromEntries(DATA_FILES.map((f) => [`${slug}/${f}`, files[f]])))], { type: 'application/zip' });
+      const file = await modelZip(id);
       const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `${slug}.zip`;
+      a.href = URL.createObjectURL(file);
+      a.download = file.name;
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     } else if (b.dataset.act === 'delete' && id) {
@@ -249,7 +256,7 @@ export function initLibrary({ current, onOpen, builtIn }) {
         <td class="num">${uses[m] || 0} pc</td>
         <td><select data-mat="${escapeHtml(m)}" data-initial="${escapeHtml(effectiveCategory(m, cfg.materials[m]))}">${CATEGORIES.map((c) => `<option${c === effectiveCategory(m, cfg.materials[m]) ? ' selected' : ''}>${c}</option>`).join('')}</select></td>
         <td><input data-label="${escapeHtml(m)}" value="${escapeHtml(cfg.materials[m].label || (m === '(none)' ? 'No material' : defaultMaterialLabel(m, cfg.materials[m])))}" /></td>
-        <td><select data-species="${escapeHtml(m)}"><option value="">${escapeHtml(SPECIES[speciesFor(cfg.materials[m].label, m)]?.name ? `Auto (${SPECIES[speciesFor(cfg.materials[m].label, m)].name})` : 'Auto')}</option>${Object.entries(SPECIES).map(([k, sp]) => `<option value="${k}"${cfg.materials[m].species === k ? ' selected' : ''}>${escapeHtml(sp.name)}</option>`).join('')}</select></td></tr>`).join('')}
+        <td><select data-species="${escapeHtml(m)}"><option value="">${escapeHtml(SPECIES[speciesFor(cfg.materials[m].label, m)]?.name ? `Auto (${SPECIES[speciesFor(cfg.materials[m].label, m)].name})` : 'Auto (wide grain)')}</option><optgroup label="In the model's colour">${Object.entries(GRAINS).map(([k, g]) => `<option value="${k}"${cfg.materials[m].species === k ? ' selected' : ''}>${escapeHtml(g.name)}</option>`).join('')}</optgroup><optgroup label="Species">${Object.entries(SPECIES).map(([k, sp]) => `<option value="${k}"${cfg.materials[m].species === k ? ' selected' : ''}>${escapeHtml(sp.name)}</option>`).join('')}</optgroup></select></td></tr>`).join('')}
       </tbody></table>
       <p class="muted small">Only <b>Wood</b> parts go into rough stock, board feet, the cutting diagram and templates. Give materials the same name (e.g. all the oak textures "Red oak") to total them as one species.</p>`;
     setup.dataset.id = id;

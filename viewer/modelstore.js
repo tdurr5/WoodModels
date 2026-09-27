@@ -4,9 +4,10 @@
 // and `config` (model.json - setup and your edits), kept apart so saving an
 // edit doesn't rewrite megabytes of geometry. Models saved before `config`
 // existed keep their model.json in `files` until it's first changed.
+// `photos`: pictures you take of a build step (see addPhoto), for any model.
 
 const DB_NAME = 'woodmodels';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const LAST_KEY = 'woodmodels:lastModel';
 
 let dbPromise = null;
@@ -19,6 +20,7 @@ function db() {
         if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', { keyPath: 'id' });
         if (!d.objectStoreNames.contains('files')) d.createObjectStore('files');
         if (!d.objectStoreNames.contains('config')) d.createObjectStore('config');
+        if (!d.objectStoreNames.contains('photos')) d.createObjectStore('photos');
       };
       req.onsuccess = () => {
         // another tab upgrading the database: step aside rather than block it
@@ -115,3 +117,23 @@ export function lastOpened() {
 export function rememberOpened(ref) {
   try { localStorage.setItem(LAST_KEY, ref); } catch { /* ignore */ }
 }
+
+// ---------- build photos ----------
+// Keyed "<model>|<step>|<time>", so a step's photos list together in order.
+const photoRange = (model, step) => IDBKeyRange.bound(`${model}|${step}|`, `${model}|${step}|\uffff`);
+export async function addPhoto(model, step, blob) {
+  const key = `${model}|${step}|${Date.now()}`;
+  await tx(['photos'], 'readwrite', (p) => { p.put(blob, key); });
+  return key;
+}
+export async function listPhotos(model, step) {
+  return tx(['photos'], 'readonly', async (p) => {
+    const range = photoRange(model, step);
+    const [keys, blobs] = await Promise.all([req2p(p.getAllKeys(range)), req2p(p.getAll(range))]);
+    return keys.map((key, i) => ({ key, blob: blobs[i] }));
+  });
+}
+export async function countPhotos(model) {
+  return tx(['photos'], 'readonly', (p) => req2p(p.count(IDBKeyRange.bound(`${model}|`, `${model}|\uffff`))));
+}
+export const deletePhoto = (key) => tx(['photos'], 'readwrite', (p) => { p.delete(key); });

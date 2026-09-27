@@ -529,3 +529,125 @@ test('uploaded wood materials are named after their species, so texture variants
   assert.equal(defaultMaterialLabel('Wood_Board_Dark_1', wood), 'Wood Board Dark');
   assert.equal(defaultMaterialLabel('Walnut_Stain_Handle', { category: 'Hardware' }), 'Walnut Stain Handle');
 });
+
+import { endJoints, obbFromDims as obbOf } from '../viewer/geometry.js';
+
+// an axis-aligned box as object_dims + triangle vertices (corners are enough)
+function jbox(center, size) {
+  const [x, y, z] = center, [sx, sy, sz] = size;
+  const order = [0, 1, 2].sort((a, b) => size[b] - size[a]); // length, width, thickness
+  const unit = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+  const dims = { center, axes: order.map((i, k) => ({ direction: unit[i], length: size[i], role: ['Length', 'Width', 'Thickness'][k] })) };
+  const tris = [];
+  for (const dx of [-1, 1]) for (const dy of [-1, 1]) for (const dz of [-1, 1]) tris.push(x + dx * sx / 2, y + dy * sy / 2, z + dz * sz / 2);
+  return { dims, tris };
+}
+// a rail with narrower tenons on each end: body plus tenon vertices
+function tenonedRail(center, bodyLen, tenonLen, size, tenon) {
+  const body = jbox(center, [bodyLen, size[0], size[1]]);
+  const tris = [...body.tris];
+  for (const s of [-1, 1]) {
+    const t = jbox([center[0] + s * (bodyLen / 2 + tenonLen / 2), center[1], center[2]], [tenonLen, tenon[0], tenon[1]]);
+    tris.push(...t.tris);
+  }
+  const all = jbox(center, [bodyLen + 2 * tenonLen, size[0], size[1]]);
+  return { dims: all.dims, tris };
+}
+
+test('a rail drawn with its tenons in the legs: tenon size, depth, shoulder to shoulder', () => {
+  // legs 2" square, 30" tall, 20" apart (centres); rail 3" wide, 1" thick, tenons 1-1/4" long, 1/2" x 2"
+  const legA = jbox([-10, 0, 0], [2, 2, 30]), legB = jbox([10, 0, 0], [2, 2, 30]);
+  const rail = tenonedRail([0, 0, 10], 18, 1.25, [1, 3], [0.5, 2]);
+  const others = [{ name: 'A', box: obbOf(legA.dims) }, { name: 'B', box: obbOf(legB.dims) }];
+  const j = endJoints(obbOf(rail.dims), rail.tris, others);
+  assert.equal(j.length, 2);
+  j.forEach((x) => {
+    assert.equal(x.kind, 'tenon');
+    assert.ok(Math.abs(x.depth - 1.25) < 1e-6, `depth ${x.depth}`);
+    assert.deepEqual([x.thick, x.width].map((v) => Math.round(v * 100) / 100).sort(), [0.5, 2]);
+    assert.equal(x.through, false);
+  });
+  assert.deepEqual(j.map((x) => x.name).sort(), ['A', 'B']);
+});
+
+test('through tenons, housed ends and butt joints are told apart', () => {
+  const leg = jbox([10, 0, 0], [2, 2, 30]);
+  const others = [{ name: 'leg', box: obbOf(leg.dims) }];
+  // a full-size end passing right through the leg: housed, through
+  const through = jbox([0, 0, 5], [22, 1, 3]); // runs x = -11..11, leg x = 9..11
+  const t = endJoints(obbOf(through.dims), through.tris, others).find((x) => x.end === 1);
+  assert.equal(t.kind, 'housed');
+  assert.equal(t.through, true);
+  assert.ok(Math.abs(t.depth - 2) < 1e-6);
+  // stopping at the leg's face: a butt joint
+  const butt = jbox([0, 0, 5], [18, 1, 3]); // x = -9..9
+  assert.equal(endJoints(obbOf(butt.dims), butt.tris, others).find((x) => x.end === 1)?.kind, 'butt');
+});
+
+test('a board crossing another or sitting on it is not a tenon', () => {
+  // treadle beam over a peg: the beam is wider than the peg it crosses
+  const peg = jbox([0, 0, 0], [1, 3, 16]);
+  const beam = jbox([14, 0, 0], [30, 3, 1.6]); // end at x = -1, inside the peg's box
+  assert.deepEqual(endJoints(obbOf(beam.dims), beam.tris, [{ name: 'peg', box: obbOf(peg.dims) }]).filter((x) => x.kind !== 'butt'), []);
+  // a part drawn inside another (a copy): not a joint
+  const big = jbox([0, 0, 0], [20, 4, 2]), small = jbox([0, 0, 0], [18, 3, 1]);
+  assert.deepEqual(endJoints(obbOf(small.dims), small.tris, [{ name: 'big', box: obbOf(big.dims) }]), []);
+});
+
+import { dimensionalSize } from '../viewer/format.js';
+
+test('dimensional lumber is recognised by its actual size', () => {
+  assert.equal(dimensionalSize(1.5, 3.5), '2×4');
+  assert.equal(dimensionalSize(0.75, 5.5), '1×6');
+  assert.equal(dimensionalSize(3.5, 3.5), '4×4');
+  assert.equal(dimensionalSize(1.5, 11.25), '2×12');
+  assert.equal(dimensionalSize(1.52, 3.49), '2×4'); // modeling slop
+  assert.equal(dimensionalSize(1.625, 3.5), null); // 1-5/8": milled hardwood
+  assert.equal(dimensionalSize(0.75, 4), null);
+});
+
+import { packWithOwned } from '../viewer/nesting.js';
+
+test('boards you own are used first; only the rest is bought', () => {
+  const pieces = [
+    { id: 'a', length: 30, width: 5 }, { id: 'b', length: 30, width: 5 },
+    { id: 'c', length: 60, width: 7 }, { id: 'd', length: 20, width: 3 },
+  ];
+  const stock = { length: 96, width: 8, kerf: 0.125 };
+  // one 5' x 6" board on the rack: takes the two 30" x 5" parts, not the 7" wide one
+  const r = packWithOwned(pieces, [{ length: 64, width: 6, label: 'rack' }], stock);
+  assert.equal(r.owned.length, 1);
+  assert.equal(r.owned[0].owned, true);
+  assert.deepEqual(boardParts(r.owned[0]).map((p) => p.id).sort(), ['a', 'b']);
+  assert.deepEqual(r.boards.flatMap(boardParts).map((p) => p.id).sort(), ['c', 'd']);
+  // enough owned boards: nothing to buy
+  const all = packWithOwned(pieces, [{ length: 96, width: 12 }, { length: 96, width: 12 }], stock);
+  assert.equal(all.boards.length, 0);
+  assert.equal(all.owned.flatMap(boardParts).length, 4);
+  // an owned board nothing fits on isn't used
+  assert.equal(packWithOwned(pieces, [{ length: 10, width: 2 }], stock).owned.length, 0);
+});
+
+import { withAssemblySteps } from '../viewer/build.js';
+
+test('assembly order gets an assemble step after each sub-assembly with several wood parts', () => {
+  const row = (key, g, category = 'Wood', count = 1) => ({ key, top_group: g, groupName: g, category, count, dims: [10, 3, 1] });
+  const order = [row('a', 'Legs', 'Wood', 4), row('b', 'Legs', 'Hardware', 8), row('c', 'Top'), row('d', 'Base'), row('e', 'Base')];
+  const steps = withAssemblySteps(order);
+  assert.deepEqual(steps.map((s) => s.key), ['a', 'b', 'assemble:Legs', 'c', 'd', 'e', 'assemble:Base']);
+  const legs = steps.find((s) => s.key === 'assemble:Legs');
+  assert.equal(legs.assemble, true);
+  assert.deepEqual(legs.rows.map((r) => r.key), ['a', 'b']);
+});
+
+import { reachableUrl, qrSvg } from '../viewer/share.js';
+
+test('a QR code is offered only for pages a phone can open', () => {
+  const at = (href) => { const u = new URL(href); return { protocol: u.protocol, hostname: u.hostname, origin: u.origin, pathname: u.pathname, search: u.search }; };
+  assert.equal(reachableUrl(at('https://tdurr5.github.io/WoodModels/?model=models/bench/')), 'https://tdurr5.github.io/WoodModels/?model=models/bench/');
+  assert.equal(reachableUrl(at('http://localhost:8743/')), null);
+  assert.equal(reachableUrl(at('http://127.0.0.1:8743/')), null);
+  assert.equal(reachableUrl(at('file:///home/me/viewer/index.html')), null);
+  const svg = qrSvg('https://tdurr5.github.io/WoodModels/');
+  assert.match(svg, /^<svg[\s\S]*<path d="M/);
+});
