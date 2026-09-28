@@ -369,6 +369,7 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
   .tpl-overlap { position: absolute; }
   .tpl-overlap.v { top: 0; bottom: 0; border-right: 1px dashed #666; }
   .tpl-overlap.h { left: 0; right: 0; border-bottom: 1px dashed #666; }
+  .tpl-overlap.v span { position: absolute; right: 2px; top: 2px; font-size: 8px; color: #666; background: #fff; padding: 0 2px; white-space: nowrap; }
   .tpl-trim { position: absolute; }
   .tpl-trim.v { top: 0; bottom: 0; right: 0; border-right: 1px dashed #000; }
   .tpl-trim.h { left: 0; right: 0; bottom: 0; border-bottom: 1px dashed #000; }

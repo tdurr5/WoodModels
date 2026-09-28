@@ -142,7 +142,10 @@ function tiles(img, title, sub, k = 1) {
       const tw = Math.min(pageW, img.wIn - x), th = Math.min(pageH, img.hIn - y);
       const id = `${String.fromCharCode(65 + j)}${i + 1}`;
       const marks = [];
-      if (i > 0) marks.push(`<div class="tpl-overlap v" style="left:0;width:${OVERLAP}in"></div>`);
+      // where the sheet before's (untrimmed) paper edge lands: past its tile's
+      // edge by the page margin, as the printer shrinks the page about its
+      // middle (1/k of full size) - 1" in at 100%
+      if (i > 0) marks.push(`<div class="tpl-overlap v" style="left:0;width:${(k * OVERLAP + 4.25 * k - 3.75).toFixed(4)}in"><span>paper edge</span></div>`);
       if (j > 0) marks.push(`<div class="tpl-overlap h" style="top:0;height:${OVERLAP}in"></div>`);
       // where the paper's edge lands depends on the printer, so trim this
       // sheet on the tile's own edge: that edge goes on the next one's dashed line
@@ -168,7 +171,7 @@ function tiles(img, title, sub, k = 1) {
         <div class="tpl-page">
           <div class="tpl-head">
             <div><b>${escapeHtml(title)}</b> — ${escapeHtml(sub)} · tile${pg.cells.length > 1 ? 's' : ''} <b>${pg.cells.map((c) => c.id).join(', ')}</b> of ${n}${n > 1 ? ` (${ny} row${ny > 1 ? 's' : ''} × ${nx})` : ''}${pg.cells.length > 1 ? ' - cut them apart' : ''}</div>
-            <div class="tpl-check">${atScale(SQUARE_SVG, k)}<span class="tpl-checkcol">${atScale(RULER_SVG, k)}<span>${k !== 1 ? `<b>Made ${((k - 1) * 100).toFixed(1)}% bigger for your printer</b> (it printed the 6" ruler short). ` : ''}Print at 100% / "Actual size", not "fit to page". Check with a tape: the square is exactly 1", the ruler exactly 6" - a printer that shrinks the page by 2% is 1/8" short here.${n > 1 ? ' Trim each sheet on its ✂ line, lay that edge on the next sheet\'s dashed line, and check the pink crosses sit exactly on top of each other (hold them up to a light). Then tape.' : ''}</span></span></div>
+            <div class="tpl-check">${atScale(SQUARE_SVG, k)}<span class="tpl-checkcol">${atScale(RULER_SVG, k)}<span>${k !== 1 ? `<b>Made ${((k - 1) * 100).toFixed(1)}% bigger for your printer</b> (it printed the 6" ruler short). ` : ''}Print at 100% / "Actual size", not "fit to page". Check with a tape: the square is exactly 1", the ruler exactly 6" - a printer that shrinks the page by 2% is 1/8" short here.${n > 1 ? ' Lay each sheet on the next so its paper edge sits on the grey dashed "paper edge" line, and check the pink crosses sit exactly on top of each other (hold them up to a light) - if your printer\'s margins differ, trust the crosses. Then tape.' : ''}</span></span></div>
           </div>
           <div class="tpl-cells">${pg.cells.map((c) => c.html).join('')}</div>
         </div>`).join('');
