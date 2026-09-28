@@ -5,7 +5,8 @@ import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { woodMaterial, addEndGrain, endMapOf, speciesFor, generateGrainUV, photoWood, paletteFromColor, PHOTO_ACROSS, SPECIES } from './woodtex.js';
-import { classifyOverlaps as classifyOverlapsIn, singleSidedGeometry } from './autofix.js';
+import { classifyOverlaps as classifyOverlapsIn, singleSidedGeometry, isInside } from './autofix.js';
+import { findMissingHoles } from './holes.js';
 import { formatLength, escapeHtml, toFraction, isCut, dimensionalSize } from './format.js';
 import { compoundAngle, describeAngle, round1, DEFAULT_AXIS_NAMES } from './angles.js';
 import { initSettings, settings, updateSettings, onSettingsChange, resetSettings } from './settings.js';
@@ -20,7 +21,7 @@ import {
 import { initMeasure } from './measure.js';
 import { initDiagramModal, computeLayouts, layoutsHTML, STOCK_DEFAULTS, shoppingText, setSpeciesLookup } from './diagram.js';
 import { initShare } from './share.js';
-import { buildTemplate } from './template.js';
+import { buildTemplate, parseMeasured, printCorrection } from './template.js';
 import { initLibrary, modelZip } from './library.js';
 import { getModelFiles, getModelMeta, lastOpened, rememberOpened, putModelFile, addPhoto, listPhotos, deletePhoto, setThumbnail } from './modelstore.js';
 import { obbFromDims, partsTouch, findOverlaps, findButts, applyJoins, endJoints, pointInObb } from './geometry.js';
@@ -309,7 +310,9 @@ async function init() {
   scene.add(model);
   woodPhotos = await loadWoodPhotos(cfg, files);
   prepareMeshes(materialNames);
+  findHoles();
   if (classifyOverlaps()) refreshRows();
+  else if (missingHoles.length) refreshRows(); // their notes
   frameBox(modelBox, config.views?.iso?.dir || [0.7, 0.5, 0.7], false);
   $('loading').style.display = 'none';
   rememberOpened(LOCAL_ID ? `local:${LOCAL_ID}` : MODEL_REF);
@@ -498,6 +501,47 @@ function computeRows() {
     }
   });
   addOverlapNotes(allPartRows);
+  addHoleNotes(allPartRows);
+}
+
+// ---------- holes the model forgot (holes.js) ----------
+// A bolt drawn going through solid wood: the hole was never cut in the
+// model. Found once the model is loaded, from the shapes alone; the hole is
+// drawn on the part (a dark disc where it goes in and comes out), noted on
+// its card and in Model check, and marked on its full-size template.
+let missingHoles = [];
+function findHoles() {
+  const shanks = meshes.map(shankOf).filter(Boolean);
+  if (!shanks.length) return;
+  const parts = meshes.filter((m) => !shankOf(m) && meshInfo.get(m).row?.category !== 'Hardware' && baseObjectDims[m.name]?.axes?.length === 3)
+    .map((m) => ({ name: m.name, obb: obbFromDims(baseObjectDims[m.name]) }));
+  // two skewed directions, so a ray never runs along a face
+  const dirs = [new THREE.Vector3(0.577, 0.613, 0.54).normalize(), new THREE.Vector3(-0.69, 0.33, 0.64).normalize()];
+  const p = new THREE.Vector3();
+  missingHoles = findMissingHoles(shanks, parts, (P, q) => isInside(meshByName.get(P.name), p.set(...q), dirs));
+  missingHoles.forEach((h) => {
+    const m = meshByName.get(h.part);
+    const axis = new THREE.Vector3(...h.axis);
+    [[h.from, -1], [h.to, 1]].forEach(([at, side]) => {
+      const disc = new THREE.Mesh(new THREE.CircleGeometry(h.dia / 2, 32), new THREE.MeshBasicMaterial({ color: 0x1e140c, side: THREE.DoubleSide }));
+      disc.position.set(...at).addScaledVector(axis, side * 0.01); // just proud of the surface
+      disc.lookAt(disc.position.clone().addScaledVector(axis, side));
+      disc.raycast = () => {};
+      m.add(disc); // moves and hides with the part
+    });
+  });
+}
+function addHoleNotes(all) {
+  const units = settings().units;
+  missingHoles.forEach((h) => {
+    const r = all.find((x) => x.obj_names?.includes(h.part));
+    const bolt = rowByMeshName.get(h.shank)?.name || 'a bolt';
+    if (!r || r.status) return;
+    const through = h.depth >= (r.dims?.[2] || 0) - 1 / 16;
+    const text = `No hole drawn where ${bolt} goes through: drill ⌀${formatLength(h.dia, units)} ${through ? 'through' : `${formatLength(h.depth, units)} deep`} (added - shown on the model and the template).`;
+    if (!r.notes.includes(text)) r.notes.push(text);
+    r.addedHoles = (r.addedHoles || 0) + 1;
+  });
 }
 
 // ---------- automatic fixes for rough models (autofix.js) ----------
@@ -515,14 +559,15 @@ function classifyOverlaps() {
 // Say what was fixed automatically, once per model (and after it changes).
 function announceAutoFixes() {
   const eff = withAutoFixes(edits, autoFixes);
-  const joined = eff.autoJoins.size, dropped = eff.autoDeleted.size;
-  if (!joined && !dropped) return;
-  const sig = `${joined}|${dropped}|${[...eff.autoJoins].join(',')}`;
+  const joined = eff.autoJoins.size, dropped = eff.autoDeleted.size, holes = missingHoles.length;
+  if (!joined && !dropped && !holes) return;
+  const sig = `${joined}|${dropped}|${holes}|${[...eff.autoJoins].join(',')}`;
   if (settings().autoFixSeen === sig) return;
   updateSettings({ autoFixSeen: sig });
   const parts = [];
   if (joined) parts.push(`joined ${joined} part${joined > 1 ? 's' : ''} the model drew in pieces (overlapping, or butted end to end)`);
   if (dropped) parts.push(`removed ${dropped} exact cop${dropped > 1 ? 'ies' : 'y'}`);
+  if (holes) parts.push(`added ${holes} bolt hole${holes > 1 ? 's' : ''} the model didn't draw`);
   showToast(`Fixed automatically: ${parts.join(', ')}. See the part's card to undo.`, { ms: 9000 });
 }
 
@@ -678,11 +723,18 @@ function prepareMeshes(materialNames) {
 // threaded all along. The part's card can say otherwise (edits.threads:
 // row key -> 'full' | 'none' | inches of thread).
 const THREAD_CHOICES = ['full', 'none', 0.5, 1, 1.5, 2, 3, 4];
-function threadSpecFor(m) {
-  const row = meshInfo.get(m).row, d = objectDims[m.name];
+// A bolt, rod or pin: round hardware at least twice as long as it's thick.
+function shankOf(m) {
+  const row = meshInfo.get(m)?.row, d = baseObjectDims[m.name];
   if (!row || row.category !== 'Hardware' || d?.axes?.length !== 3) return null;
   const [L, W, T] = d.axes;
-  if (Math.abs(W.length - T.length) > 0.15 * W.length || L.length < 2 * W.length) return null; // not a shank
+  if (Math.abs(W.length - T.length) > 0.15 * W.length || L.length < 2 * W.length) return null;
+  return { name: m.name, center: d.center, axis: L.direction, length: L.length, dia: (W.length + T.length) / 2 };
+}
+function threadSpecFor(m) {
+  const row = meshInfo.get(m).row, d = objectDims[m.name];
+  if (!shankOf(m) || d?.axes?.length !== 3) return null;
+  const [L, W, T] = d.axes;
   const dia = (W.length + T.length) / 2;
   const axis = new THREE.Vector3(...L.direction), c = new THREE.Vector3(...d.center);
   const ends = [c.clone().addScaledVector(axis, -L.length / 2), c.clone().addScaledVector(axis, L.length / 2)];
@@ -1739,6 +1791,7 @@ function modelCheckItems() {
     else if (pieces.length && pieces.every((m) => ![...contactsOf(m)].some((o) => { const or = rowByMeshName.get(o.name); return or && !or.status; }))) {
       items.push({ kind: 'Floating', row: r, text: `touches no other part${r.count > 1 ? ' (none of its pieces)' : ''}: a leftover, or drawn in the wrong place?` });
     }
+    if (r.addedHoles) items.push({ kind: 'Hole', row: r, info: true, text: `has ${r.addedHoles > 1 ? `${r.addedHoles} bolt holes` : 'a bolt hole'} the model didn't draw - added (see its card).` });
     if (r.overlapPairs?.length) items.push({ kind: 'Overlap', row: r, text: 'has a piece overlapping another: a copy, or one piece drawn as two (see its card).' });
     const roughW = r.category === 'Wood' ? (roughFor(r)?.width || r.dims[1]) : 0;
     if (roughW && r.dims[1] > stockW + 1 / 32) {
@@ -1765,9 +1818,11 @@ function renderModelCheck() {
   const el = $('clCheck');
   if (!el || !model) return;
   const items = modelCheckItems();
-  const problems = items.filter((i) => !i.info).length, info = items.length - problems;
+  const problems = items.filter((i) => !i.info).length;
+  const glue = items.filter((i) => i.kind === 'Glue-up').length, holes = items.filter((i) => i.kind === 'Hole').length;
   if (!items.length) { el.innerHTML = '<div class="model-check ok">✓ Model check: every part touches another, nothing overlaps, no paper-thin parts.</div>'; return; }
-  const title = [problems && `${problems} thing${problems > 1 ? 's' : ''} to look at`, info && `${info} glue-up${info > 1 ? 's' : ''}`].filter(Boolean).join(' · ');
+  const title = [problems && `${problems} thing${problems > 1 ? 's' : ''} to look at`, glue && `${glue} glue-up${glue > 1 ? 's' : ''}`,
+    holes && `${holes} part${holes > 1 ? 's' : ''} with bolt holes added`].filter(Boolean).join(' · ');
   el.innerHTML = `<details class="model-check${problems ? ' warn' : ''}"${checkOpen ? ' open' : ''}><summary>${problems ? '⚠' : 'ℹ'} Model check: ${title}</summary><ul>${items.map((i) => `<li><span class="mc-kind">${i.kind}</span> <a href="#" data-key="${escapeHtml(i.row.key)}">${i.row.letter ? `${i.row.letter} ` : ''}${escapeHtml(i.row.name)}</a> ${escapeHtml(i.text)}</li>`).join('')}</ul></details>`;
   el.querySelector('details').addEventListener('toggle', (e) => { checkOpen = e.target.open; });
   el.querySelectorAll('a[data-key]').forEach((a) => a.addEventListener('click', (e) => {
@@ -2207,7 +2262,9 @@ function renderDimCard() {
       <button class="card-btn" data-act="piece-aside" title="Set aside just this piece">Set aside</button>
       <button class="card-btn danger" data-act="piece-delete" title="Delete just this piece, not all ${row.count}">Delete</button></div>` : ''}
     <div class="card-actions">
-      ${data && isCut(row) && !row.status ? '<button class="card-btn" data-act="template" title="Print this part at full size to trace onto your stock">Print full-size template</button>' : ''}
+      ${data && isCut(row) && !row.status ? `<button class="card-btn" data-act="template" title="Print this part at full size to trace onto your stock">Print full-size template</button>
+        <label class="card-check" title="Also print the part seen from its edge - only needed for cuts in an edge"><input type="checkbox" data-act="tpl-edge"${settings().tplEdge ? ' checked' : ''}> Include edge view</label>
+        <button class="card-btn" data-act="print-fix" title="If your printout's 6&quot; ruler measures short, enter what it measured and templates are printed that much bigger">${printScale() !== 1 ? `Printer correction ×${printScale().toFixed(3)}` : 'Printer correction…'}</button>` : ''}
       ${row.status === 'aside'
     ? '<button class="card-btn" data-act="build" title="Put this part back in the build">Put back in build</button>'
     : `<button class="card-btn" data-act="aside" title="Keep it with its sizes, but leave it out of the build: totals, shopping list, prints (e.g. a tool drawn on the bench)">Set aside${row.count > 1 ? ` all ×${row.count}` : ''}</button>`}
@@ -2235,6 +2292,16 @@ function renderDimCard() {
   noteEl.addEventListener('keydown', (e) => {
     e.stopPropagation(); // don't trigger shortcuts while typing
     if (e.key === 'Escape') noteEl.blur();
+  });
+  dimCard.querySelector('[data-act="tpl-edge"]')?.addEventListener('change', (e) => updateSettings({ tplEdge: e.target.checked }));
+  dimCard.querySelector('[data-act="print-fix"]')?.addEventListener('click', () => {
+    const got = window.prompt('Measure the 6" ruler at the top of a printed template.\nHow long is it? (e.g. 5 3/4 or 5.75 - leave empty to print as is)', '');
+    if (got === null) return;
+    const v = parseMeasured(got);
+    if (got.trim() && !(v > 5 && v < 7)) { showToast(`"${got}" doesn't look like the 6" ruler measured - no change`); return; }
+    try { localStorage.setItem(PRINT_KEY, v ? String(v) : ''); } catch { /* storage off */ }
+    renderDimCard();
+    showToast(v ? `Templates will print ${((printCorrection(v) - 1) * 100).toFixed(1)}% bigger to make up for your printer. Check the ruler again on the next print.` : 'Templates print as is');
   });
   const tplBtn = dimCard.querySelector('[data-act="template"]');
   if (tplBtn) tplBtn.addEventListener('click', () => printTemplate());
@@ -2590,6 +2657,12 @@ function printSheet() { window.print(); }
 // Full-size template of the selected part. Takes over #printSheet for one
 // print; the next print goes back to the cut sheet.
 let printingTemplate = false;
+// what your printer does to a page (template.js printCorrection), kept in
+// this browser: it's the printer's, not the model's
+const PRINT_KEY = 'woodmodels:printRulerMeasured';
+function printScale() {
+  try { return printCorrection(+localStorage.getItem(PRINT_KEY) || 0); } catch { return 1; }
+}
 function prepareTemplate() {
   if (!current) return false;
   const piece = rowPieces(current.row)[0];
@@ -2597,7 +2670,8 @@ function prepareTemplate() {
   if (!data) return false;
   // a joined piece is drawn from all of its meshes
   const mesh = piece.meshes.length === 1 ? piece.meshes[0] : new THREE.Mesh(mergePositions(piece.meshes.map((m) => m.geometry)));
-  $('printSheet').innerHTML = buildTemplate(renderer, mesh, data, current.row.name, settings().units);
+  const holes = missingHoles.filter((h) => piece.meshes.some((m) => m.name === h.part));
+  $('printSheet').innerHTML = buildTemplate(renderer, mesh, data, current.row.name, settings().units, holes, printScale(), !!settings().tplEdge);
   printingTemplate = true;
   return true;
 }
@@ -2950,5 +3024,6 @@ window.__viewer = {
   endTemplate: () => { printingTemplate = false; },
   outlineOf: (m) => meshInfo.get(m)?.edges.length / 6 || 0, // a part's outline segments
   threadsOf: (m) => meshInfo.get(m)?.threads || null,
+  missingHoles: () => missingHoles.map((h) => ({ ...h, partName: rowByMeshName.get(h.part)?.name, bolt: rowByMeshName.get(h.shank)?.name })),
   outlinesDrawn: () => Object.fromEntries(Object.entries(edgeLayers).map(([k, l]) => [k, (l.geometry.attributes.position?.count || 0) / 2])),
 };

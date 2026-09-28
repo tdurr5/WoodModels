@@ -32,7 +32,7 @@ export function singleSidedGeometry(geo) {
 // Inside a closed mesh: an odd number of surface crossings along every ray.
 const insideRay = new THREE.Raycaster();
 const solidCache = new WeakMap();
-function isInside(mesh, p, dirs) {
+export function isInside(mesh, p, dirs) {
   let solid = solidCache.get(mesh);
   if (!solid) {
     solid = new THREE.Mesh(singleSidedGeometry(mesh.geometry), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));

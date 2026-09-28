@@ -363,12 +363,18 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
   .tpl-svg { position: absolute; left: 0; top: 0; }
   .tpl-cells { display: flex; flex-direction: column; gap: 0.25in; }
   .tpl-checkcol { display: flex; flex-direction: column; gap: 3px; }
-  .tpl-ruler { display: block; }
+  .tpl-ruler, .tpl-square { display: block; flex: none; }
   /* dashed line = where the neighbouring tile's edge lands when overlapped
      (borders, not shading: browsers drop backgrounds when printing) */
   .tpl-overlap { position: absolute; }
   .tpl-overlap.v { top: 0; bottom: 0; border-right: 1px dashed #666; }
   .tpl-overlap.h { left: 0; right: 0; border-bottom: 1px dashed #666; }
+  .tpl-trim { position: absolute; }
+  .tpl-trim.v { top: 0; bottom: 0; right: 0; border-right: 1px dashed #000; }
+  .tpl-trim.h { left: 0; right: 0; bottom: 0; border-bottom: 1px dashed #000; }
+  .tpl-trim span { position: absolute; font-size: 8px; color: #000; background: #fff; padding: 0 2px; white-space: nowrap; }
+  .tpl-trim.v span { right: 2px; top: 2px; }
+  .tpl-trim.h span { left: 2px; bottom: 2px; }
   .tpl-id { position: absolute; right: 4px; bottom: 2px; font-size: 9px; color: #666; }
   .ps-diagrams { page-break-before: always; }
   .ps-diagrams h3 { font-size: 12px; margin: 10px 0 4px; }
@@ -439,7 +445,7 @@ body.build-mode #dimCard, body.build-mode #bottombar, body.build-mode #introTip 
 #buildPanel .card-note { font-size: 12px; margin-top: 4px; }
 #buildPanel .card-note.warn { color: var(--warn); }
 #buildPanel .card-note.mine { color: var(--blue); }
-.bp-nav { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.bp-nav { display: flex; align-items: center; gap: 10px; margin-top: 10px; position: sticky; bottom: -12px; background: var(--card-bg); padding: 6px 0 12px; margin-bottom: -12px; } /* always on screen, however long the notes */
 .bp-nav button { flex: 1; font-size: 16px; font-weight: 700; padding: 10px; border-radius: 8px; border: 1px solid var(--border-2); background: var(--panel-2); color: var(--text); cursor: pointer; }
 .bp-nav .bp-next { background: var(--accent); color: var(--bg); border-color: var(--accent); }
 .bp-nav button:disabled { opacity: 0.35; }
@@ -509,3 +515,4 @@ body.build-mode #dimCard, body.build-mode #bottombar, body.build-mode #introTip 
 .share-url { text-align: center; overflow-wrap: anywhere; }
 .share-text { white-space: pre-wrap; background: var(--input-bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px; font-size: 12px; max-height: 220px; overflow: auto; }
 @media print { #share { display: none !important; } }
+.card-check { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; margin: 0 6px; cursor: pointer; }
