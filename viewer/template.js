@@ -56,9 +56,35 @@ function vectorView(mesh, center, across, up, halfW, halfH, holes = [], units = 
     const a = xy(pos.getX(i), pos.getY(i), pos.getZ(i)), b = xy(pos.getX(i + 1), pos.getY(i + 1), pos.getZ(i + 1)), c = xy(pos.getX(i + 2), pos.getY(i + 2), pos.getZ(i + 2));
     fill.push(`M${a}L${b}L${c}Z`);
   }
+  // Only the edges you'd see from this side are drawn as lines to cut to;
+  // ones behind the part (the far face's notches, a housing on the other
+  // side) are faint dashes. Each edge is tested at a few points along it:
+  // does a ray from there towards the viewer pass through the part?
   const e = featureEdges(mesh.geometry);
-  const lines = [];
-  for (let i = 0; i + 5 < e.length; i += 6) lines.push(`M${xy(e[i], e[i + 1], e[i + 2])}L${xy(e[i + 3], e[i + 4], e[i + 5])}`);
+  const solid = new THREE.Mesh(mesh.geometry, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+  solid.updateMatrixWorld();
+  const toViewer = across.clone().cross(up).normalize();
+  const ray = new THREE.Raycaster();
+  const q = new THREE.Vector3();
+  const hidden = (x, y, z) => {
+    ray.set(q.set(x, y, z).addScaledVector(toViewer, 0.01), toViewer);
+    return ray.intersectObject(solid, false).length > 0;
+  };
+  const lines = [], back = [];
+  const N = 8;
+  for (let i = 0; i + 5 < e.length; i += 6) {
+    const at = (t) => [e[i] + (e[i + 3] - e[i]) * t, e[i + 1] + (e[i + 4] - e[i + 1]) * t, e[i + 2] + (e[i + 5] - e[i + 2]) * t];
+    // split the edge where it goes behind the part: test the middle of each
+    // slice, join neighbouring slices that agree
+    const h = Array.from({ length: N }, (_, k) => hidden(...at((k + 0.5) / N)));
+    for (let k = 0, start = 0; k < N; k++) {
+      if (k === N - 1 || h[k + 1] !== h[k]) {
+        (h[k] ? back : lines).push(`M${xy(...at(start / N))}L${xy(...at((k + 1) / N))}`);
+        start = k + 1;
+      }
+    }
+  }
+  solid.material.dispose();
   // centre line along the length, handy for laying out
   const cl = `M${(MARGIN_IN * 0.4).toFixed(4)},${(halfH + MARGIN_IN).toFixed(4)}H${(wIn - MARGIN_IN * 0.4).toFixed(4)}`;
   // holes the model didn't draw (holes.js): a circle and crosshair where the
@@ -78,6 +104,7 @@ function vectorView(mesh, center, across, up, halfW, halfH, holes = [], units = 
     return `<path d="M${cx + o[0]},${cy + o[1]}L${tx + o[0]},${ty + o[1]}M${cx - o[0]},${cy - o[1]}L${tx - o[0]},${ty - o[1]}" stroke="#c0392b" stroke-width="0.012" stroke-dasharray="0.08 0.05"/>${label}`;
   }).join('');
   const svg = `<path d="${fill.join('')}" fill="#e9e2d6"/>
+    <path d="${back.join('')}" fill="none" stroke="#999" stroke-width="0.008" stroke-dasharray="0.06 0.05"/>
     <path d="${lines.join('')}" fill="none" stroke="#000" stroke-width="0.012" stroke-linecap="round"/>
     <path d="${cl}" stroke="#3366cc" stroke-width="0.01" stroke-dasharray="0.25 0.12"/>${marks}`;
   return { svg, wIn, hIn };
