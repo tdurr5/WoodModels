@@ -4,6 +4,8 @@
 // An OBB is { center: [x,y,z], axes: [[x,y,z] x3 unit], half: [hx,hy,hz] },
 // built from an object_dims.json entry with obbFromDims().
 
+import { pieceGroup, subsetPieces } from './format.js';
+
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
@@ -213,21 +215,24 @@ export function applyJoins(rawRows, joins, dims, toLabel = (x) => `${x}`) {
     if (!joined.has(rk)) {
       joined.set(rk, {
         label: base.label, top_group: base.top_group, dims: size, count: 0, materials: base.materials || [],
-        paths: [], obj_names: [], pieces: [], joined: true, auto_name: base.auto_name,
+        paths: [], obj_names: [], obj_groups: [], pieces: [], joined: true, auto_name: base.auto_name,
         dims_str: size.map((x) => toLabel(x)).join(' x '),
       });
     }
     const jr = joined.get(rk);
     jr.count += 1;
     jr.obj_names.push(...names);
+    // the joined piece stays in the assembly its parts were drawn in
+    jr.obj_groups.push(...names.map((n) => pieceGroup(rowOf.get(n), n)));
     jr.pieces.push(names);
   }
   if (!taken.size) return { rows: rawRows, dims };
   const rows = rawRows.map((r) => {
     const keep = (r.obj_names || []).filter((n) => !taken.has(n));
     if (keep.length === (r.obj_names || []).length) return r;
-    return keep.length ? { ...r, obj_names: keep, count: keep.length } : null;
+    return keep.length ? subsetPieces(r, keep) : null;
   }).filter(Boolean);
+  joined.forEach((jr) => { if (new Set(jr.obj_groups).size <= 1) delete jr.obj_groups; });
   return { rows: [...rows, ...joined.values()], dims: outDims };
 }
 

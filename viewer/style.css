@@ -241,6 +241,10 @@ h1 { font-size: 16px; margin: 0 0 2px; }
 
 /* ---------- model library ---------- */
 .cl-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+/* An uploaded model's title can be one long unbroken word ("Moravian+Workbench,+Simplified");
+   without these the title sets the flex item's min-content width and shoves Build / Set up /
+   Models off the edge of the sidebar. */
+.cl-title-row h1 { min-width: 0; overflow-wrap: anywhere; }
 .cl-model-btns { display: flex; gap: 4px; flex: none; }
 .cl-model-btns button { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 5px; padding: 3px 8px; font-size: 11.5px; cursor: pointer; }
 .cl-model-btns button:hover { background: var(--hover); }

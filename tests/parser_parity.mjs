@@ -28,6 +28,7 @@ const VARIANTS = {
   sketchup2023: { sketchup2023: 1 },
   scaled_instance: { scaled: 1 },
   painted: { painted: 1 },
+  shared_part: { shared: 1 },
 };
 // Optional: PARITY_SAMPLES=/path/to/folder also compares every .dae in it
 // (e.g. real 3D Warehouse / other exporters' files, which aren't in the repo).
@@ -117,7 +118,11 @@ try {
     check(!d3, `materials.json matches${d3 ? ` (${d3})` : ''}`);
     const d4 = diff(j('model.json', o.py), j('model.json', js), 0, 'model');
     check(!d4, `model.json (starter config) matches${d4 ? ` (${d4})` : ''}`);
-    check(o.py['scene.mtl'].trim() === js['scene.mtl'].trim(), 'scene.mtl matches');
+    // map_Kd: the Python writes the texture next to scene.obj and points the
+    // OBJ at it; an upload keeps its photos with the model instead (model.json
+    // + the library's own store), so only the Python side has those lines.
+    const noMaps = (t) => t.split('\n').filter((l) => !l.startsWith('map_Kd ')).join('\n').trim();
+    check(noMaps(o.py['scene.mtl']) === noMaps(js['scene.mtl']), 'scene.mtl matches');
     const d5 = objDiff(o.py['scene.obj'], js['scene.obj']);
     check(!d5, `scene.obj matches${d5 ? ` (${d5})` : ''}`);
   }

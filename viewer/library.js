@@ -55,10 +55,7 @@ export async function importFile(file, onStatus = () => {}) {
   const { files, stats } = parseCollada(xml, { fileName: file.name });
   const cfg = JSON.parse(files['model.json']);
   // readable species names up front, so texture variants of one wood total up as one
-  Object.entries(cfg.materials || {}).forEach(([name, m]) => {
-    const label = defaultMaterialLabel(name, m);
-    if (!m.label && label !== name) m.label = label;
-  });
+  autoLabelMaterials(cfg.materials || {});
   // the model's own photos of its woods (3D Warehouse zips carry them), shown on the parts
   const images = zipEntries && woodImages(cfg, zipEntries.entries, zipEntries.names);
   if (images) {
@@ -67,6 +64,33 @@ export async function importFile(file, onStatus = () => {}) {
   }
   files['model.json'] = JSON.stringify(cfg, null, 2);
   return { name: cfg.title, files, parts: stats.parts };
+}
+
+// Give each material the readable name it starts out with. Two materials that
+// are the same species on purpose ("Mélèse_Horizontal1", "Mélèse_Verticale1"
+// are both Larch) should share a name and total up as one. But tidying a name
+// that is only a number ("IMG_8164_2", "IMG_8165_2", "IMG_8167_1") throws away
+// the very part that tells them apart and leaves three different woods all
+// called "IMG", totalled as one species in the cut list. So a tidied name that
+// more than one material lands on is dropped: those keep their own names.
+export function autoLabels(materials) {
+  const claims = new Map(); // tidied label -> the names that land on it
+  const labels = new Map();
+  Object.entries(materials || {}).forEach(([name, m]) => {
+    const label = defaultMaterialLabel(name, m);
+    if (label === name) return;
+    labels.set(name, label);
+    // a recognised species is a real answer, not a guess from the spelling
+    if (m.category === 'Wood' && speciesFor(name)) return;
+    if (!claims.has(label)) claims.set(label, []);
+    claims.get(label).push(name);
+  });
+  [...claims.values()].filter((names) => names.length > 1).flat().forEach((n) => labels.delete(n));
+  return labels;
+}
+export function autoLabelMaterials(materials) {
+  autoLabels(materials).forEach((label, name) => { if (!materials[name].label) materials[name].label = label; });
+  return materials;
 }
 
 // Warehouse models often paint wood with a photo under a name that says
@@ -306,6 +330,7 @@ export function initLibrary({ current, onOpen, builtIn }) {
       cfg.materials['(none)'] = { category: anyWood ? 'Other' : 'Wood', color: '#c9975c', label: 'No material' };
     }
     const mats = Object.keys(cfg.materials).sort((a, b) => (uses[b] || 0) - (uses[a] || 0));
+    const auto = autoLabels(cfg.materials); // the names Set up starts with, minus any two materials would share
     // a material painted with a photo shows that photo: "Material12" and
     // "Material13" are easier told apart by their wood (or fabric) than their names
     photoUrls.forEach((u) => URL.revokeObjectURL(u));
@@ -328,7 +353,7 @@ export function initLibrary({ current, onOpen, builtIn }) {
       ${mats.map((m) => `<tr><td>${swatch(m)}${escapeHtml(m === '(none)' ? 'No material (unpainted)' : m.replace(/^_+/, ''))}</td>
         <td class="num">${uses[m] || 0} pc</td>
         <td><select data-mat="${escapeHtml(m)}" data-initial="${escapeHtml(effectiveCategory(m, cfg.materials[m]))}">${CATEGORIES.map((c) => `<option${c === effectiveCategory(m, cfg.materials[m]) ? ' selected' : ''}>${c}</option>`).join('')}</select></td>
-        <td><input data-label="${escapeHtml(m)}" value="${escapeHtml(cfg.materials[m].label || (m === '(none)' ? 'No material' : defaultMaterialLabel(m, cfg.materials[m])))}" /></td>
+        <td><input data-label="${escapeHtml(m)}" value="${escapeHtml(cfg.materials[m].label || (m === '(none)' ? 'No material' : (auto.get(m) || m.replace(/^_+/, ''))))}" /></td>
         <td><select data-species="${escapeHtml(m)}"><option value="">${escapeHtml(cfg.materials[m].texture?.image ? 'The model\'s own photo' : SPECIES[speciesFor(cfg.materials[m].label, m)]?.name ? `Auto (${SPECIES[speciesFor(cfg.materials[m].label, m)].name})` : 'Auto (wide grain)')}</option><optgroup label="In the model's colour">${Object.entries(GRAINS).map(([k, g]) => `<option value="${k}"${cfg.materials[m].species === k ? ' selected' : ''}>${escapeHtml(g.name)}</option>`).join('')}</optgroup><optgroup label="Species">${Object.entries(SPECIES).map(([k, sp]) => `<option value="${k}"${cfg.materials[m].species === k ? ' selected' : ''}>${escapeHtml(sp.name)}</option>`).join('')}</optgroup></select></td></tr>`).join('')}
       </tbody></table>
       <p class="muted small">Only <b>Wood</b> parts go into rough stock, board feet, the cutting diagram and templates. Give materials the same name (e.g. all the oak textures "Red oak") to total them as one species.</p>`;

@@ -151,3 +151,26 @@ export function dimensionalSize(thickness, width, tol = 1 / 32) {
   const t = near(NOMINAL_T, thickness), w = near(NOMINAL_W, width);
   return t && w && t <= w ? `${t}×${w}` : null;
 }
+
+// ---------- which assembly a piece belongs to ----------
+// Identical parts share one cut-list row wherever they sit, so a row filed
+// under one group can hold pieces from others (parts_report.json obj_groups,
+// written alongside obj_names when a row spans groups). Anything that acts on
+// a group - highlighting it, setting it aside, deleting it - has to work piece
+// by piece, or it reaches parts in other assemblies.
+export function pieceGroup(row, name) {
+  const i = row?.obj_names ? row.obj_names.indexOf(name) : -1;
+  return (i >= 0 && row.obj_groups?.[i]) || row?.top_group;
+}
+// true when every piece of the row is in this group (so the whole row moves)
+export const rowWhollyIn = (row, group) => (row.obj_groups
+  ? row.obj_groups.every((g) => g === group)
+  : row.top_group === group);
+// the pieces of `row` that are in `group` (empty when none are)
+export const piecesIn = (row, group) => (row.obj_names || []).filter((n) => pieceGroup(row, n) === group);
+// the same row cut down to some of its pieces, obj_groups kept in step
+export function subsetPieces(row, names) {
+  const out = { ...row, obj_names: [...names], count: names.length };
+  if (row.obj_groups) out.obj_groups = names.map((n) => pieceGroup(row, n));
+  return out;
+}

@@ -7,6 +7,8 @@ Writes into the output directory:
   materials.json         OBJ material id -> SketchUp material name
   object_dims.json       per-instance oriented length/width/thickness axes
   parts_report.json      the cut list: one row per distinct part, with qty
+                         (obj_groups names each piece's assembly when a row
+                         spans more than one)
 
 Standard library only. Lengths are converted to inches from the file's
 declared unit, and Z-up files (SketchUp) are turned Y-up for three.js.
@@ -22,6 +24,7 @@ import shutil
 import sys
 import tempfile
 import unicodedata
+import urllib.parse
 import xml.etree.ElementTree as ET
 import zipfile
 from fractions import Fraction
@@ -823,7 +826,7 @@ def build_report(instances, geoms, material_info):
         key = (label, tuple(to_frac(d) for d in dims)) if auto else (label, dims)
         rep = report.setdefault(key, dict(
             label=label, top_group=inst['top_group'], dims=list(dims),
-            count=0, materials=set(), paths=[], obj_names=[],
+            count=0, materials=set(), paths=[], obj_names=[], obj_groups=[],
         ))
         if auto:
             rep['auto_name'] = True
@@ -838,13 +841,23 @@ def build_report(instances, geoms, material_info):
         rep['paths'].append(inst['path'])
         if inst.get('in_obj'):
             rep['obj_names'].append(inst['safe_name'])
+            rep['obj_groups'].append(inst['top_group'])
 
     rows = sorted(report.values(), key=lambda r: (r['top_group'] or '', r['label']))
     out_rows = []
     for r in rows:
         d = r['dims']
-        out_rows.append({**r, 'materials': sorted(r['materials']),
-                         'dims_str': f"{to_frac(d[0])} x {to_frac(d[1])} x {to_frac(d[2])}"})
+        row = {**r, 'materials': sorted(r['materials']),
+               'dims_str': f"{to_frac(d[0])} x {to_frac(d[1])} x {to_frac(d[2])}"}
+        # Identical parts share a row wherever they sit, so a row's pieces can
+        # belong to several assemblies while the row is filed under the first.
+        # Then the viewer needs to know which assembly each piece is in, or
+        # highlighting (and deleting) a group reaches parts outside it.
+        if len(set(row['obj_groups'])) > 1:
+            row['obj_groups'] = list(row['obj_groups'])
+        else:
+            del row['obj_groups']
+        out_rows.append(row)
     for r in out_rows:
         w = named_length_warning(r['label'], r['dims'])
         if w:
@@ -920,11 +933,31 @@ def guess_category(material_name):
     return 'Other'
 
 
+def title_from_file_name(file_name):
+    """A model's title from the file it came in. Downloads arrive with the name
+    the site put in the URL, so "Moravian+Workbench,+Simplified_Cheap (1).dae"
+    has to lose its %-escapes, its + for space and the browser's "(1)" duplicate
+    suffix before it reads as "Moravian Workbench, Simplified Cheap".
+    Same as collada.js titleFromFileName."""
+    s = os.path.splitext(os.path.basename(file_name or 'model'))[0]
+    if re.search(r'%[0-9a-fA-F]{2}', s):
+        try:
+            s = urllib.parse.unquote(s, errors='strict')
+        except (UnicodeDecodeError, ValueError):
+            pass  # not valid %-escapes: leave it
+    s = s.replace('+', ' ')
+    s = re.sub(r'\s*\(\d+\)\s*$', '', s)
+    s = re.sub(r'([a-z])(?=[A-Z])', r'\1 ', s)  # CamelCase -> words
+    s = re.sub(r'[_\-]+', ' ', s)
+    s = re.sub(r'\s+([,;])', r'\1', s)
+    s = re.sub(r'\s+', ' ', s).strip()
+    return s.title() or 'Model'
+
+
 def starter_config(dae_path, mat_key_to_name, material_info):
     """A first model.json for a newly converted model: title from the file
     name, and each material's category guessed from its name. Edit it after."""
-    base = re.sub(r'([a-z])(?=[A-Z])', r'\1 ', os.path.splitext(os.path.basename(dae_path))[0])  # CamelCase -> words
-    title = re.sub(r'[_\-]+', ' ', base).strip().title() or 'Model'
+    title = title_from_file_name(dae_path)
     materials = {}
     info_by_name = {info.get('name'): info for info in material_info.values()}
     for name in sorted(set(mat_key_to_name.values())):

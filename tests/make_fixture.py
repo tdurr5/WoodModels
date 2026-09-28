@@ -176,19 +176,21 @@ def polygons_geometry(gid, verts, material_symbol):
 
 
 def build(unit_meter=0.0254, scale=1.0, up_axis='Z_UP', leg_as='polylist', transforms='matrix', namespace=NS,
-          sketchup2023=False, scaled=False, overlap=False, lap=False, painted=False):
+          sketchup2023=False, scaled=False, overlap=False, lap=False, painted=False, shared=False):
     """`scale` multiplies every length, for writing the same model in another
     unit (e.g. unit_meter=0.001, scale=25.4 for millimetres). `leg_as` picks
     the primitive the leg is written with ('polylist' or 'polygons');
     `transforms='trs'` places parts with <translate>/<rotate> instead of
-    <matrix>; `namespace` may be the COLLADA 1.5 one or '' (none)."""
-    xml = _build(unit_meter, scale, up_axis, leg_as, transforms, sketchup2023, scaled, overlap, lap, painted)
+    <matrix>; `namespace` may be the COLLADA 1.5 one or '' (none).
+    `shared=True` puts a third identical board in the other assembly, the way
+    real models reuse a part - one cut-list row whose pieces span groups."""
+    xml = _build(unit_meter, scale, up_axis, leg_as, transforms, sketchup2023, scaled, overlap, lap, painted, shared)
     if namespace != NS:
         xml = xml.replace(f' xmlns="{NS}"', f' xmlns="{namespace}"' if namespace else '')
     return xml
 
 
-def _build(unit_meter, scale, up_axis, leg_as, transforms, sketchup2023=False, scaled=False, overlap=False, lap=False, painted=False):
+def _build(unit_meter, scale, up_axis, leg_as, transforms, sketchup2023=False, scaled=False, overlap=False, lap=False, painted=False, shared=False):
     if transforms == 'trs':
         place_board = lambda y: f'<translate>0 {6 * scale if y else 0} {20 * scale}</translate>'  # noqa: E731
         place_leg = f'<translate>{2 * scale} 0 0</translate><rotate>1 0 0 90</rotate>'
@@ -265,6 +267,10 @@ def _build(unit_meter, scale, up_axis, leg_as, transforms, sketchup2023=False, s
   <library_images>
     <image id="ID_walnut_img"><init_from>model/Walnut_-_Long_Grain.jpg</init_from></image>
   </library_images>''' if painted else ''
+    shared_node = f'''
+          <node name="Board">{matrix(translate(0, -30 * scale, 20 * scale))}
+            <instance_geometry url="#geom_board">{bind()}</instance_geometry>
+          </node>''' if shared else ''
     geoms += extra_geoms
     return f'''<?xml version="1.0" encoding="utf-8"?>
 <COLLADA xmlns="{NS}" version="1.4.1">
@@ -301,7 +307,7 @@ def _build(unit_meter, scale, up_axis, leg_as, transforms, sketchup2023=False, s
         <node name="Legs">{matrix(IDENTITY)}
           <node name="SketchUp_Instance_3">{place_leg}
             <instance_node url="#comp_leg"/>
-          </node>
+          </node>{shared_node}
         </node>
 {extra_node}
         <node name="Plan_Lie_Nielson_Boggs">

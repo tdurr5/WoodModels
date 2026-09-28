@@ -439,6 +439,63 @@ test('joins: joining again replaces, splitting removes; stale joins are ignored'
   assert.equal(applyJoins(raw, [['a', 'gone']], { a: board(0, 0) }).rows, raw);
 });
 
+test('applyJoins: a joined piece keeps the assembly its parts were drawn in', () => {
+  const dims = { a: board(0, 0), b: board(0, 12), c: board(5, 0) };
+  const raw = [{
+    label: 'Rail', top_group: 'Base', dims: [68, 3.5, 1.5], count: 3, materials: ['Oak'],
+    obj_names: ['a', 'b', 'c'], obj_groups: ['Base', 'Base', 'Shelf'], dims_str: 'x',
+  }];
+  const { rows } = applyJoins(raw, withJoin(null, ['a', 'b']).joins, dims, (x) => `${x}"`);
+  const single = rows.find((r) => !r.joined), joined = rows.find((r) => r.joined);
+  // the leftover row's groups are cut down with its pieces, not left misaligned
+  assert.deepEqual(single.obj_names, ['c']);
+  assert.deepEqual(single.obj_groups, ['Shelf']);
+  assert.equal(joined.obj_groups, undefined); // all in one assembly: nothing to record
+});
+
+import { pieceGroup, piecesIn, rowWhollyIn, subsetPieces } from '../viewer/format.js';
+
+test('a row shared between assemblies knows which assembly each piece is in', () => {
+  // identical boards used in three assemblies share one cut-list row, filed
+  // under the first; acting on a group must not reach the other two
+  const row = {
+    label: 'Board', top_group: 'Base', count: 3,
+    obj_names: ['a', 'b', 'c'], obj_groups: ['Base', 'Shelf', 'Shelf'],
+  };
+  assert.equal(pieceGroup(row, 'b'), 'Shelf');
+  assert.deepEqual(piecesIn(row, 'Shelf'), ['b', 'c']);
+  assert.deepEqual(piecesIn(row, 'Top'), []);
+  assert.ok(!rowWhollyIn(row, 'Base'));
+  assert.ok(rowWhollyIn(subsetPieces(row, ['b', 'c']), 'Shelf'));
+  assert.deepEqual(subsetPieces(row, ['c', 'a']).obj_groups, ['Shelf', 'Base']);
+  // a row the parser left alone (one assembly) falls back to the row's group
+  const plain = { top_group: 'Base', obj_names: ['a'] };
+  assert.equal(pieceGroup(plain, 'a'), 'Base');
+  assert.ok(rowWhollyIn(plain, 'Base'));
+});
+
+test('splitting a row by piece status keeps its assemblies in step', () => {
+  const rows = prepareRows([{
+    label: 'Board', top_group: 'Base', dims: [20, 3, 1], count: 3, materials: ['Oak'], dims_str: 'x',
+    obj_names: ['a', 'b', 'c'], obj_groups: ['Base', 'Shelf', 'Shelf'],
+  }], { materials: { Oak: { category: 'Wood' } } }, { pieces: { b: 'aside' } });
+  const kept = rows.find((r) => !r.pieceStatus), aside = rows.find((r) => r.pieceStatus === 'aside');
+  assert.deepEqual(kept.obj_groups, ['Base', 'Shelf']);
+  assert.deepEqual(aside.obj_groups, ['Shelf']);
+});
+
+import { titleFromFileName } from '../viewer/collada.js';
+
+test('a model is named after the file it came in, download clutter and all', () => {
+  // 3D Warehouse downloads carry the name the URL had, and a second download
+  // of the same model gets "(1)" from the browser
+  assert.equal(titleFromFileName('Moravian+Workbench,+Simplified_Cheap (1).dae'), 'Moravian Workbench, Simplified Cheap');
+  assert.equal(titleFromFileName('Shaker%20Side%20Table.zip'), 'Shaker Side Table');
+  assert.equal(titleFromFileName('/downloads/StepStool.kmz'), 'Step Stool');
+  assert.equal(titleFromFileName('shavehorse.dae'), 'Shavehorse');
+  assert.equal(titleFromFileName(''), 'Model');
+});
+
 import { withAutoFixes, withSplit } from '../viewer/edits.js';
 
 test('automatic fixes apply unless you undid them or changed the same pieces', () => {
@@ -516,7 +573,22 @@ test('sheet goods are laid out on 4x8 sheets per material and thickness', () => 
   assert.deepEqual(layouts.map((g) => [g.material, g.thicknessLabel, g.sheets.length, g.pieces.length]), [['Plywood', '1/4"', 1, 1], ['Plywood', '3/4"', 1, 2]]);
 });
 
-import { defaultMaterialLabel } from '../viewer/library.js';
+import { defaultMaterialLabel, autoLabels } from '../viewer/library.js';
+
+test('tidying a material name never leaves two materials sharing one', () => {
+  // three different wood photos under names that are only a number: tidied to
+  // "IMG" they would read - and total up - as one species in the cut list
+  const wood = { category: 'Wood' };
+  const labels = autoLabels({
+    IMG_8164_2: { ...wood }, IMG_8165_2: { ...wood }, IMG_8167_1: { ...wood },
+    'Mélèse_Horizontal1': { ...wood }, 'Mélèse_Verticale1_0': { ...wood },
+    Color_A06: { category: 'Other' },
+  });
+  assert.deepEqual([...labels.keys()].sort(), ['Color_A06', 'Mélèse_Horizontal1', 'Mélèse_Verticale1_0']);
+  // two spellings of one species still total up as one
+  assert.equal(labels.get('Mélèse_Horizontal1'), 'Larch');
+  assert.equal(labels.get('Mélèse_Verticale1_0'), 'Larch');
+});
 
 test('uploaded wood materials are named after their species, so texture variants total up', () => {
   const wood = { category: 'Wood' };

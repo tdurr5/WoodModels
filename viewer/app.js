@@ -7,7 +7,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { woodMaterial, addEndGrain, endMapOf, speciesFor, generateGrainUV, photoWood, paletteFromColor, PHOTO_ACROSS, SPECIES } from './woodtex.js';
 import { classifyOverlaps as classifyOverlapsIn, singleSidedGeometry, isInside } from './autofix.js';
 import { findMissingHoles } from './holes.js';
-import { formatLength, escapeHtml, toFraction, isCut, dimensionalSize } from './format.js';
+import { formatLength, escapeHtml, toFraction, isCut, dimensionalSize, pieceGroup, rowWhollyIn, piecesIn } from './format.js';
 import { compoundAngle, describeAngle, round1, DEFAULT_AXIS_NAMES } from './angles.js';
 import { initSettings, settings, updateSettings, onSettingsChange, resetSettings } from './settings.js';
 import {
@@ -291,7 +291,7 @@ async function init() {
   renderCutList($('sidebar'), allPartRows, cfg, {
     onSelect: (r) => pickRow(r), onPrint: printSheet, onDiagram: () => diagram.open(),
     onLibrary: () => library.open(), onSetup: LOCAL_ID ? () => library.openSetup(LOCAL_ID) : null,
-    onSetStatus: setPartStatus, onRenameGroup: renameGroup, onSelectGroup: selectGroup, onBuild: () => startBuild(),
+    onSetStatus: setPartStatus, onSetGroupStatus: setGroupStatus, onRenameGroup: renameGroup, onSelectGroup: selectGroup, onBuild: () => startBuild(),
     onShare: () => share.open(),
   });
   diagram = initDiagramModal({ rows, onSelectRow: (r) => selectRow(r), finishArea: () => (model ? woodSurfaceArea() : 0) });
@@ -454,6 +454,27 @@ function setPartStatus(list, status) {
   if (pieces.length) next = withPieceStatus(next, pieces, status);
   commitEdits(next, msg);
 }
+// The assembly a mesh sits in. Not simply its row's group: identical parts
+// share a row wherever they sit, so a row's pieces can span assemblies.
+function groupOfMesh(mesh) {
+  const row = meshInfo.get(mesh)?.row;
+  return row ? pieceGroup(row, mesh.name) : undefined;
+}
+// Set aside / delete / restore a whole assembly. Rows entirely inside it move
+// as parts; a row that only partly belongs (an identical board used in several
+// assemblies) moves piece by piece, so the other assemblies keep theirs.
+function setGroupStatus(group, status) {
+  const rows = allPartRows.filter((r) => (status ? r.status !== status : r.status === 'aside') && piecesIn(r, group).length);
+  if (!rows.length) return;
+  const whole = rows.filter((r) => !r.pieceStatus && rowWhollyIn(r, group));
+  const partial = rows.filter((r) => !whole.includes(r));
+  let next = withStatus(edits, whole.map((r) => ({ ...r, key: r.baseKey })), status);
+  const pieces = partial.flatMap((r) => piecesIn(r, group));
+  if (pieces.length) next = withPieceStatus(next, pieces, status);
+  const n = rows.reduce((t, r) => t + (whole.includes(r) ? r.count : piecesIn(r, group).length), 0);
+  const what = `${n} part${n > 1 ? 's' : ''}`;
+  commitEdits(next, status === 'deleted' ? `Deleted ${what}` : status === 'aside' ? `Set aside ${what} - not in the build` : `Put ${what} back in the build`);
+}
 // one piece (mesh) of a part that has several
 function setPieceStatus(mesh, status) {
   const row = rowByMeshName.get(mesh.name);
@@ -600,7 +621,7 @@ function refreshRows() {
   updateModelBox();
   applyMaterials();
   if (groupSel !== null) {
-    if (allPartRows.some((r) => r.top_group === groupSel && r.status !== 'deleted')) {
+    if (allPartRows.some((r) => piecesIn(r, groupSel).length && r.status !== 'deleted')) {
       markActiveGroup(groupSel);
       renderGroupCard(groupBox(groupSel));
     } else clearSelection();
@@ -786,13 +807,13 @@ function setThreads(row, choice) {
 function explodeGroups() {
   const groupBoxes = new Map();
   meshes.forEach((m) => {
-    const g = meshInfo.get(m).row?.top_group || '?';
+    const g = groupOfMesh(m) || '?';
     if (!groupBoxes.has(g)) groupBoxes.set(g, new THREE.Box3());
     groupBoxes.get(g).expandByPoint(m.geometry.boundingBox.min).expandByPoint(m.geometry.boundingBox.max);
   });
   meshes.forEach((m) => {
     const info = meshInfo.get(m);
-    info.groupCenter = groupBoxes.get(info.row?.top_group || '?').getCenter(new THREE.Vector3());
+    info.groupCenter = groupBoxes.get(groupOfMesh(m) || '?').getCenter(new THREE.Vector3());
   });
 }
 
@@ -876,13 +897,13 @@ function applyMaterials() {
       // build mode: parts from earlier steps solid, this step highlighted, the rest ghosted
       const step = build.stepOf.get(info.row?.key);
       const done = step !== undefined && step < build.i;
-      const now = selected.has(m) || (!current && groupSel !== null && info.row?.top_group === groupSel);
+      const now = selected.has(m) || (!current && groupSel !== null && groupOfMesh(m) === groupSel);
       m.visible = now || (isShownPart(m) && !catHidden);
       m.material = now ? info.hl : done ? info.orig : info.dim;
       m.castShadow = !m.material.transparent; // ghosts and glass throw no shadow
       return;
     }
-    const inGroup = !current && groupSel !== null && info.row?.top_group === groupSel;
+    const inGroup = !current && groupSel !== null && groupOfMesh(m) === groupSel;
     const isSel = selected.has(m) || inGroup;
     m.visible = isSel || (isShownPart(m) && !catHidden && !(s.isolate && (current || groupSel !== null) && !isSel));
     m.material = !current && groupSel === null ? info.orig : isSel ? (current?.piece === m && current.meshes.length > 1 ? info.hlPiece : info.hl) : info.dim;
@@ -1906,37 +1927,37 @@ function selectGroup(group, { frame = true } = {}) {
 }
 function groupBox(group) {
   const box = new THREE.Box3();
-  meshes.forEach((m) => { if (meshInfo.get(m).row?.top_group === group && m.visible) box.expandByObject(m); });
+  meshes.forEach((m) => { if (groupOfMesh(m) === group && m.visible) box.expandByObject(m); });
   return box;
 }
 
 function renderGroupCard(box) {
   const group = groupSel;
-  const inGroup = allPartRows.filter((r) => r.top_group === group);
-  const active = inGroup.filter((r) => !r.status);
-  const aside = inGroup.filter((r) => r.status === 'aside');
-  const name = inGroup[0]?.groupName || String(group);
+  // by piece, not by row: identical parts share a row across assemblies
+  const inGroup = allPartRows.map((r) => [r, piecesIn(r, group).length]).filter(([, n]) => n);
+  const pieces = (status) => inGroup.filter(([r]) => (status ? r.status === status : !r.status)).reduce((t, [, n]) => t + n, 0);
+  const active = pieces(null), aside = pieces('aside');
+  const name = allPartRows.find((r) => r.groupName && piecesIn(r, group).length)?.groupName || String(group);
   const size = box.isEmpty() ? null : box.getSize(new THREE.Vector3());
   const units = settings().units;
-  const count = (list) => list.reduce((n, r) => n + r.count, 0);
   dimCard.classList.remove('collapsed');
   dimCard.innerHTML = `
     <button class="card-close" title="Clear (Esc)">×</button>
     <div class="part-name"><span class="pn-text">${escapeHtml(name)}</span><button class="pn-edit" title="Rename this group">✎</button></div>
-    <div class="meta">Group · ${count(active)} pieces in the build${aside.length ? ` · ${count(aside)} set aside` : ''}</div>
+    <div class="meta">Group · ${active} piece${active === 1 ? '' : 's'} in the build${aside ? ` · ${aside} set aside` : ''}</div>
     ${size ? `<div class="meta">Overall ${escapeHtml(formatLength(size.x, units))} × ${escapeHtml(formatLength(size.y, units))} × ${escapeHtml(formatLength(size.z, units))} (outline box)</div>` : ''}
     <div class="card-actions">
-      ${active.length ? '<button class="card-btn" data-act="aside" title="Keep the parts and their sizes, but leave them out of the build (e.g. tools drawn on the bench)">Set aside group</button>' : ''}
-      ${aside.length ? '<button class="card-btn" data-act="build" title="Put the set-aside parts back in the build">Put back in build</button>' : ''}
+      ${active ? '<button class="card-btn" data-act="aside" title="Keep the parts and their sizes, but leave them out of the build (e.g. tools drawn on the bench)">Set aside group</button>' : ''}
+      ${aside ? '<button class="card-btn" data-act="build" title="Put the set-aside parts back in the build">Put back in build</button>' : ''}
       <button class="card-btn danger" data-act="delete" title="Delete the whole group from this model (Del). You can restore it.">Delete group</button>
     </div>`;
   dimCard.style.display = 'block';
   dimCard.querySelector('.card-close').addEventListener('click', () => clearSelection());
   dimCard.querySelector('.pn-edit').addEventListener('click', () => inlineEdit(dimCard.querySelector('.pn-text'), name, (n) => renameGroup(group, n)));
   const act = (a, fn) => dimCard.querySelector(`[data-act="${a}"]`)?.addEventListener('click', fn);
-  act('aside', () => setPartStatus(active, 'aside'));
-  act('build', () => setPartStatus(aside, null));
-  act('delete', () => setPartStatus(inGroup, 'deleted'));
+  act('aside', () => setGroupStatus(group, 'aside'));
+  act('build', () => setGroupStatus(group, null));
+  act('delete', () => setGroupStatus(group, 'deleted'));
 }
 
 // one geometry holding several (non-indexed OBJ) geometries' triangles
@@ -2933,7 +2954,7 @@ window.addEventListener('keydown', (e) => {
     if (measure.undo()) e.preventDefault();
     else if (current && k === 'Delete') { setPartStatus([current.row], 'deleted'); e.preventDefault(); }
     // (not in build mode, where an Assemble step shows a whole sub-assembly)
-    else if (groupSel !== null && k === 'Delete' && !build) { setPartStatus(allPartRows.filter((r) => r.top_group === groupSel), 'deleted'); e.preventDefault(); }
+    else if (groupSel !== null && k === 'Delete' && !build) { setGroupStatus(groupSel, 'deleted'); e.preventDefault(); }
   } else if (k === 'F2' && current) { renameSelected(); e.preventDefault(); }
   else if (k === '/') { focusSearch(); e.preventDefault(); }
   else if (k === '?') toggleHelp();

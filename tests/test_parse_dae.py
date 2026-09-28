@@ -301,6 +301,45 @@ class ScaledInstances(unittest.TestCase):
         self.assertEqual(dims[long_board]['axes'][0]['length'], 20)
 
 
+class SharedParts(unittest.TestCase):
+    """An identical part used in two assemblies shares one cut-list row, filed
+    under the first. The row records which assembly each piece is in, so the
+    viewer can highlight (or set aside, or delete) one assembly without
+    reaching the parts in the other."""
+
+    def rows(self, **kw):
+        with tempfile.TemporaryDirectory() as tmp:
+            dae = os.path.join(tmp, 'mini.dae')
+            with open(dae, 'w') as f:
+                f.write(make_fixture.build(**kw))
+            out = os.path.join(tmp, 'out')
+            parse_dae.main([dae, '-o', out, '-q'])
+            return load_json(out, 'parts_report.json')
+
+    def test_a_row_spanning_assemblies_records_each_piece(self):
+        board = next(r for r in self.rows(shared=True) if r['label'] == 'Board')
+        self.assertEqual(board['count'], 3)
+        self.assertEqual(board['top_group'], 'Body')
+        self.assertEqual(board['obj_groups'], ['Body', 'Body', 'Legs'])
+        self.assertEqual(len(board['obj_names']), len(board['obj_groups']))
+
+    def test_nothing_is_written_when_a_row_sits_in_one_assembly(self):
+        for r in self.rows():
+            self.assertNotIn('obj_groups', r)
+
+
+class TitleFromFileName(unittest.TestCase):
+    def test_download_clutter_is_cleaned_off(self):
+        # 3D Warehouse downloads carry the name the URL had, and a second
+        # download of the same model gets "(1)" from the browser
+        t = parse_dae.title_from_file_name
+        self.assertEqual(t('Moravian+Workbench,+Simplified_Cheap (1).dae'), 'Moravian Workbench, Simplified Cheap')
+        self.assertEqual(t('Shaker%20Side%20Table.zip'), 'Shaker Side Table')
+        self.assertEqual(t('/downloads/StepStool.kmz'), 'Step Stool')
+        self.assertEqual(t('shavehorse.dae'), 'Shavehorse')
+        self.assertEqual(t(''), 'Model')
+
+
 class StarterConfig(unittest.TestCase):
     def test_written_once_with_guessed_categories(self):
         with tempfile.TemporaryDirectory() as tmp:

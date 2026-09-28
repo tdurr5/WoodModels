@@ -707,7 +707,7 @@ function buildReport(instances, geoms, info) {
     const label = auto ? shapeName(geo, ext) : inst.label;
     const key = `${label}\u0000${(auto ? dims.map(toFrac) : dims).join(',')}`;
     if (!report.has(key)) {
-      report.set(key, { label, top_group: inst.top_group, dims, count: 0, materials: new Set(), paths: [], obj_names: [] });
+      report.set(key, { label, top_group: inst.top_group, dims, count: 0, materials: new Set(), paths: [], obj_names: [], obj_groups: [] });
     }
     const rep = report.get(key);
     if (auto) rep.auto_name = true;
@@ -721,14 +721,22 @@ function buildReport(instances, geoms, info) {
       if (nm && !nm.startsWith('edge_color')) rep.materials.add(nm);
     }
     rep.paths.push(inst.path);
-    if (inst.in_obj) rep.obj_names.push(inst.safe_name);
+    if (inst.in_obj) { rep.obj_names.push(inst.safe_name); rep.obj_groups.push(inst.top_group); }
   }
   const rows = [...report.values()].sort((a, b) => cmp(a.top_group || '', b.top_group || '') || cmp(a.label, b.label));
-  const out = rows.map((r) => ({
-    ...r,
-    materials: [...r.materials].sort(cmp),
-    dims_str: `${toFrac(r.dims[0])} x ${toFrac(r.dims[1])} x ${toFrac(r.dims[2])}`,
-  }));
+  const out = rows.map((r) => {
+    const row = {
+      ...r,
+      materials: [...r.materials].sort(cmp),
+      dims_str: `${toFrac(r.dims[0])} x ${toFrac(r.dims[1])} x ${toFrac(r.dims[2])}`,
+    };
+    // Identical parts share a row wherever they sit, so a row's pieces can
+    // belong to several assemblies while the row is filed under the first.
+    // Then the viewer needs to know which assembly each piece is in, or
+    // highlighting (and deleting) a group reaches parts outside it.
+    if (new Set(row.obj_groups).size <= 1) delete row.obj_groups;
+    return row;
+  });
   out.forEach((r) => { const w = namedLengthWarning(r.label, r.dims); if (w) r.warning = w; });
   applyManualCorrections(out);
   return out;
@@ -762,9 +770,26 @@ function titleCase(s) {
   return s.toLowerCase().replace(/(^|[^a-z])([a-z])/g, (m, p, c) => p + c.toUpperCase());
 }
 
+// A model's title from the file it came in. Downloads arrive with the name
+// the site put in the URL, so "Moravian+Workbench,+Simplified_Cheap (1).dae"
+// has to lose its %-escapes, its + for space and the browser's "(1)"
+// duplicate suffix before it reads as "Moravian Workbench, Simplified Cheap".
+// Same as parse_dae.py title_from_file_name.
+export function titleFromFileName(fileName) {
+  let s = (fileName || 'model').replace(/^.*[\\/]/, '').replace(/\.[^.]*$/, '');
+  if (/%[0-9a-fA-F]{2}/.test(s)) { try { s = decodeURIComponent(s); } catch { /* not valid %-escapes: leave it */ } }
+  s = s.replace(/\+/g, ' ')
+    .replace(/\s*\(\d+\)\s*$/, '')
+    .replace(/([a-z])(?=[A-Z])/g, '$1 ') // CamelCase -> words
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+([,;])/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return titleCase(s) || 'Model';
+}
+
 export function starterConfig(fileName, matKeyToName, info) {
-  const base = (fileName || 'model').replace(/^.*[\\/]/, '').replace(/\.[^.]*$/, '').replace(/([a-z])(?=[A-Z])/g, '$1 '); // CamelCase -> words
-  const title = titleCase(base.replace(/[_-]+/g, ' ').trim()) || 'Model';
+  const title = titleFromFileName(fileName);
   const byName = new Map([...info.values()].map((i) => [i.name, i]));
   const materials = {};
   for (const name of [...new Set(Object.values(matKeyToName))].sort(cmp)) {

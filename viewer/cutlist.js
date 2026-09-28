@@ -2,7 +2,7 @@
 
 import {
   formatLength, roughStock, displayName, toFraction, toCSV, escapeHtml, UNIT_OPTIONS, millingPlan, isGenericName,
-  SHEET, looksLikeSheetGoods, isCut,
+  SHEET, looksLikeSheetGoods, isCut, subsetPieces,
 } from './format.js';
 import { packBoards } from './nesting.js';
 import { settings, updateSettings } from './settings.js';
@@ -29,11 +29,12 @@ export function prepareRows(rawRows, config, edits = config.edits) {
     const off = (n) => ed.pieces[n] === 'deleted' || ed.pieces[n] === 'aside';
     const moved = names.filter(off);
     if (!moved.length || r.count !== names.length) { split.push(r); return; }
+    // obj_groups runs alongside obj_names, so it has to be cut to match
     const rest = names.filter((n) => !off(n));
-    if (rest.length) split.push({ ...r, obj_names: rest, count: rest.length });
+    if (rest.length) split.push(subsetPieces(r, rest));
     ['deleted', 'aside'].forEach((st) => {
       const these = moved.filter((n) => ed.pieces[n] === st);
-      if (these.length) split.push({ ...r, obj_names: these, count: these.length, pieceStatus: st });
+      if (these.length) split.push({ ...subsetPieces(r, these), pieceStatus: st });
     });
   });
   const rows = split.map((r) => {
@@ -310,8 +311,8 @@ function groupTitle(r) {
   g.querySelector('[data-act="rename"]').addEventListener('click', () => {
     inlineEdit(g.querySelector('.gt-name'), r.groupName, (name) => handlers.onRenameGroup?.(group, name));
   });
-  g.querySelector('[data-act="aside"]').addEventListener('click', () => handlers.onSetStatus?.(allRows.filter((x) => x.top_group === group), 'aside'));
-  g.querySelector('[data-act="delete"]').addEventListener('click', () => handlers.onSetStatus?.(allRows.filter((x) => x.top_group === group), 'deleted'));
+  g.querySelector('[data-act="aside"]').addEventListener('click', () => handlers.onSetGroupStatus?.(group, 'aside'));
+  g.querySelector('[data-act="delete"]').addEventListener('click', () => handlers.onSetGroupStatus?.(group, 'deleted'));
   return g;
 }
 
