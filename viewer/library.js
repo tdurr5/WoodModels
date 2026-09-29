@@ -135,7 +135,7 @@ function woodImages(cfg, entries, names) {
 export async function modelZip(id) {
   const [files, meta] = await Promise.all([getModelFiles(id), getModelMeta(id)]);
   const slug = (meta?.name || 'model').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'model';
-  const bytes = zip({
+  const bytes = await zip({
     ...Object.fromEntries(DATA_FILES.map((f) => [`${slug}/${f}`, files[f]])),
     ...Object.fromEntries(Object.entries(files.images || {}).map(([name, b]) => [`${slug}/${name}`, b])),
   });
@@ -289,6 +289,17 @@ export function initLibrary({ current, onOpen, builtIn }) {
 
   input.addEventListener('change', () => { if (input.files[0]) handleFile(input.files[0]); input.value = ''; });
   modal.querySelector('.lib-drop').addEventListener('click', () => input.click());
+
+  // Find a model on 3D Warehouse. The search itself has to happen over there:
+  // 3D Warehouse serves no CORS headers, so a page like this one can't read
+  // its results or fetch a download. Opening the search with the right filter
+  // is the next best thing - the file comes back by drag and drop.
+  const find = modal.querySelector('.lib-find');
+  find.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const q = find.querySelector('.lib-find-q').value.trim();
+    window.open(`https://3dwarehouse.sketchup.com/search/?q=${encodeURIComponent(q)}&searchTab=model`, '_blank', 'noopener');
+  });
 
   // drag a file anywhere onto the page
   let dragDepth = 0;

@@ -242,9 +242,9 @@ h1 { font-size: 16px; margin: 0 0 2px; }
 /* ---------- model library ---------- */
 .cl-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 /* An uploaded model's title can be one long unbroken word ("Moravian+Workbench,+Simplified");
-   without these the title sets the flex item's min-content width and shoves Build / Set up /
-   Models off the edge of the sidebar. */
-.cl-title-row h1 { min-width: 0; overflow-wrap: anywhere; }
+   without min-width the title sets the flex item's min-content width and shoves Build / Set up /
+   Models off the edge of the sidebar. Two lines is plenty - the rest is on the tooltip. */
+.cl-title-row h1 { min-width: 0; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .cl-model-btns { display: flex; gap: 4px; flex: none; }
 .cl-model-btns button { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 5px; padding: 3px 8px; font-size: 11.5px; cursor: pointer; }
 .cl-model-btns button:hover { background: var(--hover); }
@@ -255,6 +255,9 @@ h1 { font-size: 16px; margin: 0 0 2px; }
 .lib-close { background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; }
 .lib-drop { margin: 12px 0 8px; border: 2px dashed var(--border-2); border-radius: 8px; padding: 14px; text-align: center; cursor: pointer; line-height: 1.6; }
 .lib-drop:hover { border-color: var(--accent); }
+.lib-find { display: flex; gap: 6px; margin-top: 10px; }
+.lib-find input[type=search] { flex: 1; min-width: 0; background: var(--input-bg); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 6px 8px; font-size: 12.5px; }
+.lib-find-note { margin: 5px 0 0; }
 .lib-status { min-height: 18px; font-size: 12.5px; }
 .lib-status.error { color: var(--warn); }
 .lib-status.ok { color: var(--rough); }

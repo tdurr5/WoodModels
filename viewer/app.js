@@ -7,7 +7,9 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { woodMaterial, addEndGrain, endMapOf, speciesFor, generateGrainUV, photoWood, paletteFromColor, PHOTO_ACROSS, SPECIES } from './woodtex.js';
 import { classifyOverlaps as classifyOverlapsIn, singleSidedGeometry, isInside } from './autofix.js';
 import { findMissingHoles } from './holes.js';
-import { formatLength, escapeHtml, toFraction, isCut, dimensionalSize, pieceGroup, rowWhollyIn, piecesIn } from './format.js';
+import {
+  formatLength, escapeHtml, toFraction, isCut, dimensionalSize, pieceGroup, rowWhollyIn, piecesIn, weightOf, formatWeight,
+} from './format.js';
 import { compoundAngle, describeAngle, round1, DEFAULT_AXIS_NAMES } from './angles.js';
 import { initSettings, settings, updateSettings, onSettingsChange, resetSettings } from './settings.js';
 import {
@@ -464,7 +466,12 @@ function groupOfMesh(mesh) {
 // as parts; a row that only partly belongs (an identical board used in several
 // assemblies) moves piece by piece, so the other assemblies keep theirs.
 function setGroupStatus(group, status) {
-  const rows = allPartRows.filter((r) => (status ? r.status !== status : r.status === 'aside') && piecesIn(r, group).length);
+  // Set aside takes what is in the build, Put back takes what was set aside,
+  // Delete takes both - a part already deleted is never quietly revived.
+  const takes = status === 'aside' ? (r) => !r.status
+    : status === 'deleted' ? (r) => r.status !== 'deleted'
+      : (r) => r.status === 'aside';
+  const rows = allPartRows.filter((r) => takes(r) && piecesIn(r, group).length);
   if (!rows.length) return;
   const whole = rows.filter((r) => !r.pieceStatus && rowWhollyIn(r, group));
   const partial = rows.filter((r) => !whole.includes(r));
@@ -494,7 +501,8 @@ function addOverlapNotes(all) {
     if (!ra || !rb || ra.status || rb.status) return;
     if (ra.joined && ra.pieces.some((p) => p.includes(o.a) && p.includes(o.b))) return; // already joined
     if (overlapKind.get(`${o.a}|${o.b}`) === 'lap') return; // a lap joint: real joinery
-    const text = (other) => `Overlaps ${other === ra && ra === rb ? 'another piece of this part' : `"${other.name}"`} by ${formatLength(o.overlap, units)} - two pieces in the same space (together ${formatLength(o.span, units)} long). Either a copy left in the model, or one ${formatLength(o.span, units)} piece modeled as two.`;
+    const text = (other) => `Overlaps ${other === ra && ra === rb ? 'another piece of this part' : `"${other.name}"`} by ${formatLength(o.overlap, units)}`
+      + ` - a copy left in the model, or one ${formatLength(o.span, units)} piece drawn as two.`;
     [[ra, rb, o.b], [rb, ra, o.a]].forEach(([r, other]) => {
       const t = text(other);
       if (!r.notes.includes(t)) r.notes.push(t);
@@ -552,17 +560,36 @@ function findHoles() {
     });
   });
 }
+// One line per part per bolt, not one per hole: a bench with four holes for
+// the same rod reads "Drill 4 x D1/2" through for Threaded Rod" instead of
+// four near-identical paragraphs down the sidebar.
 function addHoleNotes(all) {
   const units = settings().units;
+  const byPart = new Map(); // row -> "bolt|dia" -> { bolt, dia, holes }
   missingHoles.forEach((h) => {
     const r = all.find((x) => x.obj_names?.includes(h.part));
-    const bolt = rowByMeshName.get(h.shank)?.name || 'a bolt';
     if (!r || r.status) return;
-    const through = h.depth >= (r.dims?.[2] || 0) - 1 / 16;
-    const text = `No hole drawn where ${bolt} goes through: drill ⌀${formatLength(h.dia, units)} ${through ? 'through' : `${formatLength(h.depth, units)} deep`} (added - shown on the model and the template).`;
-    if (!r.notes.includes(text)) r.notes.push(text);
+    const bolt = rowByMeshName.get(h.shank)?.name || 'a bolt';
+    const dia = formatLength(h.dia, units);
+    if (!byPart.has(r)) byPart.set(r, new Map());
+    const groups = byPart.get(r);
+    const k = `${bolt}|${dia}`;
+    if (!groups.has(k)) groups.set(k, { bolt, dia, holes: [] });
+    groups.get(k).holes.push(h);
     r.addedHoles = (r.addedHoles || 0) + 1;
   });
+  byPart.forEach((groups, r) => groups.forEach(({ bolt, dia, holes }) => {
+    const depths = new Map(); // "through" | "1-3/16" deep" -> how many
+    holes.forEach((h) => {
+      const k = h.depth >= (r.dims?.[2] || 0) - 1 / 16 ? 'through' : `${formatLength(h.depth, units)} deep`;
+      depths.set(k, (depths.get(k) || 0) + 1);
+    });
+    const times = (n, what) => (n > 1 ? `${n} × ${what}` : what);
+    const text = depths.size === 1
+      ? `Drill ${times(holes.length, `⌀${dia}`)} ${[...depths.keys()][0]} for ${bolt} (no hole drawn in the model).`
+      : `Drill ⌀${dia} for ${bolt}: ${[...depths].map(([k, n]) => times(n, k)).join(', ')} (no hole drawn in the model).`;
+    if (!r.notes.includes(text)) r.notes.push(text);
+  }));
 }
 
 // ---------- automatic fixes for rough models (autofix.js) ----------
@@ -2265,7 +2292,7 @@ function renderDimCard() {
     <div class="dim-axes">${row.customDims ? '' : 'Thickness × Width × Length'}${stdSize(row) ? ` · <span class="card-std" title="Dimensional lumber: buy it surfaced to this size, no milling">a standard ${stdSize(row)}</span>` : ''}</div>
     ${settings().showPartAngles ? angleHtml(data) : ''}
     ${angleHtml(data) ? `<button class="card-btn angle-toggle" data-act="angles" title="The part's lean / splay angles, worked out from the model">${settings().showPartAngles ? 'Hide angles' : '∠ Show angles'}</button>` : ''}
-    <div class="meta">qty ${row.count} · ${escapeHtml(row.materialLabel)} · ${escapeHtml(row.groupName)}</div>
+    <div class="meta">qty ${row.count} · ${escapeHtml(row.materialLabel)} · ${escapeHtml(row.groupName)}${row.density ? ` · <span title="Estimated from the species' air-dried density - a real board varies either way">~${escapeHtml(formatWeight(weightOf(row.dims, row.density), settings().units))} each</span>` : ''}</div>
     ${variantsHtml(current.variants)}
     ${contactHtml(row)}
     ${joineryHtml(row, current.piece || current.meshes[0])}

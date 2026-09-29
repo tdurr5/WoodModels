@@ -136,6 +136,12 @@ try {
   await page.waitForFunction(() => !/checking/.test(document.getElementById('clCheck').textContent), null, { timeout: 15000 }).catch(() => {});
   const mc = await page.locator('#clCheck').innerText();
   check(!/⚠/.test(mc) && /Model check/.test(mc), `the model check finds nothing wrong with the built-in model, only notes (${mc.split('\n')[0]})`);
+  // The Models-list thumbnail is captured ~2.5s after load and draws one
+  // frame of its own; wait for it, or it lands inside the idle window below
+  // and reads as "the scene is redrawing while it sits still".
+  await page.waitForFunction(() => {
+    try { return !!localStorage.getItem('woodmodels:thumb:builtin'); } catch { return true; }
+  }, null, { timeout: 20000 }).catch(() => {});
   await page.waitForTimeout(1500);
   const frames = await page.evaluate(async () => {
     const info = window.__viewer.renderer.info.render;
@@ -1066,7 +1072,7 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     await loaded();
     check(JSON.stringify(await boardRows()) === JSON.stringify(['1" × 4" × 10" ×3']), 'a split stays split after a reload');
     const row = p2.locator('#clList > .row', { hasText: 'Board' }).first();
-    check(/Overlaps another piece of this part by 4" .*together 16" long/.test(await row.innerText()), 'the overlap is still pointed out, with the combined length');
+    check(/Overlaps another piece of this part by 4" .*one 16" piece drawn as two/.test(await row.innerText()), 'the overlap is still pointed out, with the combined length');
     await row.click();
     await p2.locator('#dimCard [data-act=join-overlap]').click();
     check(JSON.stringify(await boardRows()) === JSON.stringify(['1" × 4" × 10" ×1', '1" × 4" × 16" ×1']), '"Join" joins it again by hand');
@@ -1182,7 +1188,7 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     check(holes.includes('Bench') && holes.includes('Leg Front'), `holes the model didn't draw are found where bolts go through solid wood (${holes.length}: ${[...new Set(holes)].join(', ')})`);
     await p2.locator('#clList .row').filter({ has: p2.locator('.name', { hasText: 'Leg Front' }) }).first().click();
     await p2.waitForTimeout(300);
-    check(/No hole drawn where/.test(await p2.locator('#dimCard').innerText()), 'the part\'s card says the hole was added');
+    check(/Drill .*no hole drawn in the model/is.test(await p2.locator('#dimCard').innerText()), 'the part\'s card says the hole was added');
     await p2.keyboard.press('Escape');
     const seatHandle = await p2.evaluate(() => { const v = window.__viewer; return v.threadsOf(v.meshesOf('Seat Handle')[0]); });
     check(!seatHandle || !seatHandle.length, 'a plain pin gets no threads');

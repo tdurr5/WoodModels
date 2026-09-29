@@ -174,3 +174,16 @@ export function subsetPieces(row, names) {
   if (row.obj_groups) out.obj_groups = names.map((n) => pieceGroup(row, n));
   return out;
 }
+
+// ---------- weight ----------
+// What a finished part weighs: its volume at the species' air-dried density
+// (woodtex.js woodDensity). An estimate - a board off the rack can be 15%
+// either side, and wet stock much more - but it answers "can I lift this?".
+export const weightOf = (dims, lbPerFt3) => (dims[0] * dims[1] * dims[2]) / 1728 * lbPerFt3;
+export function formatWeight(lb, units = 'in16') {
+  if (units === 'mm') {
+    const kg = lb * 0.45359237;
+    return kg < 10 ? `${kg.toFixed(1)} kg` : `${Math.round(kg)} kg`;
+  }
+  return lb < 10 ? `${lb.toFixed(1)} lb` : `${Math.round(lb)} lb`;
+}

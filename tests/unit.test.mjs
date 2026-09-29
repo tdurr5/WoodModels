@@ -331,7 +331,7 @@ with zipfile.ZipFile(${JSON.stringify(file)}, 'w') as z:
 });
 
 test('zip writes files that Python and unzip can read back', async () => {
-  const z = makeZip({ 'model.json': '{"title":"Bench"}', 'data/scene.obj': 'v 1 2 3\n' });
+  const z = await makeZip({ 'model.json': '{"title":"Bench"}', 'data/scene.obj': 'v 1 2 3\n' });
   const back = await unzip(z);
   assert.equal(new TextDecoder().decode(back.get('model.json')), '{"title":"Bench"}');
   const dir = fsNode.mkdtempSync(pathNode.join(os.tmpdir(), 'zip-'));
@@ -379,7 +379,7 @@ test('edits: names are trimmed and cleared by an empty name', () => {
 
 // ---------- overlapping copies and single-piece edits ----------
 import { findOverlaps } from '../viewer/geometry.js';
-import { prepareRows } from '../viewer/cutlist.js';
+import { prepareRows, totals } from '../viewer/cutlist.js';
 import { withPieceStatus } from '../viewer/edits.js';
 
 const board = (x, z, len = 68, w = 3.5, t = 1.5) => ({
@@ -494,6 +494,39 @@ test('a model is named after the file it came in, download clutter and all', () 
   assert.equal(titleFromFileName('/downloads/StepStool.kmz'), 'Step Stool');
   assert.equal(titleFromFileName('shavehorse.dae'), 'Shavehorse');
   assert.equal(titleFromFileName(''), 'Model');
+});
+
+import { weightOf, formatWeight } from '../viewer/format.js';
+import { woodDensity } from '../viewer/woodtex.js';
+import { fileSize } from '../viewer/share.js';
+
+test('a part\'s weight comes from its species\' density', () => {
+  // a board foot of red oak (144 cu in at 44 lb/ft3) is about 3.7 lb
+  assert.equal(Math.round(weightOf([12, 12, 1], woodDensity('red-oak')) * 10) / 10, 3.7);
+  assert.ok(weightOf([12, 12, 1], woodDensity('pine')) < weightOf([12, 12, 1], woodDensity('hickory')));
+  // an unknown species is guessed as softwood rather than left out
+  assert.equal(woodDensity(undefined), woodDensity('softwood'));
+  assert.equal(woodDensity('not-a-wood'), woodDensity('softwood'));
+  assert.equal(formatWeight(3.72), '3.7 lb');
+  assert.equal(formatWeight(41.3), '41 lb');
+  assert.equal(formatWeight(41.3, 'mm'), '19 kg');
+});
+
+test('the cut list totals the weight of the wood', () => {
+  const rows = prepareRows([
+    { label: 'Top', top_group: 'Bench', dims: [24, 12, 2], count: 2, materials: ['Red_Oak'], obj_names: [], dims_str: 'x' },
+    { label: 'Rod', top_group: 'Bench', dims: [24, 0.5, 0.5], count: 1, materials: ['Steel'], obj_names: [], dims_str: 'x' },
+  ], { materials: { Red_Oak: { category: 'Wood' }, Steel: { category: 'Hardware' } } });
+  const [top] = rows;
+  assert.equal(top.density, woodDensity('red-oak'));
+  // hardware has no species and is left out of the weight
+  assert.equal(rows.find((r) => r.label === 'Rod').density, 0);
+  assert.equal(Math.round(totals(rows).weightLb), Math.round(weightOf([24, 12, 2], 44) * 2));
+});
+
+test('file sizes read the way a phone user needs them', () => {
+  assert.equal(fileSize(6_800_000), '6.8 MB');
+  assert.equal(fileSize(4_200), '4 kB');
 });
 
 import { withAutoFixes, withSplit } from '../viewer/edits.js';

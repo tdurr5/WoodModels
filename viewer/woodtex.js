@@ -11,23 +11,24 @@ import * as THREE from 'three';
 // early/late: earlywood and latewood colour; rings: growth rings across one
 // texture tile (~6" of board width); contrast: how dark the latewood bands
 // read; pores: 'ring' (oak, ash: open pores in the earlywood), 'diffuse'
-// (walnut, cherry), or none; rays: oak's fleck; knots: chance of a knot.
+// (walnut, cherry), or none; rays: oak's fleck; knots: chance of a knot;
+// lbft3: air-dried weight per cubic foot, for the cut list's weight estimate.
 export const SPECIES = {
-  'red-oak': { name: 'Red oak', early: '#cf9e73', late: '#9a6443', rings: 6, contrast: 0.45, pores: 'ring', rays: true, rough: 0.6, words: ['red oak', 'redoak', 'oak red', 'roble rojo', 'chene rouge'] },
-  'white-oak': { name: 'White oak', early: '#cdad7f', late: '#94744c', rings: 6, contrast: 0.42, pores: 'ring', rays: true, rough: 0.6, words: ['white oak', 'whiteoak', 'oak', 'chene', 'eiche', 'roble'] },
-  walnut: { name: 'Walnut', early: '#76533a', late: '#3f2a1c', rings: 4, contrast: 0.33, pores: 'diffuse', rough: 0.5, words: ['walnut', 'noyer', 'nussbaum', 'nogal'] },
-  cherry: { name: 'Cherry', early: '#bd7b53', late: '#914f33', rings: 4, contrast: 0.27, pores: 'fine', rough: 0.45, words: ['cherry', 'merisier', 'kirsch', 'cerezo'] },
-  maple: { name: 'Maple', early: '#ecd8b4', late: '#d6ba8f', rings: 5, contrast: 0.21, pores: 'fine', rough: 0.45, words: ['maple', 'erable', 'ahorn', 'arce'] },
-  ash: { name: 'Ash', early: '#e2cb9f', late: '#a88a5c', rings: 5, contrast: 0.48, pores: 'ring', rough: 0.6, words: ['ash', 'frene', 'esche', 'fresno'] },
-  hickory: { name: 'Hickory', early: '#dcbb90', late: '#9c7249', rings: 5, contrast: 0.42, pores: 'ring', rough: 0.6, words: ['hickory', 'pecan'] },
-  beech: { name: 'Beech', early: '#e4bc97', late: '#c89a74', rings: 4, contrast: 0.21, pores: 'fine', rays: true, rough: 0.5, words: ['beech', 'hetre', 'buche', 'haya'] },
-  birch: { name: 'Birch / plywood', early: '#eedcb9', late: '#d8be93', rings: 4, contrast: 0.21, pores: 'fine', rough: 0.5, words: ['birch', 'plywood', 'ply', 'bouleau', 'birke'] },
-  poplar: { name: 'Poplar', early: '#dfd6ad', late: '#b3ab7a', rings: 4, contrast: 0.24, pores: 'fine', rough: 0.55, words: ['poplar', 'peuplier', 'pappel', 'tulip'] },
-  mahogany: { name: 'Mahogany', early: '#a3563a', late: '#6f3423', rings: 4, contrast: 0.27, pores: 'diffuse', rough: 0.45, words: ['mahogany', 'sapele', 'acajou', 'caoba'] },
-  pine: { name: 'Pine', early: '#ecd09a', late: '#c48c4c', rings: 4, contrast: 0.54, pores: '', knots: 0.8, rough: 0.6, words: ['pine', 'pin', 'pino', 'kiefer', 'sapin'] },
-  larch: { name: 'Larch', early: '#dcb27b', late: '#9f5f2d', rings: 6, contrast: 0.57, pores: '', knots: 0.4, rough: 0.6, words: ['larch', 'meleze', 'melese', 'larche', 'alerce'] },
-  fir: { name: 'Fir / spruce', early: '#e8cf9f', late: '#b88a55', rings: 5, contrast: 0.51, pores: '', knots: 0.5, rough: 0.6, words: ['fir', 'douglas', 'spruce', 'hemlock', 'fichte', 'epicea'] },
-  cedar: { name: 'Cedar', early: '#cd8f62', late: '#8e5236', rings: 6, contrast: 0.42, pores: '', knots: 0.3, rough: 0.6, words: ['cedar', 'cedre', 'zeder', 'cedro', 'redwood'] },
+  'red-oak': { name: 'Red oak', early: '#cf9e73', late: '#9a6443', rings: 6, contrast: 0.45, pores: 'ring', rays: true, rough: 0.6, lbft3: 44, words: ['red oak', 'redoak', 'oak red', 'roble rojo', 'chene rouge'] },
+  'white-oak': { name: 'White oak', early: '#cdad7f', late: '#94744c', rings: 6, contrast: 0.42, pores: 'ring', rays: true, rough: 0.6, lbft3: 47, words: ['white oak', 'whiteoak', 'oak', 'chene', 'eiche', 'roble'] },
+  walnut: { name: 'Walnut', early: '#76533a', late: '#3f2a1c', rings: 4, contrast: 0.33, pores: 'diffuse', rough: 0.5, lbft3: 38, words: ['walnut', 'noyer', 'nussbaum', 'nogal'] },
+  cherry: { name: 'Cherry', early: '#bd7b53', late: '#914f33', rings: 4, contrast: 0.27, pores: 'fine', rough: 0.45, lbft3: 35, words: ['cherry', 'merisier', 'kirsch', 'cerezo'] },
+  maple: { name: 'Maple', early: '#ecd8b4', late: '#d6ba8f', rings: 5, contrast: 0.21, pores: 'fine', rough: 0.45, lbft3: 44, words: ['maple', 'erable', 'ahorn', 'arce'] },
+  ash: { name: 'Ash', early: '#e2cb9f', late: '#a88a5c', rings: 5, contrast: 0.48, pores: 'ring', rough: 0.6, lbft3: 41, words: ['ash', 'frene', 'esche', 'fresno'] },
+  hickory: { name: 'Hickory', early: '#dcbb90', late: '#9c7249', rings: 5, contrast: 0.42, pores: 'ring', rough: 0.6, lbft3: 51, words: ['hickory', 'pecan'] },
+  beech: { name: 'Beech', early: '#e4bc97', late: '#c89a74', rings: 4, contrast: 0.21, pores: 'fine', rays: true, rough: 0.5, lbft3: 45, words: ['beech', 'hetre', 'buche', 'haya'] },
+  birch: { name: 'Birch / plywood', early: '#eedcb9', late: '#d8be93', rings: 4, contrast: 0.21, pores: 'fine', rough: 0.5, lbft3: 43, words: ['birch', 'plywood', 'ply', 'bouleau', 'birke'] },
+  poplar: { name: 'Poplar', early: '#dfd6ad', late: '#b3ab7a', rings: 4, contrast: 0.24, pores: 'fine', rough: 0.55, lbft3: 29, words: ['poplar', 'peuplier', 'pappel', 'tulip'] },
+  mahogany: { name: 'Mahogany', early: '#a3563a', late: '#6f3423', rings: 4, contrast: 0.27, pores: 'diffuse', rough: 0.45, lbft3: 37, words: ['mahogany', 'sapele', 'acajou', 'caoba'] },
+  pine: { name: 'Pine', early: '#ecd09a', late: '#c48c4c', rings: 4, contrast: 0.54, pores: '', knots: 0.8, rough: 0.6, lbft3: 28, words: ['pine', 'pin', 'pino', 'kiefer', 'sapin'] },
+  larch: { name: 'Larch', early: '#dcb27b', late: '#9f5f2d', rings: 6, contrast: 0.57, pores: '', knots: 0.4, rough: 0.6, lbft3: 37, words: ['larch', 'meleze', 'melese', 'larche', 'alerce'] },
+  fir: { name: 'Fir / spruce', early: '#e8cf9f', late: '#b88a55', rings: 5, contrast: 0.51, pores: '', knots: 0.5, rough: 0.6, lbft3: 28, words: ['fir', 'douglas', 'spruce', 'hemlock', 'fichte', 'epicea'] },
+  cedar: { name: 'Cedar', early: '#cd8f62', late: '#8e5236', rings: 6, contrast: 0.42, pores: '', knots: 0.3, rough: 0.6, lbft3: 23, words: ['cedar', 'cedre', 'zeder', 'cedro', 'redwood'] },
 };
 
 const clean = (s) => String(s || '').normalize('NFKD').replace(/[^\x00-\x7F]/g, '').replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase().replace(/[^a-z]+/g, ' ').trim();
@@ -152,9 +153,15 @@ function toTexture(data, w, h, isColor) {
 // colours (light or dark): tight hardwood grain - many fine rings with thin
 // latewood lines and small pores - or wide softwood grain with bold bands.
 export const GRAINS = {
-  hardwood: { name: 'Tight grain (hardwood)', rings: 12, contrast: 0.38, late0: 0.76, late1: 0.9, pores: 'fine', rough: 0.5 },
-  softwood: { name: 'Wide grain (softwood)', rings: 4, contrast: 0.42, pores: '', rough: 0.58 },
+  hardwood: { name: 'Tight grain (hardwood)', rings: 12, contrast: 0.38, late0: 0.76, late1: 0.9, pores: 'fine', rough: 0.5, lbft3: 40 },
+  softwood: { name: 'Wide grain (softwood)', rings: 4, contrast: 0.42, pores: '', rough: 0.58, lbft3: 28 },
 };
+
+// Air-dried (~8% moisture) weight in pounds per cubic foot, for the cut
+// list's weight estimate. `species` is a SPECIES or GRAINS key - whichever
+// Set up's "Looks like" holds - and anything unknown falls back to softwood.
+// Rough figures: real boards vary by a good 15% either way.
+export const woodDensity = (species) => (SPECIES[species] || GRAINS[species] || GRAINS.softwood).lbft3;
 function paletteSpecies(tex, grain = 'softwood') {
   const g = GRAINS[grain] || GRAINS.softwood;
   const early = tex.base || '#c9975c', late = tex.ring || tex.streak || '#8a5a2c';

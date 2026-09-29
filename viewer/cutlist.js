@@ -2,8 +2,9 @@
 
 import {
   formatLength, roughStock, displayName, toFraction, toCSV, escapeHtml, UNIT_OPTIONS, millingPlan, isGenericName,
-  SHEET, looksLikeSheetGoods, isCut, subsetPieces,
+  SHEET, looksLikeSheetGoods, isCut, subsetPieces, weightOf, formatWeight,
 } from './format.js';
+import { woodDensity, speciesFor } from './woodtex.js';
 import { packBoards } from './nesting.js';
 import { settings, updateSettings } from './settings.js';
 import { normalizeEdits, rowStatus } from './edits.js';
@@ -69,6 +70,9 @@ export function prepareRows(rawRows, config, edits = config.edits) {
       materialLabel: (mats[matName] && mats[matName].label) || (matName === '(none)' ? 'No material' : matName.replace(/^_+/, '')),
       color: (mats[matName] && mats[matName].color) || '#666',
       customDims: r.dims_str !== standard ? r.dims_str : null,
+      // lb/ft3 of the species this part is cut from, for the weight estimate
+      density: category === 'Wood' || category === SHEET
+        ? woodDensity(mats[matName]?.species || speciesFor(matName, mats[matName]?.label)) : 0,
       notes,
       warn: !!warning,
       clickable: !!(r.obj_names && r.obj_names.length),
@@ -120,13 +124,14 @@ export function roughDims(row, units = settings().units) {
 export function totals(rows) {
   const wood = rows.filter((r) => r.category === 'Wood');
   const byMaterial = {};
-  let roughBF = 0, finishedBF = 0, pieces = 0;
+  let roughBF = 0, finishedBF = 0, pieces = 0, weightLb = 0;
   wood.forEach((r) => {
     const rough = roughFor(r);
     const [l, w, t] = r.dims;
     const fin = (l * w * t) / 144 * r.count;
     const rb = rough.boardFeet * r.count;
     finishedBF += fin; roughBF += rb; pieces += r.count;
+    weightLb += weightOf(r.dims, r.density || 0) * r.count;
     const m = (byMaterial[r.materialLabel] = byMaterial[r.materialLabel] || { roughBF: 0, byThickness: {} });
     m.roughBF += rb;
     m.byThickness[rough.thicknessLabel] = (m.byThickness[rough.thicknessLabel] || 0) + rb;
@@ -134,7 +139,7 @@ export function totals(rows) {
   // progress counts pieces, so ticking off "Bench x2" counts as two
   const cutSet = new Set(settings().cut);
   const done = wood.filter((r) => cutSet.has(r.key)).reduce((n, r) => n + r.count, 0);
-  return { pieces, finishedBF, roughBF, byMaterial, done, trackable: pieces };
+  return { pieces, finishedBF, roughBF, weightLb, byMaterial, done, trackable: pieces };
 }
 
 // ---------- sidebar ----------
@@ -479,11 +484,14 @@ function renderSummary() {
     return `<div>${escapeHtml(m)}: <b>${v.roughBF.toFixed(1)} bf</b> rough <span class="muted">(${thick})</span></div>`;
   }).join('');
   const pct = t.trackable ? Math.round((t.done / t.trackable) * 100) : 0;
+  // how rough stock is worked out: a tooltip, not a paragraph under every total
+  els.summary.title = `Weight is an estimate from the species' air-dried density. `
+    + `Rough adds ${formatLength(s.allowance.length, s.units)} length and ${formatLength(s.allowance.width, s.units)} width, `
+    + 'and rounds up to the next stock thickness (4/4, 5/4, 8/4...). Buy ~20% extra for defects.';
   els.summary.innerHTML = `
-    <div class="sum-line"><b>${t.pieces}</b> wood pieces · <b>${t.finishedBF.toFixed(1)}</b> bf finished</div>
+    <div class="sum-line"><b>${t.pieces}</b> wood pieces · <b>${t.finishedBF.toFixed(1)}</b> bf finished${t.weightLb ? ` · <b>~${escapeHtml(formatWeight(t.weightLb, s.units))}</b>` : ''}</div>
     ${mats}
     ${sheetLayouts(allRows).map((g) => `<div>Sheet goods: <b>${escapeHtml(sheetLine(g))}</b></div>`).join('')}
-    <div class="muted small">Rough adds ${formatLength(s.allowance.length, s.units)} length, ${formatLength(s.allowance.width, s.units)} width, next 4/4-5/4-8/4… thickness. Buy ~20% extra for defects.</div>
     <div class="progress" title="Wood pieces ticked off as cut"><div style="width:${pct}%"></div><span>${t.done} of ${t.trackable} pieces cut</span></div>
   `;
 }

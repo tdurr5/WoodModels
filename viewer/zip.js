@@ -1,7 +1,9 @@
 // Minimal ZIP reading/writing for model uploads and exports - no library.
 // Reads stored and deflated entries (what 3D Warehouse .zip/.kmz downloads
-// and most zip tools produce) using the browser's DecompressionStream.
-// Writes uncompressed ("stored") zips, which every unzip tool opens.
+// and most zip tools produce) using the browser's DecompressionStream, and
+// writes deflated ones with CompressionStream. A model's scene.obj is plain
+// text and packs down about six to one, which is the difference between a
+// model you can AirDrop or email to the phone and one you can't.
 
 const decoder = new TextDecoder();
 
@@ -46,7 +48,7 @@ export async function unzip(data) {
 export const isZip = (bytes) => bytes.length > 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04;
 export const text = (bytes) => decoder.decode(bytes);
 
-// ---------- writing (stored, no compression) ----------
+// ---------- writing ----------
 const CRC_TABLE = (() => {
   const t = new Uint32Array(256);
   for (let n = 0; n < 256; n++) {
@@ -62,27 +64,44 @@ export function crc32(bytes) {
   return (c ^ 0xffffffff) >>> 0;
 }
 
+async function deflateRaw(bytes) {
+  const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
 // { 'path/name': string | Uint8Array } -> Uint8Array (a .zip)
-export function zip(files) {
+export async function zip(files) {
   const enc = new TextEncoder();
-  const entries = Object.entries(files).map(([name, content]) => {
+  const entries = await Promise.all(Object.entries(files).map(async ([name, content]) => {
     const data = typeof content === 'string' ? enc.encode(content) : content;
-    return { name: enc.encode(name), data, crc: crc32(data) };
-  });
+    // Already-compressed bytes (the model's own JPEGs and PNGs) only get
+    // bigger; and deflating something tiny costs more than it saves.
+    let packed = null;
+    if (data.length > 256 && !/\.(jpe?g|png|gif|webp|zip)$/i.test(name)) {
+      try {
+        const d = await deflateRaw(data);
+        if (d.length < data.length) packed = d;
+      } catch { /* no CompressionStream: store it instead */ }
+    }
+    return { name: enc.encode(name), data, crc: crc32(data), packed };
+  }));
   const locals = [], centrals = [];
   let offset = 0;
   for (const e of entries) {
+    const body = e.packed || e.data;
+    const method = e.packed ? 8 : 0;
     const lh = new DataView(new ArrayBuffer(30));
     lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); // UTF-8 names
-    lh.setUint16(8, 0, true); lh.setUint32(14, e.crc, true);
-    lh.setUint32(18, e.data.length, true); lh.setUint32(22, e.data.length, true); lh.setUint16(26, e.name.length, true);
-    locals.push(new Uint8Array(lh.buffer), e.name, e.data);
+    lh.setUint16(8, method, true); lh.setUint32(14, e.crc, true);
+    lh.setUint32(18, body.length, true); lh.setUint32(22, e.data.length, true); lh.setUint16(26, e.name.length, true);
+    locals.push(new Uint8Array(lh.buffer), e.name, body);
     const ch = new DataView(new ArrayBuffer(46));
     ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true);
-    ch.setUint32(16, e.crc, true); ch.setUint32(20, e.data.length, true); ch.setUint32(24, e.data.length, true);
+    ch.setUint16(10, method, true);
+    ch.setUint32(16, e.crc, true); ch.setUint32(20, body.length, true); ch.setUint32(24, e.data.length, true);
     ch.setUint16(28, e.name.length, true); ch.setUint32(42, offset, true);
     centrals.push(new Uint8Array(ch.buffer), e.name);
-    offset += 30 + e.name.length + e.data.length;
+    offset += 30 + e.name.length + body.length;
   }
   const cdSize = centrals.reduce((n, b) => n + b.length, 0);
   const end = new DataView(new ArrayBuffer(22));

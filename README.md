@@ -54,7 +54,7 @@ The viewer is an installable web app that keeps working offline once it has been
 
 It only publishes when you run it by hand. Open the published page once while online, then use "Add to Home Screen". After that it opens without a connection, model included.
 
-**Share** (in the cut list) gets a project onto your phone: on the published page it shows a QR code to scan with the phone's camera. An uploaded model lives in one browser, so Share sends its file instead - through the share sheet (AirDrop, Messages, email) where there is one, else as a download - and you add it on the phone under Models. Share also has the shopping list as text, to send to yourself or the lumber yard.
+**Share** (in the cut list) gets a project onto your phone: on the published page it shows a QR code to scan with the phone's camera. An uploaded model lives in one browser, so Share sends its file instead - through the share sheet (AirDrop, Messages, email) where there is one, else as a download - and you add it on the phone under Models. The button says how big the file is; model zips are compressed, which takes a big Warehouse model from around 20 MB to under 7 - the difference between one you can AirDrop or email and one you can't. Share also has the shopping list as text, to send to yourself or the lumber yard.
 
 On a phone the layout follows how you hold it (model above the list upright, side by side sideways), measuring snaps from further away for a fingertip, and the ? help lists the touch gestures. The 3D view only redraws when something changes, so an idle page doesn't drain the battery.
 
@@ -64,6 +64,7 @@ On a phone the layout follows how you hold it (model above the list upright, sid
 - Parts are grouped Wood / Hardware / Leather, then by assembly. Sizes are finished **T × W × L**.
 - **Units**: fractional inches (1/16, 1/32, 1/8), decimal inches or mm.
 - **Rough stock**: shows the lumber to mill each part from: the next standard thickness (4/4, 5/4, 8/4, 10/4…) plus length and width allowances you can set. Board feet are shown per part, and totals per species and thickness.
+- **Weight**: the totals and each part's card carry an estimate (`~263 lb`, in kg when the units are mm), from the species' air-dried density - enough to tell whether a bench top is a two-person lift. A real board runs either side of it.
 - **Tick parts off** as you cut them; the progress bar and your ticks are remembered in the browser.
 - **Filter** (`/`), **hide a category** in 3D (e.g. hardware), **Export CSV**, **Print cut sheet** (or Ctrl+P). The printed sheet has checkboxes, rough sizes, your notes, an overview picture, a drilling list, the joinery, the cuts in each part, the shopping list and the cutting diagrams.
 - **Shopping list & cutting diagram** (`C`):
@@ -117,7 +118,7 @@ Press `M` to open the models list (upload / switch models). Press `?` in the vie
 
 ## Uploading models (3D Warehouse)
 
-Click **Models** at the top of the sidebar (or press `M`), then choose a file - or just drag a file onto the page.
+Click **Models** at the top of the sidebar (or press `M`), then choose a file - or just drag a file onto the page. **Find a model on 3D Warehouse** in the same dialog opens a search there in a new tab; the results can't be shown in here, because 3D Warehouse sends no CORS headers and a web page may not read it.
 
 1. On 3D Warehouse, open the model and use **Download → Collada File** (a `.zip`) or **KMZ**. The SketchUp `.skp` download can't be read in a browser; in SketchUp itself, **File → Export → 3D Model → COLLADA (.dae)** works too.
 2. Upload the `.zip`, `.kmz` or `.dae`. It's measured in the browser the same way `parse_dae.py` does it (any units, Z-up or Y-up, other exporters' COLLADA 1.4/1.5), so every tool - cut list, rough stock, joins, templates, cutting diagram, angle tools - works on it.

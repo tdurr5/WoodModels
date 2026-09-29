@@ -4,6 +4,8 @@
 import qrcode from './vendor/qrcode/qrcode.js';
 import { escapeHtml } from './format.js';
 
+export const fileSize = (bytes) => (bytes >= 1e6 ? `${(bytes / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1e3))} kB`);
+
 export function qrSvg(text) {
   const q = qrcode(0, 'M');
   q.addData(text);
@@ -50,12 +52,12 @@ export function initShare({ getTitle, localId, shoppingText, modelFile, notify }
     const url = reachableUrl();
     const appUrl = url && `${location.origin}${location.pathname}`;
     const phone = localId
-      ? `<p>This model is saved in this browser only. <b>Send it to your phone</b> (AirDrop, Messages, email…), then on the phone open this app and add it under <b>Models → Upload</b>.</p>
-         <button class="card-btn primary share-model" disabled>Preparing the file…</button>
-         ${appUrl ? `<p class="muted small">The app on your phone - scan with the camera:</p><div class="share-qr">${qrSvg(appUrl)}</div>` : ''}`
+      ? `<p>This model lives in this browser. Send the file over (AirDrop, Messages, email…), then add it on the phone under <b>Models</b>.</p>
+         <button class="card-btn primary share-model" disabled>Packing the file…</button>
+         ${appUrl ? `<p class="muted small">The app itself - scan with the camera:</p><div class="share-qr">${qrSvg(appUrl)}</div>` : ''}`
       : url
         ? `<p><b>Scan with your phone's camera</b> to open this model there:</p><div class="share-qr">${qrSvg(url)}</div><p class="muted small share-url">${escapeHtml(url)}</p>`
-        : '<p>This page is running on this computer, which your phone can\'t reach. Publish the viewer with GitHub Pages (see the README) and open it there - then this shows a QR code to scan.</p>';
+        : '<p>This page is running on this computer, which your phone can\'t reach. Publish it with GitHub Pages (see the README) and a QR code to scan appears here.</p>';
     const list = shoppingText();
     body.innerHTML = `
       <h3>On your phone</h3>${phone}
@@ -70,12 +72,13 @@ export function initShare({ getTitle, localId, shoppingText, modelFile, notify }
       modelFile().then((f) => {
         file = f;
         sendBtn.disabled = false;
-        sendBtn.textContent = '📤 Send the model file';
+        // the size matters here: mail and messaging apps refuse big attachments
+        sendBtn.textContent = `📤 Send the model (${fileSize(f.size)})`;
       }).catch(() => { sendBtn.textContent = 'Couldn\'t read the model'; });
       sendBtn.addEventListener('click', async () => {
         if (!file) return;
         const how = await shareOut({ title: getTitle(), file });
-        if (how === 'downloaded') notify('Saved the model as a zip - send it to your phone and add it under Models → Upload there.');
+        if (how === 'downloaded') notify('Saved as a zip - send it to your phone and add it there under Models.');
       });
     }
     body.querySelector('.share-list').addEventListener('click', async () => {
