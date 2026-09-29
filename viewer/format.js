@@ -142,12 +142,7 @@ export function millingPlan(rows, keyOf = (v) => formatLength(v)) {
   return { thickness: group(2), width: group(1), length: group(0) };
 }
 
-// The dimensional-lumber name for a thickness × width, e.g. 1-1/2" × 3-1/2"
-// is a 2×4 - stock you can buy surfaced, no milling. Null if it isn't one.
-const NOMINAL_T = [[0.75, 1], [1.5, 2], [3.5, 4], [5.5, 6]];
-const NOMINAL_W = [[1.5, 2], [2.5, 3], [3.5, 4], [5.5, 6], [7.25, 8], [9.25, 10], [11.25, 12]];
-export function dimensionalSize(thickness, width, tol = 1 / 32) {
-  const near = (list, v) => list.find(([actual]) => Math.abs(actual - v) <= tol)?.[1];
-  const t = near(NOMINAL_T, thickness), w = near(NOMINAL_W, width);
-  return t && w && t <= w ? `${t}×${w}` : null;
-}
+// The dimensional-lumber name for a thickness × width (e.g. a 2×4) comes from
+// the stock catalogue, re-exported here because the cut list has always asked
+// format.js for it.
+export { dimensionalSize } from './stock.js';

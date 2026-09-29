@@ -196,6 +196,7 @@ export function renderCutList(container, rows, config, h) {
     </div>
     <div id="clSummary" class="cl-summary"></div>
     <div id="clCheck"></div>
+    <div id="clReview"></div>
     <div id="clList"></div>
     <div class="cl-foot">Dimensions are finished size, <b>T × W × L</b>. Drag to orbit, scroll to zoom, right-drag to pan. Press <kbd>?</kbd> for shortcuts.</div>
   `;

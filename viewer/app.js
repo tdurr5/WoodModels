@@ -26,6 +26,7 @@ import { initLibrary, modelZip } from './library.js';
 import { getModelFiles, getModelMeta, lastOpened, rememberOpened, putModelFile, addPhoto, listPhotos, deletePhoto, setThumbnail } from './modelstore.js';
 import { obbFromDims, partsTouch, findOverlaps, findButts, applyJoins, endJoints, pointInObb } from './geometry.js';
 import { cutFeatures } from './features.js';
+import { renderReview, reviewPrintHtml } from './designreview.js';
 import { glueUpStrips } from './nesting.js';
 import { createStage, smoothNormals, orientFaces, materialKind, surfaceMaterial, featureEdges, edgeMaterial, threadPitch, boltThreadLength, addThreads } from './look.js';
 
@@ -1812,7 +1813,7 @@ function scheduleModelCheck() {
   checkPending = true;
   if (!$('clCheck').textContent) $('clCheck').innerHTML = '<div class="model-check ok">Model check: checking…</div>';
   const later = window.requestIdleCallback ? (f) => window.requestIdleCallback(f, { timeout: 1500 }) : (f) => setTimeout(f, 200);
-  later(() => { checkPending = false; renderModelCheck(); });
+  later(() => { checkPending = false; renderModelCheck(); renderDesignReview(); });
 }
 function renderModelCheck() {
   const el = $('clCheck');
@@ -1830,6 +1831,38 @@ function renderModelCheck() {
     const r = rows.find((x) => x.key === a.dataset.key);
     if (r) pickRow(r);
   }));
+}
+
+// ---------- design review: is the thing it draws built properly? ----------
+// Model check looks at the drawing; this looks at the woodworking - movement,
+// joints, spans, stock sizes, the heights it gets used at. Everything it
+// needs is already measured, so it rides along with the model check.
+let reviewOpen = false;
+let lastReview = null;
+function reviewContext() {
+  return {
+    rows, objectDims, meshByName, rowByMeshName, isCut,
+    contactsOf, joineryOf, cutsOf,
+    speciesOf: (row) => {
+      const mc = config.materials?.[row.material] || {};
+      return SPECIES[mc.species] ? mc.species : speciesFor(row.materialLabel, row.material);
+    },
+    title: config.title || '',
+    height: modelBox.isEmpty() ? 0 : modelBox.max.y - modelBox.min.y,
+    onToggle: (open) => { reviewOpen = open; },
+  };
+}
+function renderDesignReview() {
+  const el = $('clReview');
+  if (!el || !model) return;
+  lastReview = renderReview(el, reviewContext(), {
+    units: settings().units,
+    open: reviewOpen,
+    onPick: (key) => {
+      const r = rows.find((x) => x.key === key);
+      if (r) pickRow(r);
+    },
+  });
 }
 
 // Contacts of one piece of the selected row, grouped by the row they belong to.
@@ -2849,7 +2882,8 @@ window.addEventListener('beforeprint', () => {
     ? `<div class="ps-diagrams"><h2>Shopping list &amp; cutting diagrams</h2>${layoutsHTML(layouts, { pxPerInch: 700 / longest, units: settings().units, colorFor: diagram.colorFor, hardware: rows, finishArea: woodSurfaceArea(), sheets })}</div>`
     : '';
   const mill = millingPlanHTML(rows);
-  buildPrintSheet($('printSheet'), rows, config, img, drillingHtml() + joineryPrintHtml() + cutsPrintHtml() + (mill ? `<h2>Milling plan</h2>${mill}` : '') + diagrams);
+  buildPrintSheet($('printSheet'), rows, config, img, drillingHtml() + joineryPrintHtml() + cutsPrintHtml() + reviewPrintHtml(lastReview)
+    + (mill ? `<h2>Milling plan</h2>${mill}` : '') + diagrams);
 });
 
 // ---------- part letter tags in 3D ----------

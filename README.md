@@ -15,6 +15,9 @@ A 3D cut-list viewer for woodworking plans, starting with the Lie-Nielsen/Brian 
   - `template.js` - printable full-size part templates
   - `geometry.js` - oriented-box contact tests (what joins what, where holes go), tenons and mortises, overlapping pieces and joining them
   - `features.js` - the cuts drawn in a part (holes, notches, mortises, dados, grooves, rabbets), found by casting a grid of rays through it
+  - `review.js` - the design rules (wood movement, joint proportions, spans, stock sizes, ergonomics), pure and unit-tested
+  - `woodprops.js`, `movement.js`, `spans.js`, `joinery.js`, `stock.js`, `ergonomics.js` - the data and maths behind them: species properties, seasonal movement, sag, joint sizing, what the yard sells, standard furniture sizes
+  - `designreview.js` - the Design review panel: builds a review from the model on screen and draws the findings
   - `autofix.js` - tells a board modeled as two overlapping pieces, or a stray copy, from a lap joint (automatic fixes on load)
   - `measure.js` - distance / angle / bevel tools with snapping
   - `angles.js`, `format.js` - compound-angle math, fractions, rough stock, board feet (pure, unit-tested)
@@ -129,6 +132,23 @@ Uploads are saved in this browser (nothing is sent anywhere), and the page reope
 
 **Model check** (under the totals in the cut list) looks over a new model for you: wood that touches no other part (a leftover, or drawn in the wrong place), parts drawn as a flat face with nothing to cut, pieces still overlapping, and parts wider than your boards (glue it up from N boards). Each links to the part. Parts that are a standard dimensional-lumber size say so on their card ("a standard 2×4") - buy those surfaced, no milling.
 
+### Design review
+
+**Design review** (under Model check) is the second question: not "is this drawn properly?" but "is the thing it draws built properly?" It runs the standard-practice checks a cabinetmaker would make over your shoulder, on any model - the built-in one or anything you upload - and every finding says what it found, **why** it matters and what to do instead, so the panel teaches rather than nags. Nothing is blocked: good work breaks these rules on purpose, and the point is to know when you are.
+
+- **Wood movement.** How much each wide board grows and shrinks over a year, in inches, from the species' own shrinkage coefficient and the moisture swing of a heated room (about 6 points). Where one part's grain crosses another's and holds it over more than 3", it says so, with the slot length to cut - the commonest way a good-looking piece fails a year later.
+- **Joinery.** Tenons measured against the standard proportions: a third of the rail thick, at least five times its own thickness long, no wider than six times its thickness, not bottoming out in the mortise. Ends that only butt another part are flagged with the joint to cut instead, picked for what that joint has to survive (a rail into a leg racks; a shelf bears straight down) and for the tools you have. Housings deeper than half the stock.
+- **Spans.** Whether a shelf, seat or top will sag under load, from the species' stiffness - and if it will, the span that would be fine, the thickness that would fix it, or the edge lip that is cheaper than both. Checked against the published shelving span tables.
+- **Stock.** Parts that are already a stocked size ("this is a 2×4: buy it surfaced"), and thicknesses that quietly cost you the next board up ("1-1/2" needs 8/4; at 1-3/8" it comes out of 6/4 and saves 4 bf").
+- **Fastenings and grain.** Holes too close to an end to hold, parts whose grain runs the short way.
+- **How it will be used.** If the title says what the piece is, its height is checked against the standard one - a dining table at 34" or a chair seat at 21" is wrong for everybody.
+
+The findings (bar the notes) print on the cut sheet.
+
+Where the numbers come from, so you can argue with them: species stiffness and shrinkage are the USDA Wood Handbook (FPL-GTR-190, Tables 4-3 and 5-3b); the movement maths and the equilibrium-moisture curve are Eckelman's *The Shrinking and Swelling of Wood and Its Effect on Furniture* (Purdue FNR-163); panel stiffness is FPL-GTR-282 Table 12-1, with particleboard and MDF at the ANSI A208 grade minimums the Composite Panel Association's shelving bulletin uses; span limits are that bulletin's span/240. Joint proportions are the traditional ones (Ellis, and the tenon rules as Popular Woodworking summarises them). Each module cites its own sources at the top, and `tests/wood.test.mjs` checks the code against the published tables.
+
+`stock.js` also holds the full catalogue of what a yard sells - every softwood nominal size and its actual size, the hardwood quarters rough and surfaced, sheet sizes, plywood's undersized thicknesses, dowel diameters - which is what a designer would pick parts from.
+
 Plenty of Warehouse models weren't drawn with a cut list in mind: nothing is named, boards are drawn as loose faces, parts are scaled copies, and there are tools, people or props in the scene. The importer handles what it can on its own:
 
 - **Unnamed parts** (`group_12`, `Component#3`...) are named by shape - *Board*, *Panel*, *Square stock*, *Dowel*, *Block*, *Strip*, *Sheet* - and identical ones become one row with a quantity. Unnamed groups are shown as *Group 1*, *Group 2*...
@@ -177,6 +197,7 @@ npm test           # python parser tests, node unit tests, headless browser smok
 
 - `tests/test_parse_dae.py` runs the parser on a synthetic SketchUp-style COLLADA file (`tests/make_fixture.py`) and checks the committed viewer data for consistency.
 - `tests/unit.test.mjs` covers fractions, rough stock, board feet, compound angles and the board-nesting packer, including a randomized overlap/overhang check.
+- `tests/wood.test.mjs` covers the design rules and the data under them. Where a published table exists the test checks against it, not against whatever the code happens to produce: shelf spans against the Composite Panel Association's tables, movement against the worked example in the Purdue paper, equilibrium moisture content against the sorption curve, species stiffness and shrinkage against the Wood Handbook.
 - `tests/parser_parity.mjs` runs the Python parser and the browser parser (`viewer/collada.js`) on the same COLLADA variants (units, Y-up, polygons, translate/rotate, COLLADA 1.5, no namespace) and checks they produce identical data. `PARITY_SAMPLES=/folder` adds your own `.dae` files.
 - `tests/viewer_smoke.mjs` drives the real viewer in headless Chromium through every feature, including uploading a Warehouse-style zip, a KMZ and a `.skp`. A stool built the way uploads really arrive (drawn far from the origin, an unnamed wood photo, a fabric photo, a leg written inside-out by another exporter, a round dowel) checks how a new model looks: ground under it, photos shown, faces turned out, round parts shaded round, every part outlined and casting shadows. It also checks that nothing is fetched from outside the viewer folder, and writes screenshots, a CSV and PDF cut sheet/template to `test-output/`.
 
