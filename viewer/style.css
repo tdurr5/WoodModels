@@ -528,3 +528,55 @@ body.build-mode #dimCard, body.build-mode #bottombar, body.build-mode #introTip 
 .share-text { white-space: pre-wrap; background: var(--input-bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px; font-size: 12px; max-height: 220px; overflow: auto; }
 @media print { #share { display: none !important; } }
 .card-check { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; margin: 0 6px; cursor: pointer; }
+
+/* ---------- the designer ---------- */
+#designer { position: absolute; top: 0; left: 0; bottom: 0; width: 340px; z-index: 12; display: none;
+  flex-direction: column; background: var(--bg); border-right: 1px solid var(--border);
+  box-shadow: 2px 0 12px rgba(0,0,0,0.25); font-size: 12.5px; }
+#designer.open { display: flex; }
+.dz-head { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+.dz-head h2 { margin: 0; font-size: 15px; }
+.dz-title { flex: 1; min-width: 0; background: var(--input-bg); color: var(--text); border: 1px solid var(--border);
+  border-radius: 4px; padding: 4px 6px; font-size: 14px; font-weight: 600; }
+.dz-close { background: none; border: none; color: var(--muted); font-size: 20px; line-height: 1; cursor: pointer; padding: 0 4px; }
+.dz-body { flex: 1; overflow-y: auto; padding: 8px 10px 12px; }
+.dz-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 8px 10px; border-top: 1px solid var(--border); }
+.dz-arch { display: block; width: 100%; text-align: left; margin: 0 0 6px; padding: 8px 10px; cursor: pointer;
+  background: var(--input-bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; }
+.dz-arch b { display: block; font-size: 13px; }
+.dz-arch span { color: var(--muted); }
+.dz-arch:hover { border-color: var(--blue); }
+.dz-sec { margin: 0 0 8px; border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; }
+.dz-sec > summary { cursor: pointer; font-weight: 600; }
+.dz-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; margin: 6px 0; }
+.dz-grid.dz-size { grid-template-columns: 1fr 1fr 1fr; }
+.dz-grid label, .dz-place label { display: flex; flex-direction: column; gap: 2px; color: var(--muted); font-size: 11px; }
+#designer input, #designer select { background: var(--input-bg); color: var(--text); border: 1px solid var(--border);
+  border-radius: 4px; padding: 3px 4px; font-size: 12.5px; min-width: 0; width: 100%; box-sizing: border-box; }
+.dz-notes { margin: 4px 0 0; padding-left: 16px; color: var(--muted); font-size: 11px; }
+.dz-part { border-top: 1px solid var(--line, var(--border)); }
+.dz-part:first-of-type { border-top: none; }
+.dz-part-head { display: flex; justify-content: space-between; gap: 8px; width: 100%; text-align: left;
+  background: none; border: none; color: var(--text); padding: 5px 2px; cursor: pointer; font-size: 12.5px; }
+.dz-part.open .dz-part-head { color: var(--accent-text); }
+.dz-edit { padding: 2px 2px 8px; }
+.dz-place { display: grid; grid-template-columns: 14px repeat(3, 1fr) 1.6fr 1fr 18px; gap: 4px; align-items: end; margin: 4px 0; }
+.dz-place-n { color: var(--muted); font-size: 10px; padding-bottom: 4px; }
+.dz-x { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 15px; padding: 0; }
+.dz-small { background: var(--input-bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px;
+  padding: 3px 8px; cursor: pointer; font-size: 11.5px; margin: 4px 4px 0 0; }
+.dz-small.danger { color: var(--warn); }
+.dz-add { background: var(--input-bg); color: var(--text); border: 1px dashed var(--border); border-radius: 4px;
+  padding: 4px 8px; cursor: pointer; width: 100%; margin-top: 6px; }
+.dz-joint { display: flex; align-items: center; gap: 4px; margin: 4px 0; }
+.dz-joint > span { flex: 1; min-width: 0; }
+.dz-newjoint { display: grid; grid-template-columns: 1fr 0.8fr 1fr; gap: 4px; }
+.dz-review { margin-top: 8px; }
+.dz-review .model-check { font-size: 11.5px; }
+.dz-save { background: var(--blue); color: #fff; border: none; border-radius: 5px; padding: 6px 12px; cursor: pointer; font-weight: 600; }
+.dz-save[disabled] { opacity: 0.6; cursor: default; }
+body.designing #dimCard, body.designing #buildPanel, body.designing #partTags, body.designing #introTip { display: none !important; }
+body.designing #toolbar { left: 348px; }
+@media (max-width: 700px) { #designer { width: 100%; border-right: none; } body.designing #toolbar { left: 0; } }
+@media print { #designer { display: none !important; } }

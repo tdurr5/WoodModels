@@ -161,7 +161,12 @@ test('checkTenon finds what is wrong and nothing else', () => {
   const ids = (o) => checkTenon(o).map((x) => x.id);
   assert.ok(ids({ thickness: 0.1, length: 1, width: 1, railThickness: 0.75, intoThickness: 1.75 }).includes('tenon-thin'));
   assert.ok(ids({ thickness: 0.5, length: 2.5, width: 1, railThickness: 0.75, intoThickness: 4 }).includes('tenon-fat'));
-  assert.ok(ids({ thickness: 0.375, length: 0.75, width: 1, railThickness: 1, intoThickness: 1.75 }).includes('tenon-short'));
+  assert.ok(ids({ thickness: 0.375, length: 0.75, width: 1, railThickness: 1, intoThickness: 3.5 }).includes('tenon-short'));
+  // Not short when the leg is all there is: a tenon taking most of what it
+  // can reach is doing its job, and telling someone off for that is noise.
+  assert.ok(!ids({ thickness: 0.375, length: 0.75, width: 1, railThickness: 1, intoThickness: 1.75 }).includes('tenon-short'));
+  // A round tenon on the end of a leg is sized off the leg, not the 1/3 rule.
+  assert.deepEqual(checkTenon({ thickness: 0.9, length: 1.2, width: 0.9, railThickness: 1.5, intoThickness: 1.5, round: true }), []);
   assert.ok(ids({ thickness: 0.25, length: 1.7, width: 1, railThickness: 0.75, intoThickness: 1.75 }).includes('tenon-bottoms'));
   assert.ok(ids({ thickness: 0.25, length: 1.25, width: 3, railThickness: 0.75, intoThickness: 1.75 }).includes('tenon-wide'));
   assert.ok(ids({ thickness: 0.25, length: 1.25, width: 1, railThickness: 0.75, intoThickness: 1.75, fromEnd: 0.5 }).includes('mortise-end'));
@@ -247,12 +252,15 @@ test('piece types and heights', () => {
 
 // ---------- the review engine ----------
 
-const part = (o) => ({ count: 1, category: 'Wood', wood: true, sawn: 'unknown', touches: [], tenons: [], butts: [], cuts: [], holes: [], ...o });
+const part = (o) => ({
+  count: 1, category: 'Wood', wood: true, sawn: 'unknown',
+  touches: [], tenons: [], mortises: [], butts: [], cuts: [], holes: [], ...o,
+});
 const ALONG = [1, 0, 0], ACROSS = [0, 0, 1];
 
 test('a top screwed across a rail is flagged as cross-grain', () => {
-  const top = part({ key: 'top', name: 'Top', dims: [40, 24, 0.875], props: WOOD.maple, grain: ALONG, horizontal: true, touches: [{ key: 'rail', name: 'End rail', span: 22 }] });
-  const rail = part({ key: 'rail', name: 'End rail', dims: [22, 3, 0.875], props: WOOD.maple, grain: ACROSS });
+  const top = part({ key: 'top', name: 'Top', dims: [40, 24, 0.875], props: WOOD.maple, grain: ALONG, across: ACROSS, horizontal: true, touches: [{ key: 'rail', name: 'End rail', span: 22 }] });
+  const rail = part({ key: 'rail', name: 'End rail', dims: [22, 3, 0.875], props: WOOD.maple, grain: ACROSS, across: ALONG });
   const { findings } = reviewModel({ title: 'Table', parts: [top, rail] });
   const cross = findings.find((f) => f.rule === 'cross-grain');
   assert.ok(cross, 'expected a cross-grain finding');
@@ -267,28 +275,36 @@ test('a top screwed across a rail is flagged as cross-grain', () => {
   assert.ok(findings.some((f) => f.rule === 'wide-board' && f.key === 'top'));
 });
 
-test('cross-grain is judged on how far the wood actually moves', () => {
+test('cross-grain is judged on the direction the wood moves, and how far', () => {
   // A narrow frame: grain crosses at every joint, and none of them split.
-  const rail = part({ key: 'r', name: 'Rail', dims: [24, 3, 0.75], props: WOOD.maple, grain: ALONG, touches: [{ key: 'l', name: 'Leg', span: 3 }] });
-  const leg = part({ key: 'l', name: 'Leg', dims: [29, 3, 0.75], props: WOOD.maple, grain: [0, 1, 0] });
+  const rail = part({ key: 'r', name: 'Rail', dims: [24, 3, 0.75], props: WOOD.maple, grain: ALONG, across: ACROSS, touches: [{ key: 'l', name: 'Leg', span: 3 }] });
+  const leg = part({ key: 'l', name: 'Leg', dims: [29, 3, 0.75], props: WOOD.maple, grain: [0, 1, 0], across: ALONG });
   assert.equal(reviewModel({ parts: [rail, leg] }).findings.some((f) => f.rule === 'cross-grain'), false);
-  // An 8in board crossed by two legs: real but small movement, so it is a
-  // thing to get right, not a thing that will fail. One finding, both legs.
-  const bench = part({ key: 'b', name: 'Bench', dims: [46, 8, 1.625], props: WOOD.maple, grain: ALONG, touches: [{ key: 'l1', name: 'Front leg', span: 8 }, { key: 'l2', name: 'Rear leg', span: 8 }] });
-  const legs = ['l1', 'l2'].map((k, i) => part({ key: k, name: `${i ? 'Rear' : 'Front'} leg`, dims: [20, 2, 2], props: WOOD.maple, grain: [0, 1, 0] }));
+  // A wide top with a rail running the same way as its grain: the top's width
+  // is still free to move, so there is nothing to say.
+  const along = part({ key: 't', name: 'Top', dims: [60, 30, 1], props: WOOD.maple, grain: ALONG, across: ACROSS, touches: [{ key: 'a', name: 'Long apron', span: 26 }] });
+  const apron = part({ key: 'a', name: 'Long apron', dims: [50, 4, 1], props: WOOD.maple, grain: ALONG, across: [0, 1, 0] });
+  assert.equal(reviewModel({ parts: [along, apron] }).findings.some((f) => f.rule === 'cross-grain'), false);
+  // An 8in board held by two legs whose grain runs the way it moves: real but
+  // small movement, so it is a thing to get right, not a thing that will fail.
+  const bench = part({ key: 'b', name: 'Bench', dims: [46, 8, 1.625], props: WOOD.maple, grain: ALONG, across: ACROSS, touches: [{ key: 'l1', name: 'Front leg', span: 8 }, { key: 'l2', name: 'Rear leg', span: 8 }] });
+  const legs = ['l1', 'l2'].map((k, i) => part({ key: k, name: `${i ? 'Rear' : 'Front'} leg`, dims: [20, 2, 2], props: WOOD.maple, grain: ACROSS, across: ALONG }));
   const got = reviewModel({ parts: [bench, ...legs] }).findings.filter((f) => f.rule === 'cross-grain');
   assert.equal(got.length, 1);
   assert.equal(got[0].severity, 'watch');
   assert.match(got[0].text, /Front leg and Rear leg/);
   assert.deepEqual(got[0].parts.sort(), ['b', 'l1', 'l2']);
+  // A joint the design says is free to slide has already dealt with it.
+  const freed = [{ ...bench, freeOf: ['l1', 'l2'] }, ...legs];
+  assert.equal(reviewModel({ parts: freed }).findings.some((f) => f.rule === 'cross-grain'), false);
 });
 
 test('parts running the same way, or in plywood, are left alone', () => {
-  const a = part({ key: 'a', name: 'Board A', dims: [40, 8, 0.75], props: WOOD.cherry, grain: ALONG, touches: [{ key: 'b', name: 'Board B', span: 40 }] });
-  const b = part({ key: 'b', name: 'Board B', dims: [40, 8, 0.75], props: WOOD.cherry, grain: [-1, 0, 0] });
+  const a = part({ key: 'a', name: 'Board A', dims: [40, 8, 0.75], props: WOOD.cherry, grain: ALONG, across: ACROSS, touches: [{ key: 'b', name: 'Board B', span: 40 }] });
+  const b = part({ key: 'b', name: 'Board B', dims: [40, 8, 0.75], props: WOOD.cherry, grain: [-1, 0, 0], across: ACROSS });
   assert.equal(reviewModel({ parts: [a, b] }).findings.filter((f) => f.rule === 'cross-grain').length, 0);
-  const ply = part({ key: 'p', name: 'Panel', dims: [40, 24, 0.75], props: PANELS.plywood, grain: ALONG, touches: [{ key: 'r', name: 'Rail', span: 22 }] });
-  const rail = part({ key: 'r', name: 'Rail', dims: [22, 3, 0.75], props: PANELS.plywood, grain: ACROSS });
+  const ply = part({ key: 'p', name: 'Panel', dims: [40, 24, 0.75], props: PANELS.plywood, grain: ALONG, across: ACROSS, touches: [{ key: 'r', name: 'Rail', span: 22 }] });
+  const rail = part({ key: 'r', name: 'Rail', dims: [22, 3, 0.75], props: PANELS.plywood, grain: ACROSS, across: ALONG });
   const f = reviewModel({ parts: [ply, rail] }).findings;
   assert.equal(f.filter((x) => x.family === 'movement').length, 0);
 });
@@ -306,7 +322,7 @@ test('a sagging shelf is caught, a stiff one is not', () => {
 });
 
 test('joinery, stock and fastening rules on one part', () => {
-  const leg = part({ key: 'leg', name: 'Leg', dims: [29, 1.75, 1.75], props: WOOD.maple, grain: [0, 1, 0] });
+  const leg = part({ key: 'leg', name: 'Leg', dims: [29, 3.5, 3.5], props: WOOD.maple, grain: [0, 1, 0] });
   const rail = part({
     key: 'rail', name: 'Rail', dims: [40, 6, 1.5], props: WOOD.maple, grain: ALONG,
     tenons: [{ into: 'Leg', intoKey: 'leg', thickness: 0.5, length: 1, width: 3.5, through: false }],
@@ -350,8 +366,8 @@ test('short grain is flagged', () => {
 });
 
 test('findings are ordered worst first and counted', () => {
-  const top = part({ key: 'top', name: 'Top', dims: [40, 24, 0.875], props: WOOD.maple, grain: ALONG, horizontal: true, touches: [{ key: 'rail', name: 'Rail', span: 22 }] });
-  const rail = part({ key: 'rail', name: 'Rail', dims: [22, 3, 0.875], props: WOOD.maple, grain: ACROSS, butts: [{ key: 'top', name: 'Top' }] });
+  const top = part({ key: 'top', name: 'Top', dims: [40, 24, 0.875], props: WOOD.maple, grain: ALONG, across: ACROSS, horizontal: true, touches: [{ key: 'rail', name: 'Rail', span: 22 }] });
+  const rail = part({ key: 'rail', name: 'Rail', dims: [22, 3, 0.875], props: WOOD.maple, grain: ACROSS, across: ALONG, butts: [{ key: 'top', name: 'Top' }] });
   const r = reviewModel({ parts: [top, rail] });
   assert.equal(r.findings[0].severity, 'problem');
   assert.equal(r.counts.problem, 1);

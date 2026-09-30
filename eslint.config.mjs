@@ -2,7 +2,7 @@
 export default [{ ignores: ['viewer/vendor/**'] }, {
   files: ['**/*.js', '**/*.mjs'],
   languageOptions: { ecmaVersion: 2023, sourceType: 'module', globals: {
-    window: 'readonly', document: 'readonly', location: 'readonly', history: 'readonly', localStorage: 'readonly',
+    window: 'readonly', document: 'readonly', location: 'readonly', history: 'readonly', localStorage: 'readonly', sessionStorage: 'readonly',
     performance: 'readonly', requestAnimationFrame: 'readonly', ResizeObserver: 'readonly', MouseEvent: 'readonly', Event: 'readonly',
     CSS: 'readonly', Blob: 'readonly', URL: 'readonly', URLSearchParams: 'readonly', setTimeout: 'readonly', clearTimeout: 'readonly', console: 'readonly', structuredClone: 'readonly',
     fetch: 'readonly', navigator: 'readonly', getComputedStyle: 'readonly', DOMParser: 'readonly', TextEncoder: 'readonly', indexedDB: 'readonly', DecompressionStream: 'readonly', Response: 'readonly', TextDecoder: 'readonly', File: 'readonly', crypto: 'readonly', self: 'readonly', caches: 'readonly', process: 'readonly', Buffer: 'readonly',

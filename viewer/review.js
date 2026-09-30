@@ -18,6 +18,7 @@
 //   props,                        // woodprops.js entry, or null if unknown
 //   sawn,                         // 'flatsawn' | 'quartersawn' | 'unknown'
 //   grain: [x, y, z] | null,      // unit vector along the grain (its length)
+//   across: [x, y, z] | null,     // unit vector across it (its width): the way it moves
 //   horizontal: bool,             // its face is up: a shelf, seat or top
 //   touches: [{ key, name, grain, span }],
 //   tenons: [{ into, intoKey, thickness, length, width, through, fromEnd }],
@@ -32,13 +33,16 @@ import { angleBetween } from './angles.js';
 import { movement, slotAllowance, RIGID_CROSS_GRAIN_LIMIT, DEFAULT_ENV, mcSwing } from './movement.js';
 import { TYPICAL_HARDWOOD } from './woodprops.js';
 import { checkTenon, recommendJoints, DADO, SCREW, JOINTS } from './joinery.js';
-import { sag, maxSpan, thicknessFor, SAG_LIMITS, LOADS_PSF, EDGE_LIP_NOTE } from './spans.js';
+import { sag, maxSpan, thicknessFor, verdict, LOADS_PSF, EDGE_LIP_NOTE } from './spans.js';
 import { hardwoodStock, dimensionalSize, boardFeetOf } from './stock.js';
 import { pieceTypeFrom, checkHeight } from './ergonomics.js';
 
 // problem: it will fail or split. watch: it will work, but there's a better
 // way. note: worth knowing, nothing wrong.
 export const SEVERITY = { problem: 3, watch: 2, note: 1 };
+
+// A grown adult dropping onto the middle of a bench.
+export const SITTER_LB = 250;
 
 const RULES = [];
 const rule = (id, family, fn) => RULES.push({ id, family, fn });
@@ -64,25 +68,32 @@ rule('wide-board', 'movement', (m, c) => {
   return out;
 });
 
-// The classic splitter: a wide board's grain crossed and held by another
-// part. What decides whether it matters is how far the movement adds up to,
-// not that the grain crosses - grain crosses at every joint in furniture.
-// Under a sixteenth the joint absorbs it; a tabletop's half inch tears
-// itself apart. One finding per board, listing everything that crosses it.
+// The classic splitter: a wide board held so it cannot grow and shrink
+// across its grain.
+//
+// What matters is not that two parts' grain crosses - it crosses at every
+// joint in furniture - but whether the part holding the board runs along the
+// direction the board needs to move. A rail along a tabletop's length leaves
+// its width free; a rail across it does not, because along its own grain
+// that rail never changes length. And how much it matters is how far the
+// movement adds up to: under a sixteenth the joint absorbs it, a tabletop's
+// half inch tears itself apart. One finding per board.
 rule('cross-grain', 'movement', (m, c) => {
   const out = [];
   for (const p of m.parts) {
-    // Only a board wide enough to move meaningfully: a 2in rail crossing a
-    // 3in one is every frame ever built, and none of them split.
-    if (!p.wood || !p.grain || p.props?.moves === false || p.dims[1] < 6) continue;
+    // Only a board wide enough to move meaningfully.
+    if (!p.wood || !p.across || p.props?.moves === false || p.dims[1] < 6) continue;
     const crossing = [];
     let widest = 0;
     for (const t of p.touches || []) {
       const other = m.byKey.get(t.key);
       if (!other?.wood || !other.grain || other.props?.moves === false) continue;
-      // Grain has no direction, so 170 degrees apart is the same as 10.
-      const raw = angleBetween(p.grain, other.grain);
-      if (Math.min(raw, 180 - raw) < 45) continue;
+      // Does the other part's grain lie along the way this board moves?
+      const raw = angleBetween(p.across, other.grain);
+      if (Math.min(raw, 180 - raw) > 45) continue;
+      // A design that already says this joint slides (buttons, slotted
+      // screws) has dealt with it; don't tell someone off for getting it right.
+      if (p.freeOf?.includes(t.key) || other.freeOf?.includes(p.key)) continue;
       const across = Math.min(t.span ?? 0, p.dims[1]);
       if (!(across > RIGID_CROSS_GRAIN_LIMIT)) continue;
       crossing.push(other);
@@ -91,14 +102,11 @@ rule('cross-grain', 'movement', (m, c) => {
     if (!crossing.length) continue;
     const props = p.props || TYPICAL_HARDWOOD;
     const slot = slotAllowance(widest, props, { env: m.env, sawn: p.sawn });
-    // A sixteenth is nothing; an eighth is a gap you can see; past three
-    // sixteenths something has to give, and it will be the wood.
     if (slot.total < 1 / 16) continue;
     const severity = slot.total >= 3 / 16 ? 'problem' : 'watch';
-    const names = crossing.map((x) => x.name);
     out.push(finding(p, severity, 'Cross-grain joint',
-      `is held across its grain by ${list(names)}, over about ${c.f(widest)}.`,
-      `${nameOf(p)} moves ${c.f(slot.total)} across its width over a season and the parts crossing it barely move along their length. Fixed solid over that distance, one of them has to give${severity === 'problem' ? ' - this is the commonest way a good-looking piece fails a year later' : ''}.`,
+      `is held across its grain by ${list(crossing.map((x) => x.name))}, over about ${c.f(widest)}.`,
+      `${nameOf(p)} moves ${c.f(slot.total)} across its width over a season, and ${crossing.length > 1 ? 'those parts run' : 'that part runs'} along the grain the same way, so ${crossing.length > 1 ? 'they' : 'it'} barely moves at all. Fixed solid over that distance, one of them has to give${severity === 'problem' ? ' - this is the commonest way a good-looking piece fails a year later' : ''}.`,
       severity === 'problem'
         ? `Let it slide: slotted screw holes ${c.f(slot.slot)} long with the screw centred, buttons in a groove, or figure-8 fasteners. Fix it solid only in the middle ${c.f(RIGID_CROSS_GRAIN_LIMIT)} and let the movement run out to both edges.`
         : `Fine bolted or screwed at one line of fixings. If it is glued or screwed at both edges, slot the outer holes ${c.f(slot.slot)} so the wood can still move.`,
@@ -116,7 +124,7 @@ rule('tenon-proportions', 'joinery', (m, c) => {
       const into = m.byKey.get(t.intoKey);
       const problems = checkTenon({
         thickness: t.thickness, length: t.length, width: t.width, through: t.through,
-        railThickness: p.dims[2], intoThickness: into?.dims[2], fromEnd: t.fromEnd,
+        railThickness: p.dims[2], intoThickness: into?.dims[2], fromEnd: t.fromEnd, round: t.round,
       }, c.f);
       for (const pr of problems) {
         out.push(finding(p, pr.id === 'tenon-fat' ? 'note' : 'watch', 'Tenon proportions',
@@ -137,12 +145,46 @@ rule('butt-joint', 'joinery', (m) => {
     if (p.dims[0] < 8) continue;               // a short block is usually captured
     const conn = p.horizontal ? 'shelf-to-side' : 'rail-to-leg';
     const picks = recommendJoints(conn, { tools: m.tools }).filter((j) => j.key !== 'butt-screw');
+    const upright = p.grain && Math.abs(p.grain[1]) > 0.9;
     for (const b of p.butts) {
+      // A post under a slab is in compression: the load presses the joint
+      // together, and nobody tenons a table leg into the top. What holds the
+      // two together is the frame, not this face.
+      if (upright && m.byKey.get(b.key)?.horizontal) continue;
       out.push(finding(p, 'watch', 'Butt joint',
         `meets ${b.name} end grain to face, with no joint cut into either part.`,
         'Glue onto end grain holds almost nothing: the fibres are cut across, the glue soaks in, and there is no long grain to bond to. Whatever holds this joint together is the screws or nothing.',
         `For ${describeConn(conn)}, cut ${picks.slice(0, 2).map((j) => j.name.toLowerCase()).join(' or ')}${picks[0]?.note ? ` - ${picks[0].note}` : ''}.`,
         [b.key]));
+    }
+  }
+  return out;
+});
+
+// Two rails tenoned into the same leg from faces at right angles: their
+// tenons meet in the middle of the leg unless someone thought about it.
+rule('tenon-collision', 'joinery', (m, c) => {
+  const out = [];
+  for (const p of m.parts) {
+    const ms = (p.mortises || []).filter((x) => x.depth > 0 && x.dir);
+    const section = Math.min(p.dims[1], p.dims[2]);
+    const said = new Set();
+    for (let i = 0; i < ms.length; i++) {
+      for (let k = i + 1; k < ms.length; k++) {
+        // The same two parts meeting in four legs is one thing to fix.
+        const pair = [ms[i].name, ms[k].name].sort().join('|');
+        if (said.has(pair)) continue;
+        const raw = angleBetween(ms[i].dir, ms[k].dir);
+        if (Math.min(raw, 180 - raw) < 45) continue;      // same direction: they never meet
+        const sum = ms[i].depth + ms[k].depth;
+        if (sum <= section + 1 / 32) continue;
+        said.add(pair);
+        out.push(finding(p, 'problem', 'Tenons collide',
+          `takes tenons ${c.f(ms[i].depth)} and ${c.f(ms[k].depth)} deep from ${ms[i].name} and ${ms[k].name}, into ${c.f(section)} of leg.`,
+          `They come in at right angles to each other, so together they need more wood than the leg has. The second mortise cuts into the first, and the joint that is already glued gets pushed out.`,
+          `Cut both to just under half the leg (${c.f(section / 2 - 1 / 8)}), or mitre the ends of the tenons where they meet so each keeps its full length.`,
+          [ms[i].key, ms[k].key].filter(Boolean)));
+      }
     }
   }
   return out;
@@ -174,17 +216,33 @@ rule('sag', 'span', (m, c) => {
     if (!span || !props?.moe || !p.horizontal) continue;
     const [, depth, thickness] = p.dims;
     if (span < 18 || thickness > 2) continue;
-    const psf = m.load ?? LOADS_PSF.books;
-    const s = sag({ span, depth, thickness, moe: props.moe, psf });
+    // Shelves carry a spread load; a seat carries a person in the middle,
+    // which is a different sum and the one that makes a bench feel springy.
+    const psf = p.seat ? 0 : (m.load ?? LOADS_PSF.books);
+    const point = p.seat ? (m.sitter ?? SITTER_LB) : 0;
+    const s = sag({ span, depth, thickness, moe: props.moe, psf, point });
     if (!s) continue;
-    const allowed = span / SAG_LIMITS.loose;
-    if (s.inches <= allowed) continue;
-    const need = thicknessFor({ span, depth, moe: props.moe, psf });
-    const ok = maxSpan({ depth, thickness, moe: props.moe, psf });
-    out.push(finding(p, s.inches > allowed * 2 ? 'problem' : 'watch', 'Will sag',
-      `spans ${c.f(span)} at ${c.f(thickness)} thick: about ${c.f(s.inches)} of sag under ${psf} lb/ft² of load, past the ${c.f(allowed)} a span this long should show.`,
-      `Stiffness goes with the cube of thickness and against the cube of span, so small changes swing it hard. ${props.typical ? 'Figured for a typical hardwood' : `Figured for ${props.name.toLowerCase()}`} at ${(props.moe / 1e6).toFixed(2)} million psi.`,
-      `Shorten the span to ${c.f(ok)}, go to ${c.f(need.buy)} stock, or ${EDGE_LIP_NOTE}.`));
+    const v = verdict(s, span);
+    // Two ways to fail: past the limit the trade builds to, or inside it but
+    // bowed enough for the eye to pick up - about 1/32in for every foot of
+    // span. A long shelf can pass the sum and still look tired.
+    if (v.ok && !v.visible) continue;
+    const under = point ? `${point} lb sitting in the middle` : `${psf} lb/ft² of load`;
+    // What it would take, figured on the load it actually carries.
+    const equivalent = point ? (point * 1.6 * 144) / (depth * span) : psf;
+    const need = thicknessFor({ span, depth, moe: props.moe, psf: equivalent });
+    const ok = maxSpan({ depth, thickness, moe: props.moe, psf: equivalent });
+    const how = `Shorten the span to ${c.f(ok)}, go to ${c.f(need.buy)} stock, or ${EDGE_LIP_NOTE}.`;
+    const figured = `${props.typical ? 'Figured for a typical hardwood' : `Figured for ${props.name.toLowerCase()}`} at ${(props.moe / 1e6).toFixed(2)} million psi.`;
+    out.push(v.ok
+      ? finding(p, 'watch', 'Sags visibly',
+        `spans ${c.f(span)} at ${c.f(thickness)} thick: about ${c.f(s.inches)} under ${under}, which is inside the ${c.f(v.allowed)} limit but still shows.`,
+        `The eye picks up about 1/32in of bow for every foot of span, and this is ${c.f(s.perFoot)} a foot. It will hold; it will look like it is holding. ${figured}`,
+        how)
+      : finding(p, s.inches > v.allowed * 2 ? 'problem' : 'watch', 'Will sag',
+        `spans ${c.f(span)} at ${c.f(thickness)} thick: about ${c.f(s.inches)} of sag under ${under}, past the ${c.f(v.allowed)} a span this long should show.`,
+        `Stiffness goes with the cube of thickness and against the cube of span, so small changes swing it hard. ${figured}`,
+        how));
   }
   return out;
 });

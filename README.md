@@ -1,6 +1,6 @@
 # WoodModels
 
-A 3D cut-list viewer for woodworking plans, starting with the Lie-Nielsen/Brian Boggs shaving horse.
+A 3D cut-list viewer for woodworking plans - and a designer for your own - starting with the Lie-Nielsen/Brian Boggs shaving horse.
 
 `parse_dae.py` reads a COLLADA (`.dae`) export from SketchUp and pulls out every named part's real dimensions and orientation. It fits an oriented bounding box per part, not just an axis-aligned one, which matters for parts drawn pre-rotated in their own geometry, like splayed legs. The browser viewer then shows the model next to an interactive cut list, with shop tools on top: rough-stock sizing, board feet, cutting diagrams, measuring and compound angles.
 
@@ -15,6 +15,9 @@ A 3D cut-list viewer for woodworking plans, starting with the Lie-Nielsen/Brian 
   - `template.js` - printable full-size part templates
   - `geometry.js` - oriented-box contact tests (what joins what, where holes go), tenons and mortises, overlapping pieces and joining them
   - `features.js` - the cuts drawn in a part (holes, notches, mortises, dados, grooves, rabbets), found by casting a grid of rays through it
+  - `design.js` - the design format and the compiler that turns a design into the viewer's own six data files
+  - `archetypes.js` - parametric starting points (table, workbench, stool, bench, bookcase)
+  - `designer.js` - the designer panel: parts, joints, a live 3D preview and the review as you type
   - `review.js` - the design rules (wood movement, joint proportions, spans, stock sizes, ergonomics), pure and unit-tested
   - `woodprops.js`, `movement.js`, `spans.js`, `joinery.js`, `stock.js`, `ergonomics.js` - the data and maths behind them: species properties, seasonal movement, sag, joint sizing, what the yard sells, standard furniture sizes
   - `designreview.js` - the Design review panel: builds a review from the model on screen and draws the findings
@@ -118,6 +121,20 @@ On a phone the layout follows how you hold it (model above the list upright, sid
 
 Press `M` to open the models list (upload / switch models). Press `?` in the viewer for all shortcuts; the same panel has a button to reset your saved preferences.
 
+## Designing your own
+
+**✎ Design** (at the top of the cut list) builds a piece from scratch. What you draw compiles into exactly the same six data files an uploaded model has, so the moment you save it you get the cut list, rough stock, board feet, the shopping list and cutting diagrams, full-size templates, build mode, sharing and the printed sheet - none of which know or care that the model was designed rather than downloaded.
+
+**Start from something that is already right.** A blank canvas teaches nothing, so the designer opens on five pieces built to standard practice - a dining table, a workbench, a staked stool, a staked bench and a bookcase - each with the numbers that make it what it is exposed as controls. Change the top width and the aprons follow; change the height and the legs do. Every one of them starts with nothing for the review to complain about, so the first warning you see is one you caused.
+
+**Everything is typed, not dragged.** Dragging in 3D is how you end up with a 46-3/8" part. Each part has a length, a width and a thickness, a place to sit, and a direction for its length to run (which is the direction of its grain). Add parts, duplicate them, place the same part several times. The preview redraws as you type.
+
+**Joints are real, not labels.** Pick two parts and a joint. A mortise and tenon, a through tenon or a round tenon is drawn on the part: its cut-list length grows by the tenon, the shoulder-to-shoulder length is the size you typed, and the part it goes into gets the mortise. Tenon sizes come from `joinery.js` - a third of the rail thick, five times its thickness long, capped so that two aprons meeting in the same leg don't fight over the same wood. Housings, laps, dowels, pocket screws and buttons are noted on the part instead. Because the tenon is really there in the geometry, the viewer's own joinery inference finds it again when the model opens: *"tenon 5/16" × 1-7/8", 1-1/4" long into Leg, each end. The length includes it: 48-1/2" from the shoulder to the other end."*
+
+**The review runs while you type**, in the panel at the bottom of the designer - the same rules described above, but reading the design rather than measuring the model, so it knows which joints you meant to slide (a top on buttons is not a cross-grain trap) and which parts are tenoned into which. Take a bookcase past about 32" wide and it tells you the shelves will show a bow before you cut them; take a bench seat down to 1" and it works out what happens when someone sits in the middle.
+
+Saving a design you opened from an existing model updates that model in place, keeping its ticks and notes; anything else becomes a new model in the list. Either way the design is stored inside `model.json`, so **✎ Design** on a designed model opens it again, and Download carries it to another computer.
+
 ## Uploading models (3D Warehouse)
 
 Click **Models** at the top of the sidebar (or press `M`), then choose a file - or just drag a file onto the page.
@@ -197,9 +214,10 @@ npm test           # python parser tests, node unit tests, headless browser smok
 
 - `tests/test_parse_dae.py` runs the parser on a synthetic SketchUp-style COLLADA file (`tests/make_fixture.py`) and checks the committed viewer data for consistency.
 - `tests/unit.test.mjs` covers fractions, rough stock, board feet, compound angles and the board-nesting packer, including a randomized overlap/overhang check.
+- `tests/design.test.mjs` covers the design format, the compiler (the files it writes have to match what `collada.js` writes, or everything downstream breaks on designed models only), the archetypes - including that each one arrives with nothing for the review to flag - and the review run straight off a design.
 - `tests/wood.test.mjs` covers the design rules and the data under them. Where a published table exists the test checks against it, not against whatever the code happens to produce: shelf spans against the Composite Panel Association's tables, movement against the worked example in the Purdue paper, equilibrium moisture content against the sorption curve, species stiffness and shrinkage against the Wood Handbook.
 - `tests/parser_parity.mjs` runs the Python parser and the browser parser (`viewer/collada.js`) on the same COLLADA variants (units, Y-up, polygons, translate/rotate, COLLADA 1.5, no namespace) and checks they produce identical data. `PARITY_SAMPLES=/folder` adds your own `.dae` files.
-- `tests/viewer_smoke.mjs` drives the real viewer in headless Chromium through every feature, including uploading a Warehouse-style zip, a KMZ and a `.skp`. A stool built the way uploads really arrive (drawn far from the origin, an unnamed wood photo, a fabric photo, a leg written inside-out by another exporter, a round dowel) checks how a new model looks: ground under it, photos shown, faces turned out, round parts shaded round, every part outlined and casting shadows. It also checks that nothing is fetched from outside the viewer folder, and writes screenshots, a CSV and PDF cut sheet/template to `test-output/`.
+- `tests/viewer_smoke.mjs` drives the real viewer in headless Chromium through every feature, including designing a table, saving it and checking the round trip end to end (its cut list, its tenons measured back off the mesh, and the design reopening for editing), including uploading a Warehouse-style zip, a KMZ and a `.skp`. A stool built the way uploads really arrive (drawn far from the origin, an unnamed wood photo, a fabric photo, a leg written inside-out by another exporter, a round dowel) checks how a new model looks: ground under it, photos shown, faces turned out, round parts shaded round, every part outlined and casting shadows. It also checks that nothing is fetched from outside the viewer folder, and writes screenshots, a CSV and PDF cut sheet/template to `test-output/`.
 
 CI runs the same `npm test` (`.github/workflows/test.yml`).
 

@@ -136,6 +136,9 @@ try {
   await page.waitForFunction(() => !/checking/.test(document.getElementById('clCheck').textContent), null, { timeout: 15000 }).catch(() => {});
   const mc = await page.locator('#clCheck').innerText();
   check(!/⚠/.test(mc) && /Model check/.test(mc), `the model check finds nothing wrong with the built-in model, only notes (${mc.split('\n')[0]})`);
+  // Both panels render in an idle callback; wait for them, or a late one
+  // lands inside the measurement below and counts as a frame.
+  await page.waitForFunction(() => document.getElementById('clReview').textContent.trim().length > 0, null, { timeout: 15000 });
   await page.waitForTimeout(1500);
   const frames = await page.evaluate(async () => {
     const info = window.__viewer.renderer.info.render;
@@ -1226,6 +1229,94 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     check(/qty 1/.test(await p2.locator('#dimCard').innerText()), 'the card updates to the pieces left');
     await p2.keyboard.press('Control+z');
     check(/×2/.test(await p2.locator('#clList > .row', { hasText: 'Bench' }).first().innerText()), 'undo brings the piece back');
+  } finally {
+    await b2.close();
+  }
+}
+
+// ---------- the designer: build a piece, save it, open it as a model ----------
+// The point of this one is the round trip. A design compiles to the same six
+// data files an uploaded model has, so if it works, the cut list, the rough
+// stock, the joinery inference and the design review all work on it without
+// knowing it was designed.
+{
+  console.log('designer');
+  const b2 = await chromium.launch(launchOpts);
+  const p2 = await b2.newPage({ viewport: { width: 1400, height: 900 } });
+  const errs = [];
+  p2.on('pageerror', (e) => errs.push(e.message));
+  p2.on('dialog', (d) => d.accept());
+  const loaded = () => p2.waitForFunction(() => document.getElementById('loading').style.display === 'none', null, { timeout: 30000 });
+  try {
+    await p2.goto(base);
+    await loaded();
+    await p2.locator('#introClose').click();
+
+    await p2.locator('#clDesign').click();
+    check(await p2.locator('#designer.open').isVisible(), 'Design opens the designer');
+    check(await p2.locator('#designer [data-arch="stool"]').isVisible(), 'it offers pieces to start from');
+
+    await p2.locator('#designer [data-arch="dining-table"]').click();
+    await p2.waitForTimeout(400);
+    const partNames = await p2.locator('#designer .dz-part-head b').allInnerTexts();
+    check(partNames.join(',') === 'Top,Leg,Apron, long,Apron, short', `a table arrives with its parts (${partNames.join(', ')})`);
+    check(/29-1\/2" high/.test(await p2.locator('#designer .dz-count').innerText()), 'and at a dining table\'s height');
+    check(await p2.evaluate(() => window.__viewer.scene.getObjectByName('designPreview').children.length) > 0, 'the preview is drawn in 3D');
+    check(!await p2.locator('#dimCard').isVisible(), 'the model it was showing steps aside');
+
+    // A number you change rewrites the piece, and the review follows.
+    await p2.locator('#designer .dz-param[data-key="topWidth"]').fill('44');
+    await p2.waitForTimeout(400);
+    const apron = await p2.locator('#designer .dz-part', { hasText: 'Apron, short' }).innerText();
+    check(/32-1\/2"/.test(apron), `the aprons follow the top (${apron.replace(/\n/g, ' ')})`);
+    await p2.locator('#designer .dz-param[data-key="height"]').fill('34');
+    await p2.waitForTimeout(400);
+    const review = await p2.locator('#designer .dz-review').innerText();
+    check(/worth changing/.test(review), `the review runs while you type (${review.trim()})`);
+    await p2.locator('#designer .dz-review details').evaluate((d) => { d.open = true; });
+    check(/usually 29-30in/.test(await p2.locator('#designer .dz-review').innerText()), 'and says a dining table is 29-30in');
+    await p2.locator('#designer .dz-param[data-key="height"]').fill('29.5');
+    await p2.waitForTimeout(400);
+
+    await p2.locator('#designer .dz-title').fill('Test table');
+    await p2.screenshot({ path: path.join(OUT, 'designer.png') });
+    await p2.locator('#designer .dz-save').click();
+    await p2.waitForFunction(() => /model=local/.test(location.search), null, { timeout: 30000 });
+    await loaded();
+    check(/Test table/.test(await p2.title()), 'saving opens it as a model of its own');
+
+    // Everything downstream now works on it, with no special case anywhere.
+    const rows = await p2.locator('#clList > .row').allInnerTexts();
+    const text = rows.join(' | ').replace(/\n/g, ' ');
+    check(rows.length === 4, `it has a cut list (${rows.length} parts)`);
+    check(/Apron, long/.test(text) && /51"/.test(text), `lengths include the tenons (${(text.match(/Apron, long[^|]*/) || [''])[0].trim()})`);
+    check(/Mortise and tenon into Leg, each end/.test(text), 'the joints are noted on the parts');
+    check(/bf rough/.test(await p2.locator('#clSummary').innerText()), 'rough stock and board feet are worked out');
+
+    // The joinery the compiler drew is found again by measuring the mesh.
+    await p2.locator('#clList > .row', { hasText: 'Apron, long' }).first().click();
+    await p2.waitForTimeout(400);
+    const card = await p2.locator('#dimCard').innerText();
+    check(/Joinery: tenon/.test(card), `the tenon is measured off the model (${(card.match(/Joinery:[^\n]*/) || [''])[0].slice(0, 80)})`);
+    check(/shoulder/.test(card), 'and the shoulder-to-shoulder length is given');
+    check(/Mortise/.test(await p2.locator('#clList > .row', { hasText: 'Leg' }).first().innerText())
+      || /mortise/i.test(await p2.evaluate(() => document.getElementById('clList').innerText)), 'the leg is told to cut mortises');
+
+    await p2.waitForTimeout(600);
+    const panel = await p2.locator('#clReview').innerText();
+    check(/Design review/.test(panel), `the design review runs on it too (${panel.trim().slice(0, 60)})`);
+
+    // Reopening the model reopens the design, so it can be edited again.
+    await p2.locator('#clDesign').click();
+    await p2.waitForTimeout(400);
+    check((await p2.locator('#designer .dz-title').inputValue()) === 'Test table', 'the design is kept with the model and opens again');
+    check((await p2.locator('#designer .dz-part-head b').allInnerTexts()).length === 4, 'with its parts');
+
+    // An empty design is a blank sheet you can add parts to.
+    await p2.locator('#designer .dz-close').click();
+    await p2.locator('#clDesign').click();
+    await p2.waitForTimeout(200);
+    check(!errs.length, `no page errors in the designer (${errs.join('; ')})`);
   } finally {
     await b2.close();
   }

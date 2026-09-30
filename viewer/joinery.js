@@ -75,21 +75,26 @@ export function tenonFor({ railThickness, railWidth, intoThickness, through = fa
 // What's wrong with a tenon a model already draws. Returns [] when it's fine.
 // Every entry is { id, text, fix } - the rules engine adds the part names.
 // `f` formats a length, so the finding reads in whatever units are on screen.
-export function checkTenon({ thickness, length, width, railThickness, intoThickness, through, fromEnd }, f = round16) {
+export function checkTenon({ thickness, length, width, railThickness, intoThickness, through, fromEnd, round: isRound }, f = round16) {
   const out = [];
-  const ratio = railThickness ? thickness / railThickness : null;
+  // A round tenon turned on the end of a leg is sized off the leg, not off
+  // the one-third rule, which is about leaving mortise walls in a rail.
+  const ratio = railThickness && !isRound ? thickness / railThickness : null;
   if (ratio != null && ratio < 0.2) {
     out.push({ id: 'tenon-thin', text: `is ${Math.round(ratio * 100)}% of the rail's thickness`, fix: 'a third is the usual proportion: it doubles the glue area without thinning the mortise walls' });
   } else if (ratio != null && ratio > 0.55) {
     out.push({ id: 'tenon-fat', text: `is ${Math.round(ratio * 100)}% of the rail's thickness`, fix: 'a third to a half is the range; past that the mortise walls are thinner than the tenon and bulge when you clamp' });
   }
-  if (length && length < thickness * TENON.minLengthRatio) {
+  // Short only counts when it could have been longer: a tenon taking most of
+  // what the leg or the seat has to give is doing all it can.
+  const limited = intoThickness && length >= intoThickness / 2 - 1 / 8;
+  if (length && !limited && length < thickness * TENON.minLengthRatio) {
     out.push({ id: 'tenon-short', text: `is ${f(length)} long, under 5 x its ${f(thickness)} thickness`, fix: `make it ${f(thickness * TENON.minLengthRatio)}, or as deep as the part it goes into allows` });
   }
   if (!through && intoThickness && length > intoThickness * 0.85) {
     out.push({ id: 'tenon-bottoms', text: 'reaches almost through the part it goes into', fix: 'stop at two-thirds, or commit to a through tenon and wedge it' });
   }
-  if (width && width > thickness * TENON.maxWidthRatio) {
+  if (width && !isRound && width > thickness * TENON.maxWidthRatio) {
     out.push({ id: 'tenon-wide', text: `is ${f(width)} wide, over 6 x its thickness`, fix: 'split it into twin tenons with a bridge between: the same glue area, without a wide tenon shearing itself as it shrinks' });
   }
   if (fromEnd != null && fromEnd < TENON.endMargin) {

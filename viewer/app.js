@@ -23,10 +23,11 @@ import { initDiagramModal, computeLayouts, layoutsHTML, STOCK_DEFAULTS, shopping
 import { initShare } from './share.js';
 import { buildTemplate, parseMeasured, printCorrection } from './template.js';
 import { initLibrary, modelZip } from './library.js';
-import { getModelFiles, getModelMeta, lastOpened, rememberOpened, putModelFile, addPhoto, listPhotos, deletePhoto, setThumbnail } from './modelstore.js';
+import { getModelFiles, getModelMeta, lastOpened, rememberOpened, putModelFile, saveModel, addPhoto, listPhotos, deletePhoto, setThumbnail } from './modelstore.js';
 import { obbFromDims, partsTouch, findOverlaps, findButts, applyJoins, endJoints, pointInObb } from './geometry.js';
 import { cutFeatures } from './features.js';
 import { renderReview, reviewPrintHtml } from './designreview.js';
+import { initDesigner } from './designer.js';
 import { glueUpStrips } from './nesting.js';
 import { createStage, smoothNormals, orientFaces, materialKind, surfaceMaterial, featureEdges, edgeMaterial, threadPitch, boltThreadLength, addThreads } from './look.js';
 
@@ -293,7 +294,7 @@ async function init() {
     onSelect: (r) => pickRow(r), onPrint: printSheet, onDiagram: () => diagram.open(),
     onLibrary: () => library.open(), onSetup: LOCAL_ID ? () => library.openSetup(LOCAL_ID) : null,
     onSetStatus: setPartStatus, onRenameGroup: renameGroup, onSelectGroup: selectGroup, onBuild: () => startBuild(),
-    onShare: () => share.open(),
+    onShare: () => share.open(), onDesign: () => openDesigner(),
   });
   diagram = initDiagramModal({ rows, onSelectRow: (r) => selectRow(r), finishArea: () => (model ? woodSurfaceArea() : 0) });
   // typical prices follow the species picked in Set up (materials are grouped by their label)
@@ -326,6 +327,10 @@ async function init() {
     library.openSetup(LOCAL_ID);
   }
   else if (!settings().seenIntro && !seenIntroAnywhere()) $('introTip').style.display = 'block';
+  // A save reloads the page; carry on designing where you left off.
+  try {
+    if (sessionStorage.getItem(DESIGNER_OPEN)) { sessionStorage.removeItem(DESIGNER_OPEN); if (config.design) openDesigner(); }
+  } catch { /* private window */ }
   scheduleThumbnail();
 }
 
@@ -1833,6 +1838,53 @@ function renderModelCheck() {
   }));
 }
 
+// ---------- the designer ----------
+// Building a piece rather than reading one. The preview it draws lives in the
+// same scene, so it stands on the same ground with the same light; the real
+// model steps aside while it is open. Saving compiles the design into the six
+// data files any model has and opens it as one - which is how a piece you
+// drew gets a cut list, cutting diagrams and templates without a line of
+// special-case code.
+let designer = null;
+const DESIGNER_OPEN = 'woodmodels:designer-open';
+function openDesigner() {
+  if (!designer) {
+    designer = initDesigner({
+      THREE,
+      scene,
+      getUnits: () => settings().units,
+      frame: (box) => { stage.fit(box, config.views?.iso?.dir); frameBox(box, config.views?.iso?.dir || [0.7, 0.5, 0.7], false); },
+      onOpenChange: (open) => {
+        if (model) model.visible = !open;
+        document.body.classList.toggle('designing', open);
+        if (!open) {
+          stage.fit(modelBox, config.views?.iso?.dir);
+          frameBox(modelBox, config.views?.iso?.dir || [0.7, 0.5, 0.7], false);
+        }
+      },
+      onSave: saveDesign,
+    });
+  }
+  designer.open(config.design || null);
+}
+
+// A design already open as a model is updated in place, so its ticks, notes
+// and its place in the Models list survive an edit. Anything else becomes a
+// new model. Either way the page reopens on it: rebuilding the whole viewer
+// is what makes the cut list, the diagrams and the review agree.
+async function saveDesign(out, design) {
+  const name = design.title || 'My design';
+  if (LOCAL_ID && config.design) {
+    for (const [file, text] of Object.entries(out.files)) await putModelFile(LOCAL_ID, file, text, { name, parts: out.stats.parts });
+    try { sessionStorage.setItem(DESIGNER_OPEN, '1'); } catch { /* private window */ }
+    location.reload();
+    return;
+  }
+  const id = await saveModel({ name, source: 'design', files: out.files, parts: out.stats.parts });
+  try { sessionStorage.setItem(DESIGNER_OPEN, '1'); } catch { /* private window */ }
+  location.href = `${location.pathname}?model=${encodeURIComponent(`local:${id}`)}`;
+}
+
 // ---------- design review: is the thing it draws built properly? ----------
 // Model check looks at the drawing; this looks at the woodworking - movement,
 // joints, spans, stock sizes, the heights it gets used at. Everything it
@@ -1848,6 +1900,7 @@ function reviewContext() {
       return SPECIES[mc.species] ? mc.species : speciesFor(row.materialLabel, row.material);
     },
     title: config.title || '',
+    design: config.design || null,      // a designed piece says which joints are meant to slide
     height: modelBox.isEmpty() ? 0 : modelBox.max.y - modelBox.min.y,
     onToggle: (open) => { reviewOpen = open; },
   };

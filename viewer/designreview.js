@@ -40,18 +40,38 @@ function spanAcross(wide, other) {
   return Math.min(hi - lo, wide.axes[1].length);
 }
 
-// Supports under a horizontal part: where they sit along its length, and the
-// biggest unsupported gap between them - the span that decides whether it sags.
-function clearSpan(d, supports) {
-  if (supports.length < 2) return 0;
+// What actually holds a flat part up: something underneath it (a leg, a
+// cleat) or something at its end (a case side). A back panel behind a shelf
+// touches it without holding it, and counting that would halve the span the
+// sag is worked out over. Returns the widest unsupported gap.
+function clearSpan(d, others) {
   const axis = d.axes[0].direction, base = dot(d.center, axis);
-  const at = supports.map((s) => dot(s.center, axis) - base).sort((a, b) => a - b);
+  const half = d.axes[0].length / 2, thick = d.axes[2].length;
+  // Compared middle to middle: a splayed leg's top corner can poke above the
+  // underside it meets, which doesn't stop it being what holds the thing up.
+  const at = others.filter((o) => o.center[1] < d.center[1]
+    || Math.abs(dot(o.center, axis) - base) >= half - thick - 1 / 32)
+    .map((o) => dot(o.center, axis) - base).sort((a, b) => a - b);
   let gap = 0;
   for (let i = 1; i < at.length; i++) gap = Math.max(gap, at[i] - at[i - 1]);
   return gap;
 }
 
 const UP = [0, 1, 0];
+
+// Pairs of parts a design says are free to slide against each other (a top on
+// buttons). Keyed by part name, which is what the cut list calls a row.
+function movingJoints(design) {
+  const out = new Map();
+  const nameOf = new Map((design?.parts || []).map((p) => [p.id, p.name || p.id]));
+  const pair = (a, b) => { if (!out.has(a)) out.set(a, []); out.get(a).push(b); };
+  for (const j of design?.joints || []) {
+    if (!j.movesFreely) continue;
+    const a = nameOf.get(j.from), b = nameOf.get(j.into);
+    if (a && b) { pair(a, b); pair(b, a); }
+  }
+  return out;
+}
 // What you sit on, for the seat-height check. The seat itself if the model
 // names one, else the bench or stool top.
 const SEAT_NAME = /\b(seat|saddle)\b/i, SEAT_ALSO = /\b(bench|stool|top)\b/i;
@@ -61,6 +81,11 @@ const SEAT_NAME = /\b(seat|saddle)\b/i, SEAT_ALSO = /\b(bench|stool|top)\b/i;
 //   cutsOf, speciesOf, title, height, isCut }
 export function buildReviewModel(ctx) {
   const { rows, objectDims, meshByName, rowByMeshName, isCut } = ctx;
+  // Design joints name parts; the review works in row keys.
+  const keyByName = new Map(rows.map((r) => [r.name, r.key]));
+  const freeOf = new Map([...movingJoints(ctx.design)].map(([name, others]) => [
+    name, others.map((n) => keyByName.get(n)).filter(Boolean),
+  ]));
   const usable = rows.filter((r) => isCut(r) && r.clickable && !r.status);
   const dimsOf = (r) => objectDims[r.obj_names?.[0]];
   const parts = usable.map((r) => {
@@ -72,11 +97,13 @@ export function buildReviewModel(ctx) {
       key: r.key, name: r.name, letter: r.letter || '', count: r.count, category: r.category,
       wood: isCut(r), dims: r.dims, props, sawn: 'unknown',
       grain: null, horizontal: false, touches: [], tenons: [], butts: [], cuts: [], holes: [],
+      mortises: [], freeOf: freeOf.get(r.name) || [],
     };
     if (!d?.axes || d.axes.length !== 3 || r.joined || r.customDims) return part;
     // Grain runs along a board's length - the same assumption the 3D view
     // already draws the wood texture with.
     part.grain = d.axes[0].direction;
+    part.across = d.axes[1].direction;      // the way it grows and shrinks
     // Lying flat: its faces are up, so it could be a shelf, seat or top.
     part.horizontal = Math.abs(dot(d.axes[2].direction, UP)) > 0.9;
 
@@ -90,9 +117,12 @@ export function buildReviewModel(ctx) {
       }
     }
     if (part.horizontal) {
-      // Anything whose middle sits below this part is holding it up.
-      const below = contacts.filter((c) => dot(c.dims.center, UP) < dot(d.center, UP) - d.axes[2].length / 2);
+      // What holds it up: anything it touches that isn't sitting on top of
+      // it. A shelf is held at its ends, a seat from underneath.
+      const top = Math.max(...corners(d).map((p2) => p2[1]));
+      const below = contacts.filter((c) => Math.min(...corners(c.dims).map((p2) => p2[1])) < top - 1 / 32);
       part.supportSpan = clearSpan(d, below.map((c) => c.dims));
+      part.seat = /\b(seat|bench|stool)\b/i.test(part.name || '');
     }
 
     const j = ctx.joineryOf(r, mesh);
@@ -102,6 +132,12 @@ export function buildReviewModel(ctx) {
         thickness: Math.min(t.width, t.thick), width: Math.max(t.width, t.thick),
       }));
       part.butts = j.butts.map((b) => ({ key: b.key, name: b.name }));
+      // What other parts cut into this one: their tenon, its depth, and the
+      // direction it comes in - which is the length of the part it belongs to.
+      part.mortises = j.holes.map((h) => {
+        const od = objectDims[h.row.obj_names?.[0]];
+        return { key: h.row.key, name: h.row.name, depth: h.j.depth, dir: od?.axes?.[0]?.direction || null };
+      });
     }
     const len = d.axes[0].length;
     for (const f of ctx.cutsOf(r, mesh)) {
