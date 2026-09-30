@@ -42,6 +42,11 @@ async function dragHandle(axis, pixels = 50, cancel = false) {
     const { gizmo, target } = window.__viewer.designer().tools;
     const r = renderer.domElement.getBoundingClientRect();
     const project = (v) => { v.project(camera); return [(v.x + 1) * r.width / 2 + r.left, (1 - v.y) * r.height / 2 + r.top]; };
+    if (gizmo.mode === 'scale') {
+      const h = window.__viewer.designer().tools.resizeHandles.children.find((m) => m.userData.axis === 'XYZ'.indexOf(axis) && m.userData.side === 1);
+      const d = window.__viewer.designer().current().parts[0].instances[0].at;
+      return { start: project(h.position.clone()), origin: project(new THREE.Vector3(...d)) };
+    }
     const meshes = gizmo._gizmo.gizmo[gizmo.mode].children.filter((m) => m.name === axis && m.isMesh && m.visible);
     const handle = meshes.find((m) => {
       m.geometry.computeBoundingBox();

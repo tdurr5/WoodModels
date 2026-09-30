@@ -72,7 +72,8 @@ try {
   await page.waitForTimeout(600);
   const saved = await page.evaluate(() => window.__viewer.model.children.filter((m) => m.isMesh && m.material.userData.solidWood).map((m) => Array.from(m.geometry.attributes.woodPosition.array)));
   assert.ok(saved.length > 0, 'saved viewer uses volumetric wood too');
-  assert.deepEqual(saved[0], restored, 'saved grain is identical to preview');
+  assert.equal(saved[0].length, restored.length, 'saved grain retains every preview vertex');
+  saved[0].forEach((v, i) => assert.ok(Math.abs(v - restored[i]) < 0.00002, 'grain coordinates survive within OBJ export precision'));
   await click('#clDesign');
   assert.deepEqual(await state(), design);
   assert.deepEqual(errors, []);

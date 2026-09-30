@@ -554,6 +554,9 @@ function addHoleNotes(all) {
 // Fills overlapKind and autoFixes; true if there's anything to fix.
 function classifyOverlaps() {
   ({ kinds: overlapKind, fixes: autoFixes } = classifyOverlapsIn(overlaps, baseObjectDims, (n) => meshByName.get(n)));
+  // Authored boards are intentional pieces, even when their end grain touches.
+  // Import repair must not merge a designed assembly back into one board.
+  if (config.design) { autoFixes = { joins: [], dupes: [] }; return false; }
   // boards butted end grain to end grain are one board drawn in pieces
   const used = new Set([...autoFixes.joins.flat(), ...autoFixes.dupes]);
   findButts(baseObjectDims).forEach((names) => {
@@ -1867,7 +1870,7 @@ function openDesigner({ fresh = false, blank = false } = {}) {
       scene,
       getUnits: () => settings().units,
       frame: (box) => { stage.fit(box, config.views?.iso?.dir); frameBox(box, config.views?.iso?.dir || [0.7, 0.5, 0.7], false); },
-      frameSelection: (box) => frameBox(box, [0.7, 0.5, 0.7], false),
+      frameSelection: (box, dir) => frameBox(box, dir || [0.7, 0.5, 0.7], false),
       redrawScene: () => requestRender(),
       invalidateShadows: () => stage.invalidateShadows(),
       onOpenChange: (open) => {

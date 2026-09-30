@@ -31,8 +31,10 @@
 // shoulder-to-shoulder length is the size you typed. That is the convention
 // the rest of the viewer already uses.
 
+import { subtractSolid, roundPrism, conformSolid } from './jointsolid.js';
+import { resolvedJoints } from './autojoints.js';
 import { toFraction } from './format.js';
-import { tenonFor } from './joinery.js';
+import { tenonFor, dadoFor } from './joinery.js';
 import { WOOD, propsFor } from './woodprops.js';
 
 export const DESIGN_VERSION = 1;
@@ -90,6 +92,7 @@ export function instanceBasis(inst = {}) {
 // do for a real model.
 // segments: [{ length, width, thickness }], in order along +L.
 export function prism(segments, { center = [0, 0, 0], basis = [AXES.x, AXES.y, AXES.z] } = {}) {
+  if (segments.some((s) => s.round)) return roundPrism(segments, center, basis);
   const [L, W, T] = basis;
   const total = segments.reduce((a, s) => a + s.length, 0);
   const positions = [];
@@ -149,31 +152,64 @@ export function prism(segments, { center = [0, 0, 0], basis = [AXES.x, AXES.y, A
 const safe = (s) => String(s || '').replace(/[^A-Za-z0-9_]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '') || 'part';
 const round = (v, n = 4) => Math.round(v * 10 ** n) / 10 ** n;
 
+// Locate the stock shoulder against its receiving board. A shelf already
+// seated in a dado keeps its placement when changed to a different joint;
+// the shoulder retreats to the receiver face instead of leaving intersecting wood.
+function jointContact(design, part, instanceIndex, j) {
+  const inst = part.instances[instanceIndex ?? 0]; if (!inst) return null;
+  const L = instanceBasis(inst)[0], sign = j.end ? 1 : -1;
+  const tip = add(inst.at || [0,0,0], scale(L, sign*part.size[0]/2));
+  const into = design.parts.find((p)=>p.id===j.into); if (!into) return null;
+  for (let index=0;index<into.instances.length;index++) {
+    if (j.intoInstance != null && j.intoInstance !== index) continue;
+    const target=into.instances[index], basis=instanceBasis(target);
+    const axis=basis.findIndex((v)=>Math.abs(dot(L,v))>0.999); if(axis<0) continue;
+    const local=basis.map((v)=>dot(tip.map((n,k)=>n-(target.at?.[k]||0)),v));
+    const separation=Math.abs(local[axis])-into.size[axis]/2;
+    if(separation>1/32 || separation < -into.size[axis]/2) continue;
+    if(!local.every((v,i)=>i===axis || Math.abs(v)<=into.size[i]/2+1/32)) continue;
+    return { thickness:into.size[axis], separation };
+  }
+  return null;
+}
+
 // The tenons a part grows, by end (0 = the -L end, 1 = the +L end).
-function tenonsOf(design, part) {
+function tenonsOf(design, part, instanceIndex = null) {
   const out = {};
   for (const j of design.joints || []) {
-    if (j.from !== part.id || !JOINT_MAKES_TENON.has(j.type)) continue;
+    if (j.from !== part.id || (instanceIndex != null && j.fromInstance != null && j.fromInstance !== instanceIndex)) continue;
+    const contact = jointContact(design, part, instanceIndex, j);
+    if (j.type === 'dado') {
+      const length = contact ? Math.max(0, dadoFor(contact.thickness).depth + contact.separation) : j.extension || 0;
+      if (length > 1e-6) out[j.end ? 1 : 0] = { length, width: part.size[1], thickness: part.size[2] };
+      continue;
+    }
+    if (!JOINT_MAKES_TENON.has(j.type)) continue;
     const into = (design.parts || []).find((p) => p.id === j.into);
     const t = j.tenon || tenonFor({
       railThickness: part.size[2], railWidth: part.size[1],
-      intoThickness: into ? into.size[2] : part.size[2] * 2,
+      intoThickness: contact?.thickness || (into ? into.size[2] : part.size[2] * 2),
       through: j.type === 'through-tenon',
     });
-    if (t) out[j.end ? 1 : 0] = t;
+    if (t) out[j.end ? 1 : 0] = { ...t, inset: Math.min(part.size[0]/4, Math.max(0, -(contact?.separation || 0))), ...(j.type === 'round-tenon' ? { round: true } : {}), ...(j.type === 'dovetail' ? { dovetail: true, length: Math.min(part.size[2]*0.75, (contact?.thickness || into?.size[2] || part.size[2])/3), width: part.size[1], thickness: part.size[2]*0.9 } : {}) };
   }
   return out;
 }
-const JOINT_MAKES_TENON = new Set(['mortise-tenon', 'through-tenon', 'round-tenon']);
+const JOINT_MAKES_TENON = new Set(['mortise-tenon', 'through-tenon', 'round-tenon', 'dovetail']);
 
 // One part instance as segments along its length: [tenon?] part [tenon?].
 function segmentsFor(part, tenons) {
   const [len, width, thickness] = part.size;
   const segs = [];
-  if (tenons[0]) segs.push({ length: tenons[0].length, width: tenons[0].width, thickness: tenons[0].thickness });
-  segs.push({ length: len, width, thickness });
-  if (tenons[1]) segs.push({ length: tenons[1].length, width: tenons[1].width, thickness: tenons[1].thickness });
-  return segs;
+  if (tenons[0]) segs.push({ length: tenons[0].length, width: tenons[0].width, thickness: tenons[0].thickness, round: tenons[0].round, dovetail: tenons[0].dovetail });
+  segs.push({ length: len - (tenons[0]?.inset || 0) - (tenons[1]?.inset || 0), width, thickness });
+  if (tenons[1]) segs.push({ length: tenons[1].length, width: tenons[1].width, thickness: tenons[1].thickness, round: tenons[1].round, dovetail: tenons[1].dovetail });
+  return segs.reduce((merged, s) => {
+    const previous = merged.at(-1);
+    if (previous && previous.width === s.width && previous.thickness === s.thickness && previous.round === s.round && !previous.dovetail && !s.dovetail) previous.length += s.length;
+    else merged.push({ ...s });
+    return merged;
+  }, []);
 }
 
 // Every solid a design builds: one per placement, with the part it belongs
@@ -181,36 +217,106 @@ function segmentsFor(part, tenons) {
 // OBJ; the designer draws the same thing as a live preview, so what you see
 // while you type is exactly what you get when you save.
 export function buildSolids(design) {
+  design = { ...design, joints: resolvedJoints(design || {}) };
   const parts = (design?.parts || []).filter((p) => p?.size?.every((v) => v > 0) && (p.instances || []).length);
   const seen = new Map();
   const out = [];
   for (const part of parts) {
-    const tenons = tenonsOf(design, part);
-    const segs = segmentsFor(part, tenons);
-    const total = segs.reduce((a, s) => a + s.length, 0);
-    // Where the part's own box sits inside the whole solid: the tenon on the
-    // far end pushes the middle along, so `at` still means the box you typed.
-    const shift = ((tenons[1]?.length || 0) - (tenons[0]?.length || 0)) / 2;
-    const extents = [total, Math.max(...segs.map((s) => s.width)), Math.max(...segs.map((s) => s.thickness))];
-    part.instances.forEach((inst) => {
+    part.instances.forEach((inst, instanceIndex) => {
+      const tenons = tenonsOf(design, part, instanceIndex);
+      const segs = segmentsFor(part, tenons);
+      const total = segs.reduce((a, s) => a + s.length, 0);
+      // Where the part's own box sits inside the whole solid: the tenon on the
+      // far end pushes the middle along, so `at` still means the box you typed.
+      const shift = ((tenons[1]?.length || 0) - (tenons[0]?.length || 0) + (tenons[0]?.inset || 0) - (tenons[1]?.inset || 0)) / 2;
+      const extents = [total, Math.max(...segs.map((s) => s.width)), Math.max(...segs.map((s) => s.thickness))];
       const basis = instanceBasis(inst);
       const center = add(inst.at || [0, 0, 0], scale(basis[0], shift));
       const base = safe(`${part.group || ''}_${part.name || part.id}`).slice(0, 55);
       const n = seen.get(base) || 0;
       seen.set(base, n + 1);
       out.push({
-        part, inst, name: n ? `${base}_${n}` : base, basis, center, extents,
+        part, inst, instanceIndex, tenons, name: n ? `${base}_${n}` : base, basis, center, extents,
         ...prism(segs, { center, basis }),
       });
     });
   }
+  out.forEach((solid) => shapeDovetails(solid, solid));
+  cutJointSockets(out, design.joints);
   return out;
+}
+
+// Widen a sliding dovetail toward its tip (1:6 slope). The same cutter is
+// used for the receiving socket; no independent labels or decorative faces.
+function shapeDovetails(mesh, solid) {
+  for (const [key, t] of Object.entries(solid.tenons)) {
+    if (!t.dovetail) continue;
+    const sign = Number(key) ? 1 : -1, base = solid.inst.at || [0, 0, 0];
+    mesh.positions = mesh.positions.map((p) => {
+      const offset = p.map((v, i) => v - base[i]), distance = dot(offset, solid.basis[0]) * sign - (solid.part.size[0] / 2 - (t.inset || 0));
+      const width = dot(offset, solid.basis[2]);
+      if (distance < -1e-6 || Math.abs(width) > t.thickness / 2 + 1e-6) return p;
+      const neck = Math.max(t.thickness * 0.45, t.thickness - t.length / 3);
+      const factor = (neck + (t.thickness - neck) * Math.min(1, Math.max(0, distance / t.length))) / t.thickness;
+      return add(p, scale(solid.basis[2], width * (factor - 1)));
+    });
+  }
+  return mesh;
+}
+const meshBounds = (mesh) => [0, 1, 2].map((i) => [Math.min(...mesh.positions.map((p) => p[i])), Math.max(...mesh.positions.map((p) => p[i]))]);
+const overlaps = (a, b) => {
+  const A = meshBounds(a), B = meshBounds(b);
+  return A.every((span, i) => Math.min(span[1], B[i][1]) - Math.max(span[0], B[i][0]) > 1e-6);
+};
+function cutJointSockets(solids, joints) {
+  const cutters = new Map(solids.map((s) => [s, []]));
+  const used = new Set();
+  for (const j of joints) {
+    const from = solids.filter((s) => s.part.id === j.from && (j.fromInstance == null || j.fromInstance === s.instanceIndex));
+    const into = solids.filter((s) => s.part.id === j.into && (j.intoInstance == null || j.intoInstance === s.instanceIndex));
+    for (const a of from) for (const b of into) {
+      if (a === b) continue;
+      let cutter;
+      const t = a.tenons[j.end ? 1 : 0], sign = j.end ? 1 : -1;
+      if (JOINT_MAKES_TENON.has(j.type) && t) {
+        const center = add(a.inst.at || [0, 0, 0], scale(a.basis[0], sign * (a.part.size[0] / 2 - (t.inset || 0) + t.length / 2)));
+        let cutterWidth = t.width;
+        if (t.dovetail) {
+          // Open the sliding groove across the receiving stock. A sealed,
+          // undercut pocket would look plausible but could not be assembled.
+          const range = b.positions.map((p)=>dot(p,a.basis[1]));
+          const lo=Math.min(...range), hi=Math.max(...range);
+          cutterWidth=hi-lo+0.002;
+          const shift=(lo+hi)/2-dot(center,a.basis[1]);
+          for(let i=0;i<3;i++) center[i]+=a.basis[1][i]*shift;
+        }
+        cutter = shapeDovetails(prism([{ ...t, width:cutterWidth }], { center, basis: a.basis }), a);
+      } else if (j.type === 'dado') cutter = { positions: a.positions, faces: a.faces };
+      else if (j.type === 'half-lap') {
+        const makeHalf = (s, side) => prism([{ length: s.part.size[0], width: s.part.size[1], thickness: s.part.size[2] / 2 }], {
+          center: add(s.inst.at || [0, 0, 0], scale(a.basis[2], side * s.part.size[2] / 4)), basis: s.basis,
+        });
+        cutter = makeHalf(a, -1);
+        const opposite = makeHalf(b, 1);
+        if (overlaps(a, opposite)) cutters.get(a).push(opposite);
+      }
+      const key = `${a.name}:${b.name}:${j.type}:${j.type === 'dado' ? '' : j.end}`;
+      if (cutter && !used.has(key) && overlaps(b, cutter)) { cutters.get(b).push(cutter); used.add(key); }
+    }
+  }
+  for (const solid of solids) {
+    for (const cutter of cutters.get(solid)) Object.assign(solid, subtractSolid(solid, cutter));
+    if (cutters.get(solid).length) Object.assign(solid, conformSolid(solid));
+    solid.socketCount = cutters.get(solid).length;
+  }
 }
 
 // Compile a design into the viewer's six data files.
 // Returns { files, stats, problems } - problems are the things that stopped a
 // part being built, never an exception: a half-finished design still opens.
 export function compileDesign(design) {
+  const authoredDesign = design;
+  design = { ...design, joints: resolvedJoints(design) };
   const problems = validateDesign(design);
   const solids = buildSolids(design);
   const obj = ['mtllib scene.mtl\n'];
@@ -238,11 +344,13 @@ export function compileDesign(design) {
     for (const f of solid.faces) obj.push(`f ${vertexOffset + f[0] + 1} ${vertexOffset + f[1] + 1} ${vertexOffset + f[2] + 1}\n`);
     vertexOffset += solid.positions.length;
     dims[solid.name] = objectDims(solid.positions, solid.basis, solid.extents);
-    if (!byPart.has(part)) byPart.set(part, []);
-    byPart.get(part).push(solid);
+    const rowKey = `${part.id}:${solid.extents.map((v) => round(v, 4)).join(',')}`;
+    if (!byPart.has(rowKey)) byPart.set(rowKey, []);
+    byPart.get(rowKey).push(solid);
   }
   const notes = joinNotes(design);
-  const rows = [...byPart].map(([part, list]) => {
+  const rows = [...byPart.values()].map((list) => {
+    const part = list[0].part;
     const size = [list[0].extents[0], part.size[1], part.size[2]].map((v) => round(v, 3)).sort((a, b) => b - a);
     return {
       label: part.name || part.id,
@@ -264,7 +372,7 @@ export function compileDesign(design) {
       'materials.json': JSON.stringify(matKeyToName, null, 2),
       'object_dims.json': JSON.stringify(dims, null, 2),
       'parts_report.json': JSON.stringify(rows, null, 2),
-      'model.json': JSON.stringify(modelConfig(design), null, 2),
+      'model.json': JSON.stringify(modelConfig(authoredDesign), null, 2),
     },
     stats: { parts: rows.length, pieces: solids.length },
     problems,
@@ -363,6 +471,8 @@ function joinNotes(design) {
 // Joints that sit against a part rather than going into it.
 const JOINED_TO = new Set(['buttons', 'edge-glue', 'butt-screw', 'pocket-screw', 'half-lap']);
 const JOINT_LABELS = {
+  none: 'No joint',
+  dovetail: 'Sliding dovetail',
   'mortise-tenon': 'Mortise and tenon',
   'through-tenon': 'Through tenon, wedged',
   'round-tenon': 'Round tenon',
@@ -380,7 +490,7 @@ export { JOINT_LABELS };
 
 export function emptyDesign(title = 'My design') {
   return {
-    version: DESIGN_VERSION,
+    version: DESIGN_VERSION, autoJoinery: true,
     title,
     subtitle: '',
     params: {},
@@ -454,6 +564,7 @@ export const SPECIES_CHOICES = Object.entries(WOOD).map(([key, w]) => ({ key, na
 // straight from the design, so the designer can show findings while you type
 // rather than only after you save.
 export function designReviewModel(design) {
+  design = { ...design, joints: resolvedJoints(design) };
   const boxes = [];
   const parts = (design?.parts || []).filter((p) => p?.size?.every((v) => v > 0) && (p.instances || []).length);
   const byId = new Map(parts.map((p) => [p.id, p]));
@@ -502,7 +613,7 @@ export function designReviewModel(design) {
     const mine = boxes.filter((b) => b.part === part);
     const basis = mine[0].basis;
     const tenons = tenonsById.get(part.id) || {};
-    const size = [part.size[0] + (tenons[0]?.length || 0) + (tenons[1]?.length || 0), part.size[1], part.size[2]];
+    const size = [part.size[0] + (tenons[0]?.length || 0) + (tenons[1]?.length || 0) - (tenons[0]?.inset || 0) - (tenons[1]?.inset || 0), part.size[1], part.size[2]];
     const material = design.materials?.[part.material] || {};
     const props = propsFor({
       panel: material.category === 'Sheet goods' ? (material.panel || 'plywood') : null,

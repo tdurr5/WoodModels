@@ -331,5 +331,5 @@ export const defaultParams = (a) => Object.fromEntries(Object.entries(a.params).
 export function buildArchetype(key, params = {}) {
   const a = archetype(key);
   if (!a) return null;
-  return a.build({ ...defaultParams(a), ...params });
+  return { ...a.build({ ...defaultParams(a), ...params }), autoJoinery: true };
 }

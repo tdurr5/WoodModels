@@ -76,6 +76,12 @@ export function solidAnchors(solid) {
     const faces = solid.faces.slice(i, i + 2);
     const ids = [...new Set(faces.flat())];
     if (ids.length !== 4) continue;
+    const normals = faces.map((f) => {
+      const [a,b,c] = f.map((id) => solid.positions[id]), u=sub(b,a), v=sub(c,a);
+      const n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];
+      return mul(n,1/(Math.hypot(...n)||1));
+    });
+    if (normals[0].reduce((s,v,i)=>s+v*normals[1][i],0)<0.999) continue;
     put(mul(ids.reduce((p, id) => add(p, solid.positions[id]), [0, 0, 0]), 0.25), 'face centre');
     const edges = new Map();
     for (const face of faces) for (let j = 0; j < 3; j++) {
@@ -84,6 +90,7 @@ export function solidAnchors(solid) {
     }
     for (const { a, b, count } of edges.values()) if (count === 1) put(mul(add(solid.positions[a], solid.positions[b]), 0.5), 'edge midpoint');
   }
+  solidEdges(solid).forEach(({ a, b }) => put(mul(add(a, b), 0.5), 'edge midpoint'));
   return [...points.values()];
 }
 
@@ -116,4 +123,29 @@ export class DesignHistory {
   get canRedo() { return this.future.length > 0; }
   undo() { if (!this.canUndo) return undefined; this.future.push(this.past.pop()); return JSON.parse(this.past.at(-1)); }
   redo() { if (!this.canRedo) return undefined; const value = this.future.pop(); this.past.push(value); return JSON.parse(value); }
+}
+
+// side=+1 grows the positive face and holds the negative face still; -1 is
+// the reverse. Centre mode is explicit (0), never an accidental second move.
+export function resizePiece(part, instanceIndex, axis, size, side = 1) {
+  const old = part.size[axis], inst = part.instances[instanceIndex];
+  part.size[axis] = Math.max(1 / 64, size);
+  if (side && inst) inst.at = add(inst.at || [0, 0, 0], mul(instanceBasis(inst)[axis], side * (part.size[axis] - old) / 2));
+}
+
+export function solidEdges(solid) {
+  const edges = new Map();
+  const key = (p) => p.map((v) => Math.round(v * 1e5)).join(',');
+  for (const face of solid.faces) {
+    const [a,b,c] = face.map((i) => solid.positions[i]);
+    const ab = sub(b,a), ac = sub(c,a);
+    const n = [ab[1]*ac[2]-ab[2]*ac[1],ab[2]*ac[0]-ab[0]*ac[2],ab[0]*ac[1]-ab[1]*ac[0]];
+    const length = Math.hypot(...n); if (length < 1e-10) continue;
+    for (let j=0;j<3;j++) {
+      const p=solid.positions[face[j]], q=solid.positions[face[(j+1)%3]], id=[key(p),key(q)].sort().join('|');
+      if (!edges.has(id)) edges.set(id,{a:p,b:q,normals:[]});
+      edges.get(id).normals.push(mul(n,1/length));
+    }
+  }
+  return [...edges.values()].filter(({normals}) => normals.length===1 || normals.some((n)=>Math.abs(n.reduce((s,v,i)=>s+v*normals[0][i],0))<0.999));
 }

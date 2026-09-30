@@ -83,3 +83,16 @@ test('volumetric grain is continuous across faces and stays fixed when a board r
   grainCoordinates(box, [[0, 1, 0], [-1, 0, 0], [0, 0, 1]], [12, 3, -5], grainSeed('board:1'));
   assert.notDeepEqual([...box.attributes.woodPosition.array], expected, 'copies get distinct sections of wood');
 });
+
+test('one-ended resizing fixes the opposite face on either side and respects a rotated board', async () => {
+  const { resizePiece } = await import('../viewer/modeling.js');
+  const d = fixture(), p = d.parts[0]; p.size = [10, 3, 1]; p.instances[0] = {at:[4,5,6],along:'y',up:'z'};
+  resizePiece(p,0,0,14,1);
+  assert.deepEqual(p.instances[0].at,[4,7,6]);
+  assert.equal(p.instances[0].at[1]-p.size[0]/2,0);
+  resizePiece(p,0,0,18,-1);
+  assert.deepEqual(p.instances[0].at,[4,5,6]);
+  assert.equal(p.instances[0].at[1]+p.size[0]/2,14);
+  resizePiece(p,0,0,20,0);
+  assert.deepEqual(p.instances[0].at,[4,5,6]);
+});

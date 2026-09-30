@@ -1,7 +1,7 @@
 // Direct manipulation of the designer's real solids. The preview meshes are
 // disposable; selection and edits always refer back to design part instances.
 import { buildSolids, instanceBasis, newPart } from './design.js';
-import { pieceKey, selectedPieces, duplicatePieces, deletePieces, makeUnique, solidAnchors, snapTranslation, translatePieces, rotatePieces } from './modeling.js';
+import { pieceKey, selectedPieces, duplicatePieces, deletePieces, makeUnique, solidAnchors, snapTranslation, translatePieces, rotatePieces, resizePiece, solidEdges } from './modeling.js';
 
 export function initDesignControls({ THREE, TransformControls, scene, canvas, orbit, getCamera, getDesign, getMeshes, onSelect, onFrame, onEdit, onUndo, onRedo, history, redraw }) {
   let active = false, keys = new Set(), mode = 'translate', grid = 0.125, angle = 15, magnet = true;
@@ -17,6 +17,13 @@ export function initDesignControls({ THREE, TransformControls, scene, canvas, or
   marker.visible = false;
   scene.add(marker);
   const raycaster = new THREE.Raycaster();
+  let faceDrag = null;
+  const resizeHandles = new THREE.Group(); scene.add(resizeHandles);
+  for (let axis = 0; axis < 3; axis++) for (const side of [-1, 1]) {
+    const handle = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: [0xef786b, 0x92ce7c, 0x8daeff][axis], depthTest: false }));
+    handle.userData = { axis, side }; handle.renderOrder = 1001; resizeHandles.add(handle);
+  }
+
   const el = document.createElement('div');
   el.id = 'designTools';
   el.innerHTML = `<div class="dt-modes" role="group" aria-label="Modeling tools">
@@ -25,7 +32,7 @@ export function initDesignControls({ THREE, TransformControls, scene, canvas, or
     </div><div class="dt-actions">
     <button data-action="add" title="Add a board to the design">+ Board</button><button data-action="undo" title="Undo (Ctrl+Z)">Undo</button><button data-action="redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
     <button data-action="duplicate" title="Duplicate selected pieces (Ctrl+D)">Duplicate</button><button data-action="delete" title="Delete selected pieces">Delete</button>
-    </div><div class="dt-quarter" aria-label="Quarter turns"><span>Turn</span><select class="dt-turn-axis" aria-label="Quarter turn axis"><option>X</option><option selected>Y</option><option>Z</option></select><button data-action="turn-left" title="Rotate minus 90 degrees">↶ −90°</button><button data-action="turn-right" title="Rotate plus 90 degrees">↷ +90°</button></div><div class="dt-selection" aria-live="polite"></div>
+    </div><div class="dt-quarter" aria-label="Quarter turns"><span>Turn</span><select class="dt-turn-axis" aria-label="Quarter turn axis"><option>X</option><option selected>Y</option><option>Z</option></select><button data-action="turn-left" title="Rotate minus 90 degrees">↶ −90°</button><button data-action="turn-right" title="Rotate plus 90 degrees">↷ +90°</button></div><div class="dt-resize-options"><label>Resize<select class="dt-resize-origin"><option value="1">One end</option><option value="0">From centre</option></select></label><span class="muted small">Drag a face handle. The opposite face stays fixed.</span></div><div class="dt-selection" aria-live="polite"></div>
     <details class="dt-settings"><summary>Snapping &amp; exact transforms</summary>
       <div class="dt-grid">
         <label>Grid (in)<select class="dt-grid-step"><option value="0">Free</option><option value="0.0625">1/16</option><option value="0.125" selected>1/8</option><option value="0.25">1/4</option><option value="0.5">1/2</option><option value="1">1</option></select></label>
@@ -57,6 +64,7 @@ export function initDesignControls({ THREE, TransformControls, scene, canvas, or
   }
   function updateUi() {
     const selected = pieces();
+    el.querySelector('.dt-resize-options').hidden = mode !== 'scale';
     el.querySelectorAll('[data-mode]').forEach((b) => { b.setAttribute('aria-pressed', String(mode === b.dataset.mode)); });
     el.querySelector('[data-action=undo]').disabled = !history.canUndo;
     el.querySelector('[data-action=redo]').disabled = !history.canRedo;
@@ -77,8 +85,18 @@ export function initDesignControls({ THREE, TransformControls, scene, canvas, or
     const selected = pieces();
     keys = new Set(selected.map(({ part, index }) => pieceKey(part.id, index)));
     el.hidden = !active || !getDesign();
-    if (gizmo.dragging) return;
-    if (!active || !selected.length || mode === 'snap' || (mode === 'scale' && selected.length !== 1)) gizmo.detach();
+    if (gizmo.dragging || faceDrag) return;
+    resizeHandles.visible = active && mode === 'scale' && selected.length === 1;
+    gizmo.setMode(mode === 'snap' ? 'translate' : mode);
+    if (resizeHandles.visible) {
+      const { part, inst } = selected[0], basis = instanceBasis(inst);
+      resizeHandles.children.forEach((h) => {
+        const { axis, side } = h.userData;
+        h.position.fromArray(inst.at || [0, 0, 0]).addScaledVector(new THREE.Vector3(...basis[axis]), side * part.size[axis] / 2);
+        h.scale.setScalar(Math.max(0.12, tolerance(h.position.toArray()) * 0.55));
+      });
+    }
+    if (!active || !selected.length || mode === 'snap' || mode === 'scale') gizmo.detach();
     else {
       target.position.set(0, 0, 0);
       selected.forEach(({ inst }) => target.position.add(new THREE.Vector3(...(inst.at || [0, 0, 0]))));
@@ -102,15 +120,16 @@ export function initDesignControls({ THREE, TransformControls, scene, canvas, or
     sync();
   }
   function setMode(next) {
-    if (gizmo.dragging) return;
+    if (gizmo.dragging || faceDrag) return;
     mode = next; anchor = null; marker.visible = false;
     gizmo.showX = gizmo.showY = gizmo.showZ = true;
+    resizeHandles.children.forEach((h) => { h.visible = true; });
     status(mode === 'snap' ? 'Click a corner, edge midpoint or face centre on the piece to move.' : 'Drag a handle. Shift-click pieces for a multiple selection.');
     sync();
   }
   function commit() { getDesign().customized = true; onEdit?.(false); sync(); }
   function action(name) {
-    if (gizmo.dragging) return;
+    if (gizmo.dragging || faceDrag) return;
     const design = getDesign();
     if (name === 'undo') { onUndo(); sync(); return; }
     if (name === 'redo') { onRedo(); sync(); return; }
@@ -156,7 +175,8 @@ export function initDesignControls({ THREE, TransformControls, scene, canvas, or
     if (mode === 'rotate') rotatePieces(getDesign(), keys, new THREE.Vector3(...vector).applyQuaternion(space === 'local' ? target.quaternion : new THREE.Quaternion()).toArray(), value, target.position.toArray());
     else if (mode === 'scale') {
       if (value <= 0 || pieces().length !== 1) { status('Choose one piece and a size above zero.'); return; }
-      pieces()[0].part.size[index] = value;
+      const { part, index: instanceIndex } = pieces()[0];
+      resizePiece(part, instanceIndex, index, value, Number(el.querySelector('.dt-resize-origin').value));
     } else {
       const delta = new THREE.Vector3(...vector).multiplyScalar(value);
       if (space === 'local') delta.applyQuaternion(target.quaternion);
@@ -220,6 +240,7 @@ export function initDesignControls({ THREE, TransformControls, scene, canvas, or
     return raycaster.intersectObjects(getMeshes(), false)[0];
   }
   function anchorAt(e) {
+    pointerRay(e);
     const r = canvas.getBoundingClientRect(), camera = getCamera(), meshes = getMeshes();
     const visibility = new THREE.Raycaster();
     let best = null, distance = 18;
@@ -238,15 +259,90 @@ export function initDesignControls({ THREE, TransformControls, scene, canvas, or
         distance = d; best = { ...a, key: meshKey(mesh) };
       }
     }
+    if (!best) {
+      for (const mesh of getMeshes().filter((m) => !anchor || !keys.has(meshKey(m)))) for (const edge of solidEdges(mesh.userData.solid)) {
+        const onRay = new THREE.Vector3(), onEdge = new THREE.Vector3();
+        raycaster.ray.distanceSqToSegment(new THREE.Vector3(...edge.a),new THREE.Vector3(...edge.b),onRay,onEdge);
+        const p = onEdge.clone().project(camera);
+        const d = Math.hypot((p.x+1)*r.width/2+r.left-e.clientX,(1-p.y)*r.height/2+r.top-e.clientY);
+        visibility.setFromCamera(new THREE.Vector2(p.x,p.y),camera);
+        const obstruction = visibility.intersectObjects(meshes,false)[0];
+        if (obstruction && obstruction.distance < visibility.ray.origin.distanceTo(onEdge)-1e-4) continue;
+        if (d < distance && p.z < 1 && p.z > -1) { distance = d; best = {point:onEdge.toArray(),kind:'edge',key:meshKey(mesh)}; }
+      }
+    }
     return best;
   }
+  function pointerRay(e) {
+    const r = canvas.getBoundingClientRect();
+    raycaster.setFromCamera(new THREE.Vector2((e.clientX-r.left)/r.width*2-1, 1-(e.clientY-r.top)/r.height*2), getCamera());
+  }
+  function resizeSnap(part, inst, axisIndex, side, size, originalSize, centered) {
+    if (!magnet) return size;
+    const basis = instanceBasis(inst), axis = new THREE.Vector3(...basis[axisIndex]);
+    const center = new THREE.Vector3(...(inst.at || [0,0,0]));
+    const fixed = center.clone().addScaledVector(axis, -side*originalSize/2);
+    const moving = centered ? center.clone().addScaledVector(axis,side*size/2) : fixed.clone().addScaledVector(axis,side*size);
+    let best = tolerance(moving.toArray()), result = size;
+    for (const a of targetAnchors) {
+      const point = new THREE.Vector3(...a.point), offset = point.clone().sub(center);
+      // Snap to edges crossing the moving face, without moving a locked axis.
+      if (!basis.every((v,i)=>i===axisIndex || Math.abs(offset.dot(new THREE.Vector3(...v))) <= part.size[i]/2+best)) continue;
+      const distance = Math.abs(point.clone().sub(moving).dot(axis));
+      const candidate = side*point.clone().sub(centered ? center : fixed).dot(axis)*(centered ? 2 : 1);
+      if (candidate > 1/64 && distance < best) { best = distance; result = candidate; showMarker(a.point); }
+    }
+    return result;
+  }
+  canvas.addEventListener('pointerdown', (e) => {
+    if (!active || mode !== 'scale' || !resizeHandles.visible || e.button !== 0) return;
+    pointerRay(e); resizeHandles.updateMatrixWorld(true);
+    const hit = raycaster.intersectObjects(resizeHandles.children)[0]; if (!hit) return;
+    e.preventDefault(); e.stopImmediatePropagation(); orbit.enabled = false; didTransform = true;
+    const { axis: axisIndex, side } = hit.object.userData, piece = pieces()[0];
+    const axis = new THREE.Vector3(...instanceBasis(piece.inst)[axisIndex]);
+    const eye = getCamera().getWorldDirection(new THREE.Vector3());
+    if (Math.abs(eye.dot(axis)) > 0.985) { orbit.enabled = true; status('Orbit slightly to drag this axis, or enter an exact size.'); return; }
+    const normal = eye.addScaledVector(axis,-eye.dot(axis));
+    if (normal.lengthSq() < 1e-6) normal.copy(getCamera().up).addScaledVector(axis,-getCamera().up.dot(axis));
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(normal.normalize(),hit.point);
+    faceDrag = { base: structuredClone(getDesign()), axisIndex, side, axis, plane, start: hit.point.clone(), key: [...keys][0], centered: el.querySelector('.dt-resize-origin').value === '0' };
+    targetAnchors = buildSolids(faceDrag.base).filter((s)=>!keys.has(pieceKey(s.part.id,s.part.instances.indexOf(s.inst)))).flatMap(solidAnchors);
+    canvas.setPointerCapture(e.pointerId);
+  }, {capture:true});
+  canvas.addEventListener('pointermove', (e) => {
+    if (!faceDrag) return;
+    e.preventDefault(); e.stopImmediatePropagation(); pointerRay(e);
+    const point = raycaster.ray.intersectPlane(faceDrag.plane,new THREE.Vector3()); if (!point) return;
+    Object.assign(getDesign(),structuredClone(faceDrag.base));
+    const { part, inst, index } = pieces()[0], { axisIndex, side, axis, start, centered } = faceDrag;
+    const old = part.size[axisIndex];
+    let size = Math.max(1/64, old + side*point.sub(start).dot(axis)*(centered ? 2 : 1));
+    if (grid) size = Math.max(grid,Math.round(size/grid)*grid);
+    marker.visible = false; size = resizeSnap(part,inst,axisIndex,side,size,old,centered);
+    resizePiece(part,index,axisIndex,size,centered ? 0 : side);
+    onEdit?.(true);
+    // Keep the dragged handle on the actual moving face, even when it snaps.
+    resizeHandles.children.forEach((h)=>{
+      const {axis:a,side:s}=h.userData;
+      h.position.fromArray(inst.at || [0,0,0]).addScaledVector(new THREE.Vector3(...instanceBasis(inst)[a]),s*part.size[a]/2);
+    });
+    status(`${['Length','Width','Thickness'][axisIndex]}: ${Math.round(size*10000)/10000} in${centered ? ' · centred' : ' · opposite face fixed'}`);
+  }, {capture:true});
+  canvas.addEventListener('pointerup', (e) => {
+    if (!faceDrag) return;
+    e.preventDefault(); e.stopImmediatePropagation(); faceDrag = null; orbit.enabled = true; marker.visible = false;
+    if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+    commit();
+  }, {capture:true});
+  canvas.addEventListener('pointercancel', () => { if (faceDrag) cancel(); }, {capture:true});
   canvas.addEventListener('pointerdown', (e) => { if (active) { down = [e.clientX, e.clientY]; didTransform = false; gizmo.camera = getCamera(); } }, { capture: true });
   canvas.addEventListener('click', (e) => {
     if (!active || !getDesign() || didTransform || !down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 4) return;
     const hit = hitAt(e);
     if (mode === 'snap') {
       let point = anchorAt(e);
-      if (!hit && anchor) {
+      if (!point && !hit && anchor) {
         const ground = raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Vector3());
         if (ground) point = { point: [grid ? Math.round(ground.x / grid) * grid : ground.x, 0, grid ? Math.round(ground.z / grid) * grid : ground.z], kind: 'ground grid', key: 'ground' };
       }
@@ -274,6 +370,9 @@ export function initDesignControls({ THREE, TransformControls, scene, canvas, or
     else { marker.visible = false; redraw?.(); }
   });
   function cancel() {
+    if (faceDrag) {
+      Object.assign(getDesign(), faceDrag.base); faceDrag = null; orbit.enabled = true; onEdit?.(true); sync(); status('Resize cancelled.'); return true;
+    }
     if (dragBase) {
       const original = dragBase; dragBase = null;
       Object.assign(getDesign(), original);
@@ -301,6 +400,7 @@ export function initDesignControls({ THREE, TransformControls, scene, canvas, or
     else if ('xyz'.includes(key) && key.length === 1) {
       const already = gizmo[`show${key.toUpperCase()}`] && ['X', 'Y', 'Z'].filter((a) => gizmo[`show${a}`]).length === 1;
       for (const a of ['X', 'Y', 'Z']) gizmo[`show${a}`] = already || a === key.toUpperCase();
+      resizeHandles.children.forEach((h) => { h.visible = gizmo[`show${'XYZ'[h.userData.axis]}`]; });
       status(already ? 'All axes available.' : `${key.toUpperCase()} axis only.`); redraw?.();
     } else return false;
     e.preventDefault(); return true;
@@ -316,6 +416,6 @@ export function initDesignControls({ THREE, TransformControls, scene, canvas, or
       return box;
     },
     // State is inspectable by the existing browser test harness.
-    gizmo, target,
+    gizmo, target, resizeHandles,
   };
 }

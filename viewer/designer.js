@@ -16,11 +16,13 @@ import { reviewHtml } from './designreview.js';
 import { DesignHistory, pieceKey } from './modeling.js';
 import { SPECIES } from './woodtex.js';
 import { solidWoodMaterial, grainCoordinates, grainSeed, GRAIN_CUTS } from './solidwood.js';
+import { smoothNormals } from './look.js';
+import { resolvedJoints, jointKey } from './autojoints.js';
 import { initDesignControls } from './designcontrols.js';
 
 const AXIS_NAMES = { x: 'side to side', y: 'up', z: 'front to back' };
 const AXIS_OPTIONS = ['x', 'y', 'z', '-x', '-y', '-z'];
-const JOINT_CHOICES = ['mortise-tenon', 'through-tenon', 'round-tenon', 'dado', 'half-lap', 'dowel', 'pocket-screw', 'butt-screw', 'buttons', 'edge-glue'];
+const JOINT_CHOICES = ['mortise-tenon', 'dovetail', 'none', 'through-tenon', 'round-tenon', 'dado', 'half-lap', 'dowel', 'pocket-screw', 'butt-screw', 'buttons', 'edge-glue'];
 
 // ---------- the panel ----------
 
@@ -44,6 +46,7 @@ export function initDesigner({ THREE, TransformControls, canvas, orbit, getCamer
   let draftKey = '';
   let draft = null;
   let draftStatus = '';
+  let inspectJoints = false;
   const history = new DesignHistory();
   const tools = initDesignControls({
     THREE, TransformControls, scene, canvas, orbit, getCamera, history,
@@ -89,6 +92,7 @@ export function initDesigner({ THREE, TransformControls, canvas, orbit, getCamer
 
   function open(existing = null, options = {}) {
     clearTimeout(redrawTimer);
+    inspectJoints = false;
     draftKey = options.draftKey || 'woodmodels:design-draft:new';
     draft = null;
     draftStatus = '';
@@ -130,14 +134,16 @@ export function initDesigner({ THREE, TransformControls, canvas, orbit, getCamer
   function redraw({ fit = false } = {}) {
     clearPreview();
     if (!design) return;
-    for (const solid of buildSolids(design)) {
+    const designBox = designBounds(design);
+    const solids = buildSolids(design);
+    for (const solid of solids) {
       const g = new THREE.BufferGeometry();
       const verts = new Float32Array(solid.faces.length * 9);
       solid.faces.forEach((face, i) => face.forEach((idx, k) => {
         verts.set(solid.positions[idx], i * 9 + k * 3);
       }));
       g.setAttribute('position', new THREE.BufferAttribute(verts, 3));
-      g.computeVertexNormals();
+      if (Object.values(solid.tenons).some((t) => t.round)) smoothNormals(g); else g.computeVertexNormals();
       g.computeBoundingBox();
       const species = design.materials?.[solid.part.material]?.species || 'maple';
       const instanceIndex = solid.part.instances.indexOf(solid.inst);
@@ -159,10 +165,22 @@ export function initDesigner({ THREE, TransformControls, canvas, orbit, getCamer
         new THREE.LineBasicMaterial({ color: on ? 0xffffff : 0x000000, transparent: true, opacity: on ? 0.75 : 0.12 }),
       );
       group.add(edges);
+      if (inspectJoints && designBox) {
+        const center = designBox.min.map((v, i) => (v + designBox.max[i]) / 2);
+        const offset = solid.center.map((v, i) => (v - center[i]) * 0.32);
+        if (Math.hypot(...offset) < 0.1) offset[1] = Math.max(...designBox.size) * 0.15;
+        mesh.position.fromArray(offset); edges.position.copy(mesh.position);
+      }
     }
     const box = designBounds(design);
     if (fit && box && frame) {
       frame(new THREE.Box3(new THREE.Vector3(...box.min), new THREE.Vector3(...box.max)));
+    }
+    if (inspectJoints && fit) {
+      const joint=resolvedJoints(design).find((j)=>j.type!=='none');
+      const from=solids.find((s)=>s.part.id===joint?.from), into=solids.find((s)=>s.part.id===joint?.into);
+      const dir=from && into ? new THREE.Vector3(...from.center).sub(new THREE.Vector3(...into.center)).normalize().multiplyScalar(1.1).add(new THREE.Vector3(0.35,0.45,0.7)).toArray() : undefined;
+      frameSelection?.(new THREE.Box3().setFromObject(group), dir);
     }
     tools.sync();
     invalidateShadows?.();
@@ -176,7 +194,7 @@ export function initDesigner({ THREE, TransformControls, canvas, orbit, getCamer
     dirty = true;
     rememberDraft();
     clearTimeout(redrawTimer);
-    redrawTimer = setTimeout(() => redraw({ fit }), 60);
+    redrawTimer = setTimeout(() => { redraw({ fit }); const node = el.querySelector('.dz-connections'); if (node) { node.innerHTML = jointsHtml(); bindJoints(); } }, 60);
     if (rerender) renderSummary();
   }
 
@@ -268,7 +286,7 @@ export function initDesigner({ THREE, TransformControls, canvas, orbit, getCamer
   }
 
   function partsStageHtml() {
-    return `<p class="muted small dz-hint">Select a board to edit. Shift-click adds to the selection.</p>${partsHtml()}${jointsHtml()}`;
+    return `<p class="muted small dz-hint">Select a board to edit. Shift-click adds to the selection.</p><div class="dz-connections">${jointsHtml()}</div>${partsHtml()}`;
   }
 
   function partsHtml() {
@@ -331,13 +349,15 @@ export function initDesigner({ THREE, TransformControls, canvas, orbit, getCamer
   }
 
   function jointsHtml() {
-    const joints = design.joints || [];
+    const joints = resolvedJoints(design);
     const parts = design.parts || [];
     const name = (id) => escapeHtml(parts.find((p) => p.id === id)?.name || id);
-    return `<details class="dz-sec"><summary>Joints (${joints.length})</summary>
+    return `<div class="dz-joinery-controls"><label><input type="checkbox" class="dz-auto-joints"${design.autoJoinery ? ' checked' : ''}> Automatic joinery</label><button class="dz-inspect" aria-pressed="${inspectJoints}">${inspectJoints ? 'Back to assembly' : 'Inspect joints'}</button></div>
+      <p class="muted small">${inspectJoints ? 'Pieces spread apart for inspection. Your actual placements are unchanged.' : 'Connections follow board contact. Choose a joint below to override the suggestion.'}</p>
+      <details class="dz-sec"><summary>Connections (${joints.length})</summary>
       ${joints.map((j, i) => `<div class="dz-joint" data-j="${i}">
-        <span>${name(j.from)}${j.end != null ? ` <span class="muted">(${j.end ? 'far' : 'near'} end)</span>` : ''} → ${name(j.into)}</span>
-        <select class="dz-jtype">${JOINT_CHOICES.map((t) => `<option value="${t}"${t === j.type ? ' selected' : ''}>${escapeHtml(JOINT_LABELS[t] || t)}</option>`).join('')}</select>
+        <span>${name(j.from)}${j.fromInstance != null ? ` #${j.fromInstance + 1}` : ''}${j.automatic ? (design.jointChoices?.[jointKey(j)] ? ' · chosen' : ' · auto') : ''}${j.end != null ? ` <span class="muted">(${j.end ? 'far' : 'near'} end)</span>` : ''} → ${name(j.into)}</span>
+        <select class="dz-jtype"><option value="auto"${!design.jointChoices?.[jointKey(j)] ? ' selected' : ''}>${j.automatic ? 'Automatic' : 'Preset'}: ${escapeHtml(JOINT_LABELS[resolvedJoints({ ...design, jointChoices: {} }).find((q) => jointKey(q) === jointKey(j))?.type] || j.type)}</option>${JOINT_CHOICES.map((t) => `<option value="${t}"${t === design.jointChoices?.[jointKey(j)] ? ' selected' : ''}>${escapeHtml(JOINT_LABELS[t] || t)}</option>`).join('')}</select>
         <button class="dz-x" data-act="unjoin" title="Remove">×</button>
       </div>`).join('')}
       ${parts.length > 1 ? `<div class="dz-joint dz-newjoint">
@@ -347,7 +367,7 @@ export function initDesigner({ THREE, TransformControls, canvas, orbit, getCamer
         <select class="dz-jtypenew">${JOINT_CHOICES.map((t) => `<option value="${t}">${escapeHtml(JOINT_LABELS[t] || t)}</option>`).join('')}</select>
         <button class="dz-small" data-act="join">Add</button>
       </div>` : ''}
-      <p class="muted small">A mortise and tenon, a round tenon or a through tenon is drawn on the part: its length grows by the tenon, and the part it goes into gets the mortise. The rest are noted on the cut sheet.</p>
+      <p class="muted small">Mortises, tenons, dados, sliding dovetails and half-laps cut real geometry. Screws, buttons, glue and dowels remain construction notes.</p>
     </details>`;
   }
 
@@ -513,11 +533,21 @@ export function initDesigner({ THREE, TransformControls, canvas, orbit, getCamer
   }
 
   function bindJoints() {
+    el.querySelector('.dz-auto-joints')?.addEventListener('change', (e) => {
+      design.autoJoinery = e.target.checked; design.customized = true; dirty = true; rememberDraft(); render(); redraw();
+    });
+    el.querySelector('.dz-inspect')?.addEventListener('click', () => {
+      inspectJoints = !inspectJoints; tools.setOpen(!inspectJoints); render(); redraw({ fit: true });
+    });
     el.querySelectorAll('.dz-joint[data-j]').forEach((node) => {
-      const j = design.joints[Number(node.dataset.j)];
-      node.querySelector('.dz-jtype')?.addEventListener('change', (e) => { j.type = e.target.value; design.customized = true; changed(); });
+      const j = resolvedJoints(design)[Number(node.dataset.j)];
+      node.querySelector('.dz-jtype')?.addEventListener('change', (e) => {
+        design.jointChoices ||= {};
+        if (e.target.value === 'auto') delete design.jointChoices[jointKey(j)]; else design.jointChoices[jointKey(j)] = e.target.value;
+        design.customized = true; dirty = true; rememberDraft(); render(); redraw();
+      });
       node.querySelector('[data-act="unjoin"]')?.addEventListener('click', () => {
-        design.joints.splice(Number(node.dataset.j), 1);
+        design.jointChoices ||= {}; design.jointChoices[jointKey(j)] = 'none';
         design.customized = true; dirty = true; rememberDraft();
         render();
         redraw();
