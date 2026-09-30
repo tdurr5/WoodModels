@@ -1262,6 +1262,17 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     check(partNames.join(',') === 'Top,Leg,Apron, long,Apron, short', `a table arrives with its parts (${partNames.join(', ')})`);
     check(/29-1\/2" high/.test(await p2.locator('#designer .dz-count').innerText()), 'and at a dining table\'s height');
     check(await p2.evaluate(() => window.__viewer.scene.getObjectByName('designPreview').children.length) > 0, 'the preview is drawn in 3D');
+    // The viewer only draws when something changes; an edit has to be one of
+    // those things, or the preview silently stops following what you type.
+    const painted = await p2.evaluate(async () => {
+      const info = window.__viewer.renderer.info.render;
+      const before = info.frame;
+      document.querySelector('#designer .dz-param[data-key="topLength"]').value = '72';
+      document.querySelector('#designer .dz-param[data-key="topLength"]').dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise((r) => setTimeout(r, 500));
+      return info.frame - before;
+    });
+    check(painted > 0, `changing a number repaints the preview (${painted} frames)`);
     check(!await p2.locator('#dimCard').isVisible(), 'the model it was showing steps aside');
 
     // A number you change rewrites the piece, and the review follows.
@@ -1289,7 +1300,10 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     const rows = await p2.locator('#clList > .row').allInnerTexts();
     const text = rows.join(' | ').replace(/\n/g, ' ');
     check(rows.length === 4, `it has a cut list (${rows.length} parts)`);
-    check(/Apron, long/.test(text) && /51"/.test(text), `lengths include the tenons (${(text.match(/Apron, long[^|]*/) || [''])[0].trim()})`);
+    // A 72in top with a 3in overhang and 2-3/4in legs leaves 60-1/2in
+    // between the legs; the listed length is that plus a 1-1/4in tenon each
+    // end, because the cut list gives the length you cut, not the gap it fills.
+    check(/Apron, long/.test(text) && /63"/.test(text), `lengths include the tenons (${(text.match(/Apron, long[^|]*/) || [''])[0].trim()})`);
     check(/Mortise and tenon into Leg, each end/.test(text), 'the joints are noted on the parts');
     check(/bf rough/.test(await p2.locator('#clSummary').innerText()), 'rough stock and board feet are worked out');
 

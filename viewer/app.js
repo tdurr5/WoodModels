@@ -1854,6 +1854,7 @@ function openDesigner() {
       scene,
       getUnits: () => settings().units,
       frame: (box) => { stage.fit(box, config.views?.iso?.dir); frameBox(box, config.views?.iso?.dir || [0.7, 0.5, 0.7], false); },
+      redrawScene: () => requestRender(),
       onOpenChange: (open) => {
         if (model) model.visible = !open;
         document.body.classList.toggle('designing', open);

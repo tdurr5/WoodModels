@@ -23,7 +23,7 @@ const JOINT_CHOICES = ['mortise-tenon', 'through-tenon', 'round-tenon', 'dado', 
 
 // ---------- the panel ----------
 
-export function initDesigner({ THREE, scene, frame, onSave, getUnits = () => 'in16', onOpenChange }) {
+export function initDesigner({ THREE, scene, frame, redrawScene, onSave, getUnits = () => 'in16', onOpenChange }) {
   const el = document.createElement('div');
   el.id = 'designer';
   document.getElementById('app').appendChild(el);
@@ -61,6 +61,7 @@ export function initDesigner({ THREE, scene, frame, onSave, getUnits = () => 'in
     group.visible = false;
     clearPreview();
     onOpenChange?.(false);
+    redrawScene?.();
   }
 
   // ---------- preview ----------
@@ -102,6 +103,8 @@ export function initDesigner({ THREE, scene, frame, onSave, getUnits = () => 'in
     if (fit && box && frame) {
       frame(new THREE.Box3(new THREE.Vector3(...box.min), new THREE.Vector3(...box.max)));
     }
+    // The viewer only draws when something changes, and this is something.
+    redrawScene?.();
   }
 
   // Redrawing on every keystroke of a number field is wasteful; a short wait
