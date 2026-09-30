@@ -14,6 +14,8 @@ import { ARCHETYPES, buildArchetype, archetype, defaultParams } from './archetyp
 import { reviewModel } from './review.js';
 import { reviewHtml } from './designreview.js';
 import { DesignHistory, pieceKey } from './modeling.js';
+import { SPECIES } from './woodtex.js';
+import { solidWoodMaterial, grainCoordinates, grainSeed, GRAIN_CUTS } from './solidwood.js';
 import { initDesignControls } from './designcontrols.js';
 
 const AXIS_NAMES = { x: 'side to side', y: 'up', z: 'front to back' };
@@ -22,7 +24,7 @@ const JOINT_CHOICES = ['mortise-tenon', 'through-tenon', 'round-tenon', 'dado', 
 
 // ---------- the panel ----------
 
-export function initDesigner({ THREE, TransformControls, canvas, orbit, getCamera, scene, frame, frameSelection = frame, redrawScene, onSave, getUnits = () => 'in16', onOpenChange }) {
+export function initDesigner({ THREE, TransformControls, canvas, orbit, getCamera, scene, frame, frameSelection = frame, redrawScene, invalidateShadows, onSave, getUnits = () => 'in16', onOpenChange }) {
   const el = document.createElement('div');
   el.id = 'designer';
   document.getElementById('app').appendChild(el);
@@ -32,6 +34,7 @@ export function initDesigner({ THREE, TransformControls, canvas, orbit, getCamer
   group.visible = false;
   scene.add(group);
 
+  const previewMaterials = new Map();
   let design = null;
   let source = null;        // the archetype it came from, if any
   let openPart = null;      // the part whose editor is unfolded
@@ -119,7 +122,7 @@ export function initDesigner({ THREE, TransformControls, canvas, orbit, getCamer
   function clearPreview() {
     for (const child of [...group.children]) {
       child.geometry?.dispose();
-      child.material?.dispose?.();
+      if (!child.isMesh) child.material?.dispose?.();
       group.remove(child);
     }
   }
@@ -136,18 +139,24 @@ export function initDesigner({ THREE, TransformControls, canvas, orbit, getCamer
       g.setAttribute('position', new THREE.BufferAttribute(verts, 3));
       g.computeVertexNormals();
       g.computeBoundingBox();
-      const colour = design.materials?.[solid.part.material]?.color || '#d9b26a';
+      const species = design.materials?.[solid.part.material]?.species || 'maple';
       const instanceIndex = solid.part.instances.indexOf(solid.inst);
       const on = tools.selection().has(pieceKey(solid.part.id, instanceIndex));
-      const mesh = new THREE.Mesh(g, new THREE.MeshStandardMaterial({
-        color: new THREE.Color(on ? '#ffb454' : colour), roughness: 0.75, metalness: 0,
-      }));
+      grainCoordinates(g, solid.basis, solid.inst.at || [0, 0, 0], grainSeed(`${solid.part.id}:${instanceIndex}:${solid.inst.grainVariant || 0}`), solid.part.grainCut);
+      const materialKey = `${species}:${on}`;
+      if (!previewMaterials.has(materialKey)) {
+        const material = solidWoodMaterial(species);
+        if (on) { material.emissive.set('#bd752a'); material.emissiveIntensity = 0.12; }
+        previewMaterials.set(materialKey, material);
+      }
+      const material = previewMaterials.get(materialKey);
+      const mesh = new THREE.Mesh(g, material);
       mesh.userData = { partId: solid.part.id, instanceIndex, solid };
       mesh.castShadow = mesh.receiveShadow = true;
       group.add(mesh);
       const edges = new THREE.LineSegments(
         new THREE.EdgesGeometry(g, 25),
-        new THREE.LineBasicMaterial({ color: on ? 0xffffff : 0x000000, transparent: true, opacity: on ? 0.9 : 0.45 }),
+        new THREE.LineBasicMaterial({ color: on ? 0xffffff : 0x000000, transparent: true, opacity: on ? 0.75 : 0.12 }),
       );
       group.add(edges);
     }
@@ -156,6 +165,7 @@ export function initDesigner({ THREE, TransformControls, canvas, orbit, getCamer
       frame(new THREE.Box3(new THREE.Vector3(...box.min), new THREE.Vector3(...box.max)));
     }
     tools.sync();
+    invalidateShadows?.();
     // The viewer only draws when something changes, and this is something.
     redrawScene?.();
   }
@@ -208,14 +218,14 @@ export function initDesigner({ THREE, TransformControls, canvas, orbit, getCamer
         <button class="dz-close" title="Close (Esc)">×</button>
       </div>
       <nav class="dz-steps" aria-label="Design steps">
-        ${[['parts', 'Model'], ['size', 'Dimensions'], ['review', 'Review']].map(([key, label]) => `<button data-step="${key}" aria-current="${step === key ? 'step' : 'false'}">${label}</button>`).join('')}
+        ${[['size', 'Customize'], ['parts', 'Model'], ['review', 'Review']].map(([key, label]) => `<button data-step="${key}" aria-current="${step === key ? 'step' : 'false'}">${label}</button>`).join('')}
       </nav>
       <div class="dz-tools-mount"></div>
       <div class="dz-body">
         ${draftHtml()}
         <section class="dz-stage dz-stage-size">
-          <p class="muted small">Dimensions are in inches. Use the actual sizes of your wood; the preview follows your changes.</p>
-          ${source ? paramsHtml() : '<p>Build your project one part at a time in <b>Parts &amp; joints</b>.</p>'}
+          <h3 class="dz-section-title">${source ? escapeHtml(source.name) : 'Custom project'}</h3><p class="muted small">Set your starting proportions. Dimensions are in inches.</p>
+          ${source ? paramsHtml() + woodChoiceHtml() : '<p>Build your project one part at a time in <b>Model</b>.</p>'}
           <button class="dz-small dz-restart">Change starting point</button>
         </section>
         <section class="dz-stage dz-stage-parts">
@@ -229,7 +239,7 @@ export function initDesigner({ THREE, TransformControls, canvas, orbit, getCamer
       </div>
       <div class="dz-foot">
         <div><span class="dz-count muted small"></span><div class="dz-draft-status muted small" role="status">${escapeHtml(draftStatus)}</div></div>
-        <button class="dz-next dz-small">${step === 'size' ? 'Next: parts' : 'Next: review'}</button>
+        <button class="dz-next dz-small">${step === 'size' ? 'Start modeling →' : 'Review & build →'}</button>
         <button class="dz-save primary">Open build plan</button>
       </div>`;
   }
@@ -247,8 +257,18 @@ export function initDesigner({ THREE, TransformControls, canvas, orbit, getCamer
     </details>`;
   }
 
+  function woodChoiceHtml() {
+    return `<label class="dz-project-wood">Project wood<select class="dz-wood">${Object.entries(SPECIES).map(([key, spec]) => `<option value="${key}"${(design.woodSpecies || Object.values(design.materials)[0]?.species) === key ? ' selected' : ''}>${spec.name}</option>`).join('')}</select></label>`;
+  }
+  function applyProjectWood(key) {
+    if (!SPECIES[key]) return;
+    const spec = SPECIES[key]; design.woodSpecies = key;
+    design.materials[spec.name] = { category: 'Wood', species: key, color: spec.early };
+    design.parts.forEach((p) => { p.material = spec.name; });
+  }
+
   function partsStageHtml() {
-    return `<p class="muted small">Adjust individual pieces and their joints. Click pieces in 3D and drag the handles. Shift-click selects more. The fields below show exact sizes and centre positions in inches.</p>${partsHtml()}${jointsHtml()}`;
+    return `<p class="muted small dz-hint">Select a board to edit. Shift-click adds to the selection.</p>${partsHtml()}${jointsHtml()}`;
   }
 
   function partsHtml() {
@@ -273,7 +293,7 @@ export function initDesigner({ THREE, TransformControls, canvas, orbit, getCamer
   }
 
   function partEditor(part) {
-    const materials = Object.keys(design.materials || {});
+    const materials = [...new Set([...Object.keys(design.materials || {}), ...Object.values(SPECIES).map((s) => s.name)])];
     return `<div class="dz-edit">
       <div class="dz-grid">
         <label>Name<input class="dz-f" data-f="name" value="${escapeHtml(part.name || '')}" /></label>
@@ -287,7 +307,8 @@ export function initDesigner({ THREE, TransformControls, canvas, orbit, getCamer
         <label>Width<input type="number" step="0.0625" min="0.0625" class="dz-f" data-f="size1" value="${part.size[1]}" /></label>
         <label>Thickness<input type="number" step="0.0625" min="0.0625" class="dz-f" data-f="size2" value="${part.size[2]}" /></label>
       </div>
-      <div class="dz-places">
+      <div class="dz-grid"><label>Grain cut<select class="dz-f" data-f="grainCut">${Object.entries(GRAIN_CUTS).map(([key, name]) => `<option value="${key}"${(part.grainCut || 'plain') === key ? ' selected' : ''}>${name}</option>`).join('')}</select></label><button class="dz-small dz-grain-new" data-act="grain">New grain pattern</button></div>
+      <details class="dz-placement"><summary>Position & orientation</summary><div class="dz-places">
         ${part.instances.map((inst, i) => `
           <div class="dz-place" data-i="${i}">
             <span class="dz-place-n">${i + 1}</span>
@@ -302,7 +323,7 @@ export function initDesigner({ THREE, TransformControls, canvas, orbit, getCamer
           </div>`).join('')}
         <button class="dz-small" data-act="place">+ Another one</button>
       </div>
-      <div class="dz-part-acts">
+      </details><div class="dz-part-acts">
         <button class="dz-small" data-act="dup">Duplicate part</button>
         <button class="dz-small danger" data-act="del">Delete part</button>
       </div>
@@ -369,7 +390,7 @@ export function initDesigner({ THREE, TransformControls, canvas, orbit, getCamer
       const key = b.dataset.arch;
       design = key ? { ...buildArchetype(key), from: key } : emptyDesign();
       source = key ? archetype(key) : null;
-      dirty = true; draft = null; step = 'parts';
+      dirty = true; draft = null; step = key ? 'size' : 'parts';
       rememberDraft();
       render();
       redraw({ fit: true });
@@ -387,8 +408,9 @@ export function initDesigner({ THREE, TransformControls, canvas, orbit, getCamer
       if (design.customized && !window.confirm('Changing overall dimensions rebuilds the starting design and replaces your custom parts and joints. Continue?')) { render(); return; }
       const params = { ...defaultParams(source), ...design.params };
       params[input.dataset.key] = Number(input.value);
-      const title = design.title;
+      const title = design.title, woodSpecies = design.woodSpecies;
       design = { ...buildArchetype(source.key, params), from: source.key, title };
+      applyProjectWood(woodSpecies);
       dirty = true; rememberDraft();
       clearTimeout(redrawTimer);
       redrawTimer = setTimeout(() => redraw(), 60);
@@ -398,6 +420,7 @@ export function initDesigner({ THREE, TransformControls, canvas, orbit, getCamer
       bindParts();
       renderSummary();
     }));
+    el.querySelector('.dz-wood')?.addEventListener('change', (e) => { applyProjectWood(e.target.value); dirty = true; rememberDraft(); render(); redraw(); });
     bindParts();
   }
 
@@ -418,6 +441,11 @@ export function initDesigner({ THREE, TransformControls, canvas, orbit, getCamer
   function bindPart(node) {
     const part = design.parts.find((p) => p.id === node.dataset.part);
     if (!part) return;
+    node.querySelector('[data-act=grain]')?.addEventListener('click', () => {
+      const selected = tools.selection();
+      part.instances.forEach((inst, i) => { if (!selected.size || selected.has(pieceKey(part.id, i))) inst.grainVariant = (inst.grainVariant || 0) + 1; });
+      dirty = true; rememberDraft(); redraw();
+    });
     node.querySelector('[data-act="toggle"]').addEventListener('click', () => {
       openPart = openPart === part.id ? null : part.id;
       tools.select(openPart ? [pieceKey(part.id, 0)] : [], false);
@@ -434,7 +462,13 @@ export function initDesigner({ THREE, TransformControls, canvas, orbit, getCamer
           inst.at = [...(inst.at || [0, 0, 0])];
           inst.at[Number(key.slice(2))] = Number(input.value) || 0;
         } else if (inst && input.value !== 'custom') { inst[key] = input.value; if (key === 'along' || key === 'up') delete inst.tilt; }
-        else if (key === 'name' || key === 'group' || key === 'material') part[key] = input.value;
+        else if (key === 'name' || key === 'group' || key === 'material' || key === 'grainCut') {
+          part[key] = input.value;
+          if (key === 'material' && !design.materials[input.value]) {
+            const [species, spec] = Object.entries(SPECIES).find(([, s]) => s.name === input.value);
+            design.materials[input.value] = { category: 'Wood', species, color: spec.early };
+          }
+        }
         design.customized = true;
         changed();
         // Keep the row's own summary honest without rebuilding the editor
@@ -526,7 +560,7 @@ export function initDesigner({ THREE, TransformControls, canvas, orbit, getCamer
     if (e.key === 'Escape' && !/^(INPUT|SELECT)$/.test(e.target.tagName)) requestClose();
   });
 
-  return { open, close, requestClose, isOpen, tools, keydown: tools.keydown, syncCamera: tools.sync, current: () => design };
+  return { open, close, requestClose, isOpen, meshes: () => group.children.filter((m) => m.isMesh), tools, keydown: tools.keydown, syncCamera: tools.sync, current: () => design };
 }
 
 const round = (v) => Math.round(v * 1000) / 1000;

@@ -434,7 +434,8 @@ export function createStage(scene, renderer) {
     const mix = (v) => { h = Math.imul(h ^ Math.round(v * 1024), 16777619); };
     meshes.forEach((m, i) => {
       if (!m.visible || !m.castShadow) return;
-      mix(i + 1); mix(m.position.x); mix(m.position.y); mix(m.position.z);
+      mix(i + 1); mix(m.geometry.id); mix(m.geometry.attributes.position.version);
+      m.updateWorldMatrix(true, false); m.matrixWorld.elements.forEach(mix);
       if (m.material.wireframe) mix(-1);
     });
     extra.forEach(mix);

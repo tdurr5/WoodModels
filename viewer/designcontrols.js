@@ -25,7 +25,7 @@ export function initDesignControls({ THREE, TransformControls, scene, canvas, or
     </div><div class="dt-actions">
     <button data-action="add" title="Add a board to the design">+ Board</button><button data-action="undo" title="Undo (Ctrl+Z)">Undo</button><button data-action="redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
     <button data-action="duplicate" title="Duplicate selected pieces (Ctrl+D)">Duplicate</button><button data-action="delete" title="Delete selected pieces">Delete</button>
-    </div><div class="dt-selection" aria-live="polite"></div>
+    </div><div class="dt-quarter" aria-label="Quarter turns"><span>Turn</span><select class="dt-turn-axis" aria-label="Quarter turn axis"><option>X</option><option selected>Y</option><option>Z</option></select><button data-action="turn-left" title="Rotate minus 90 degrees">↶ −90°</button><button data-action="turn-right" title="Rotate plus 90 degrees">↷ +90°</button></div><div class="dt-selection" aria-live="polite"></div>
     <details class="dt-settings"><summary>Snapping &amp; exact transforms</summary>
       <div class="dt-grid">
         <label>Grid (in)<select class="dt-grid-step"><option value="0">Free</option><option value="0.0625">1/16</option><option value="0.125" selected>1/8</option><option value="0.25">1/4</option><option value="0.5">1/2</option><option value="1">1</option></select></label>
@@ -60,7 +60,7 @@ export function initDesignControls({ THREE, TransformControls, scene, canvas, or
     el.querySelectorAll('[data-mode]').forEach((b) => { b.setAttribute('aria-pressed', String(mode === b.dataset.mode)); });
     el.querySelector('[data-action=undo]').disabled = !history.canUndo;
     el.querySelector('[data-action=redo]').disabled = !history.canRedo;
-    el.querySelectorAll('[data-action=duplicate],[data-action=delete],[data-action=assembly],[data-action=group]').forEach((b) => { b.disabled = !selected.length; });
+    el.querySelectorAll('[data-action=duplicate],[data-action=delete],[data-action=assembly],[data-action=group],[data-action=turn-left],[data-action=turn-right]').forEach((b) => { b.disabled = !selected.length; });
     el.querySelector('[data-action=unique]').disabled = selected.length !== 1 || selected[0].part.instances.length < 2;
     el.querySelector('[data-mode=scale]').disabled = selected.length !== 1;
     el.querySelector('.dt-selection').textContent = selected.length === 1
@@ -97,6 +97,7 @@ export function initDesignControls({ THREE, TransformControls, scene, canvas, or
   }
   function select(next, reveal = true) {
     keys = new Set(next); anchor = null; marker.visible = false;
+    status(keys.size ? '' : 'Click a piece in the model.');
     if (reveal) onSelect?.(keys);
     sync();
   }
@@ -123,7 +124,11 @@ export function initDesignControls({ THREE, TransformControls, scene, canvas, or
       return;
     }
     if (!pieces().length) return;
-    if (name === 'duplicate') keys = duplicatePieces(design, keys, [grid || 1, 0, grid || 1]);
+    if (name === 'turn-left' || name === 'turn-right') {
+      const axis = [0, 0, 0]; axis[el.querySelector('.dt-turn-axis').selectedIndex] = 1;
+      const pivot = pieces().reduce((p, { inst }) => p.add(new THREE.Vector3(...(inst.at || [0, 0, 0]))), new THREE.Vector3()).divideScalar(pieces().length);
+      rotatePieces(design, keys, axis, name === 'turn-left' ? -90 : 90, pivot.toArray());
+    } else if (name === 'duplicate') keys = duplicatePieces(design, keys, [grid || 1, 0, grid || 1]);
     else if (name === 'delete') { deletePieces(design, keys); keys.clear(); }
     else if (name === 'unique' && pieces().length === 1) keys = new Set([makeUnique(design, [...keys][0])]);
     else if (name === 'assembly') {

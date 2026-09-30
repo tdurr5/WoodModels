@@ -1,3 +1,5 @@
+import { solidWoodMaterial, grainCoordinates, grainSeed, copySolidWood } from './solidwood.js';
+import { buildSolids } from './design.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
@@ -650,6 +652,7 @@ function showToast(msg, { undo = false, ms = 0 } = {}) {
 }
 
 function prepareMeshes(materialNames) {
+  const designedSolids = new Map(config.design ? buildSolids(config.design).map((solid) => [solid.name, solid]) : []);
   model.traverse((child) => {
     if (!child.isMesh) return;
     // parts with SketchUp's default (no) material are configured as "(none)"
@@ -667,7 +670,12 @@ function prepareMeshes(materialNames) {
       const species = mc.species || speciesFor(mc.label, realName);
       // no look picked or named, no photo: the grain in the colour the model painted it
       const tex = species || photo ? mc.texture : paletteFromColor(mc.texture, mc.color);
-      child.material = woodMaterial(species, tex, photo || null);
+      const solid = designedSolids.get(child.name);
+      if (solid) {
+        const index = solid.part.instances.indexOf(solid.inst);
+        grainCoordinates(child.geometry, solid.basis, solid.inst.at || [0, 0, 0], grainSeed(`${solid.part.id}:${index}:${solid.inst.grainVariant || 0}`), solid.part.grainCut);
+        child.material = solidWoodMaterial(species || 'maple');
+      } else child.material = woodMaterial(species, tex, photo || null);
       child.material.color.multiplyScalar(0.9 + 0.14 * (((seed >>> 0) % 97) / 97)); // no two boards quite the same shade
     } else {
       // steel, brass, paint, leather... lit the same way as the wood (look.js)
@@ -696,15 +704,15 @@ function prepareMeshes(materialNames) {
     child.castShadow = child.receiveShadow = true;
     const orig = child.material;
     const endMap = endMapOf(orig);
-    const dim = addEndGrain(orig.clone(), endMap);
+    const dim = copySolidWood(orig, addEndGrain(orig.clone(), endMap));
     dim.transparent = true;
     dim.opacity = 0.18;
     dim.depthWrite = false;
-    const hl = addEndGrain(orig.clone(), endMap);
+    const hl = copySolidWood(orig, addEndGrain(orig.clone(), endMap));
     hl.emissive = new THREE.Color(0xff5b3d);
     hl.emissiveIntensity = 0.55;
     if (!hl.map) hl.color = new THREE.Color(0xff8a66);
-    const hlPiece = addEndGrain(hl.clone(), endMap); // the one piece clicked of a part with several
+    const hlPiece = copySolidWood(hl, addEndGrain(hl.clone(), endMap)); // the one piece clicked of a part with several
     hlPiece.emissive = new THREE.Color(0xffb020);
     if (!hlPiece.map) hlPiece.color = new THREE.Color(0xffc266);
     if (orig.metalness) hl.metalness = hlPiece.metalness = 0.2; // a highlighted bolt reads orange, not dark bronze
@@ -1861,6 +1869,7 @@ function openDesigner({ fresh = false, blank = false } = {}) {
       frame: (box) => { stage.fit(box, config.views?.iso?.dir); frameBox(box, config.views?.iso?.dir || [0.7, 0.5, 0.7], false); },
       frameSelection: (box) => frameBox(box, [0.7, 0.5, 0.7], false),
       redrawScene: () => requestRender(),
+      invalidateShadows: () => stage.invalidateShadows(),
       onOpenChange: (open) => {
         if (model) model.visible = !open;
         Object.values(edgeLayers).forEach((layer) => { layer.visible = !open; });
@@ -3086,7 +3095,7 @@ function animate(now) {
   processHover();
   updateOverlays();
   const on = section.axis !== 'off';
-  stage.updateShadows(meshes, [on ? 1 : 0, on ? clipPlane.constant : 0, on ? clipPlane.normal.x + 2 * clipPlane.normal.y + 4 * clipPlane.normal.z : 0]);
+  stage.updateShadows(designer?.isOpen() ? designer.meshes() : meshes, [on ? 1 : 0, on ? clipPlane.constant : 0, on ? clipPlane.normal.x + 2 * clipPlane.normal.y + 4 * clipPlane.normal.z : 0]);
   updateEdges();
   renderer.render(scene, camera);
 }

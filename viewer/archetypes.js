@@ -313,7 +313,7 @@ export const ARCHETYPES = [
       width: num('Width', 32, 18, 48, 1, 'the shelf span: over about 30in a 3/4in shelf sags'),
       depth: num('Depth', 11, 6, 16, 0.5, `${PIECES.bookcase.note}`),
       thickness: num('Stock thickness', 0.75, 0.5, 1.25, 0.0625),
-      shelves: num('Shelves between', 3, 1, 8, 1),
+      shelves: num('Interior shelves', 3, 0, 8, 1),
       backThickness: num('Plywood back', 0.25, 0, 0.75, 0.0625, '0 for none'),
     },
     species: maple,

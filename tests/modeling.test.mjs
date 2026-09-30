@@ -62,3 +62,24 @@ test('history restores geometry, supports redo, and drops redo after a new edit'
   assert.equal(h.canRedo, false);
   assert.equal(h.undo().parts[0].size[0], 10);
 });
+
+test('volumetric grain is continuous across faces and stays fixed when a board rotates or moves', async () => {
+  const THREE = await import('three');
+  const { grainCoordinates, grainSeed } = await import('../viewer/solidwood.js');
+  const box = new THREE.BoxGeometry(20, 5, 1).toNonIndexed();
+  const seed = grainSeed('board:0');
+  grainCoordinates(box, [[1, 0, 0], [0, 1, 0], [0, 0, 1]], [0, 0, 0], seed);
+  const expected = [...box.attributes.woodPosition.array];
+  const seen = new Map();
+  for (let i = 0; i < box.attributes.position.count; i++) {
+    const position = [...box.attributes.position.array.slice(i * 3, i * 3 + 3)].join(',');
+    const grain = expected.slice(i * 3, i * 3 + 3);
+    if (seen.has(position)) assert.deepEqual(grain, seen.get(position));
+    seen.set(position, grain);
+  }
+  box.rotateZ(Math.PI / 2).translate(12, 3, -5);
+  grainCoordinates(box, [[0, 1, 0], [-1, 0, 0], [0, 0, 1]], [12, 3, -5], seed);
+  [...box.attributes.woodPosition.array].forEach((v, i) => assert.ok(Math.abs(v - expected[i]) < 1e-5));
+  grainCoordinates(box, [[0, 1, 0], [-1, 0, 0], [0, 0, 1]], [12, 3, -5], grainSeed('board:1'));
+  assert.notDeepEqual([...box.attributes.woodPosition.array], expected, 'copies get distinct sections of wood');
+});
