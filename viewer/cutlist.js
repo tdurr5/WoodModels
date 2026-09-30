@@ -168,7 +168,7 @@ export function renderCutList(container, rows, config, h) {
         <div class="cl-model-btns">
           <button id="clBuild" class="primary" title="Step-by-step build guide for the shop: one part at a time, big, with the model assembling as you go">▶ Build</button>
           ${h.onSetup ? '<button id="clSetup" title="Name, which materials are wood, which way is front">Set up</button>' : ''}
-          <button id="clDesign" title="Design your own piece: type the sizes, see it built, get its cut list">✎ Design</button>
+          <button id="clDesign" title="Design your own piece: place, snap and size boards, then get its cut list">✎ Design</button>
           <button id="clShare" title="Open this on your phone, or send the shopping list">Share</button>
           <button id="clLibrary" title="Upload a model (3D Warehouse Collada / KMZ) or switch models (M)">Models</button>
         </div>

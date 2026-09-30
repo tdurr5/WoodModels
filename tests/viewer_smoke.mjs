@@ -1258,6 +1258,7 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     check(await p2.locator('#designer [data-arch="stool"]').isVisible(), 'it offers pieces to start from');
 
     await p2.locator('#designer [data-arch="dining-table"]').click();
+    await p2.locator('#designer [data-step=size]').click();
     await p2.waitForTimeout(400);
     const partNames = await p2.locator('#designer .dz-part-head b').allInnerTexts();
     check(partNames.join(',') === 'Top,Leg,Apron, long,Apron, short', `a table arrives with its parts (${partNames.join(', ')})`);
@@ -1284,16 +1285,16 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     check(/32-1\/2"/.test(apron), `the aprons follow the top (${apron.replace(/\n/g, ' ')})`);
     await p2.locator('#designer .dz-param[data-key="height"]').fill('34');
     await p2.locator('.dz-param[data-key=height]').press('Tab');
-    await p2.locator('[data-step=review]').click();
+    await p2.locator('button[data-step=review]').click();
     await p2.waitForTimeout(400);
     const review = await p2.locator('#designer .dz-review').innerText();
     check(/worth changing/.test(review), `the review runs while you type (${review.trim()})`);
     await p2.locator('#designer .dz-review details').evaluate((d) => { d.open = true; });
     check(/usually 29-30in/.test(await p2.locator('#designer .dz-review').innerText()), 'and says a dining table is 29-30in');
-    await p2.locator('[data-step=size]').click();
+    await p2.locator('button[data-step=size]').click();
     await p2.locator('#designer .dz-param[data-key="height"]').fill('29.5');
     await p2.locator('.dz-param[data-key=height]').press('Tab');
-    await p2.locator('[data-step=review]').click();
+    await p2.locator('button[data-step=review]').click();
     await p2.waitForTimeout(400);
 
     await p2.locator('#designer .dz-title').fill('Test table');
@@ -1334,10 +1335,10 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     check((await p2.locator('#designer .dz-part-head b').allInnerTexts()).length === 4, 'with its parts');
 
     // Overall sizing cannot silently discard a custom part edit.
-    await p2.locator('[data-step=parts]').click();
+    await p2.locator('button[data-step=parts]').click();
     await p2.locator('.dz-part-head').first().click();
     await p2.locator('.dz-f[data-f=name]').fill('Custom top');
-    await p2.locator('[data-step=size]').click();
+    await p2.locator('button[data-step=size]').click();
     p2.removeAllListeners('dialog');
     p2.once('dialog', (d) => d.dismiss());
     await p2.locator('.dz-param[data-key=topWidth]').fill('45');
@@ -1356,7 +1357,7 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     // Editing a saved project updates it atomically in place.
     const originalUrl = p2.url();
     await p2.locator('.dz-title').fill('Test table');
-    await p2.locator('[data-step=review]').click();
+    await p2.locator('button[data-step=review]').click();
     await Promise.all([p2.waitForNavigation(), p2.locator('.dz-save').click()]);
     await loaded();
     check(p2.url() === originalUrl, 'editing keeps the same project identity');
@@ -1368,7 +1369,7 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     await p2.locator('#libBlankDesign').click();
     await p2.locator('.dz-add').click();
     await p2.locator('.dz-title').fill('Scrap project');
-    await p2.locator('[data-step=review]').click();
+    await p2.locator('button[data-step=review]').click();
     await p2.locator('.dz-save').click();
     await p2.waitForURL((url) => url.href !== originalUrl);
     await loaded();

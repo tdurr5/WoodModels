@@ -1,9 +1,6 @@
-// The designer: build your own piece, in numbers rather than by dragging.
-//
-// Dragging in 3D is how you end up with a 46-3/8in part. Everything here is
-// typed or picked: a size, a position, which way the grain runs, what it
-// joins. The preview redraws as you type and the design review runs on every
-// change, so the woodworking rules arrive while you can still act on them.
+// The designer: direct 3D manipulation with an exact part inspector.
+// Transform handles and point snapping edit the same design that the
+// parameter controls, joinery editor and woodworking review use.
 //
 // Saving compiles the design (design.js) into the same six data files an
 // uploaded model has, so the piece you drew gets the cut list, the cutting
@@ -16,6 +13,8 @@ import {
 import { ARCHETYPES, buildArchetype, archetype, defaultParams } from './archetypes.js';
 import { reviewModel } from './review.js';
 import { reviewHtml } from './designreview.js';
+import { DesignHistory, pieceKey } from './modeling.js';
+import { initDesignControls } from './designcontrols.js';
 
 const AXIS_NAMES = { x: 'side to side', y: 'up', z: 'front to back' };
 const AXIS_OPTIONS = ['x', 'y', 'z', '-x', '-y', '-z'];
@@ -23,7 +22,7 @@ const JOINT_CHOICES = ['mortise-tenon', 'through-tenon', 'round-tenon', 'dado', 
 
 // ---------- the panel ----------
 
-export function initDesigner({ THREE, scene, frame, redrawScene, onSave, getUnits = () => 'in16', onOpenChange }) {
+export function initDesigner({ THREE, TransformControls, canvas, orbit, getCamera, scene, frame, frameSelection = frame, redrawScene, onSave, getUnits = () => 'in16', onOpenChange }) {
   const el = document.createElement('div');
   el.id = 'designer';
   document.getElementById('app').appendChild(el);
@@ -36,16 +35,39 @@ export function initDesigner({ THREE, scene, frame, redrawScene, onSave, getUnit
   let design = null;
   let source = null;        // the archetype it came from, if any
   let openPart = null;      // the part whose editor is unfolded
-  let selected = null;      // highlighted in the preview
   let dirty = false;
   let redrawTimer = null;
   let step = 'size';
   let draftKey = '';
   let draft = null;
   let draftStatus = '';
+  const history = new DesignHistory();
+  const tools = initDesignControls({
+    THREE, TransformControls, scene, canvas, orbit, getCamera, history,
+    getDesign: () => design, getMeshes: () => group.children.filter((child) => child.isMesh),
+    redraw: redrawScene, onFrame: frameSelection,
+    onSelect: (keys) => {
+      const first = (design?.parts || []).find((part) => part.instances.some((_, i) => keys.has(pieceKey(part.id, i))));
+      openPart = first?.id || null; step = 'parts'; render(); redraw();
+    },
+    onEdit: (live) => {
+      clearTimeout(redrawTimer);
+      if (!live) { dirty = true; rememberDraft(); render(); }
+      redraw();
+    },
+    onUndo: () => restore(history.undo()), onRedo: () => restore(history.redo()),
+  });
+
+  function restore(value) {
+    if (value === undefined || value === null) return;
+    design = value; source = archetype(design.from);
+    dirty = true; rememberDraft(); render(); redraw();
+  }
+
 
   function rememberDraft() {
     if (!design || !dirty) return;
+    if (history.past.at(-1) === 'null') history.reset(design); else history.record(design);
     try {
       localStorage.setItem(draftKey, JSON.stringify(design));
       draftStatus = 'Draft saved in this browser';
@@ -69,11 +91,12 @@ export function initDesigner({ THREE, scene, frame, redrawScene, onSave, getUnit
     draftStatus = '';
     try { draft = JSON.parse(localStorage.getItem(draftKey)); } catch { /* unavailable */ }
     design = existing ? structuredClone(existing) : options.blank && !draft ? emptyDesign() : null;
-    step = design && !design.from ? 'parts' : 'size';
+    step = design ? 'parts' : 'size';
     source = design?.from ? archetype(design.from) : null;
     openPart = null;
-    selected = null;
     dirty = false;
+    history.reset(design);
+    tools.setOpen(true);
     el.classList.add('open');
     group.visible = true;
     onOpenChange?.(true);
@@ -83,6 +106,7 @@ export function initDesigner({ THREE, scene, frame, redrawScene, onSave, getUnit
 
   function close() {
     clearTimeout(redrawTimer);
+    tools.setOpen(false);
     el.classList.remove('open');
     group.visible = false;
     clearPreview();
@@ -113,10 +137,12 @@ export function initDesigner({ THREE, scene, frame, redrawScene, onSave, getUnit
       g.computeVertexNormals();
       g.computeBoundingBox();
       const colour = design.materials?.[solid.part.material]?.color || '#d9b26a';
-      const on = selected === solid.part.id;
+      const instanceIndex = solid.part.instances.indexOf(solid.inst);
+      const on = tools.selection().has(pieceKey(solid.part.id, instanceIndex));
       const mesh = new THREE.Mesh(g, new THREE.MeshStandardMaterial({
         color: new THREE.Color(on ? '#ffb454' : colour), roughness: 0.75, metalness: 0,
       }));
+      mesh.userData = { partId: solid.part.id, instanceIndex, solid };
       mesh.castShadow = mesh.receiveShadow = true;
       group.add(mesh);
       const edges = new THREE.LineSegments(
@@ -129,6 +155,7 @@ export function initDesigner({ THREE, scene, frame, redrawScene, onSave, getUnit
     if (fit && box && frame) {
       frame(new THREE.Box3(new THREE.Vector3(...box.min), new THREE.Vector3(...box.max)));
     }
+    tools.sync();
     // The viewer only draws when something changes, and this is something.
     redrawScene?.();
   }
@@ -154,6 +181,7 @@ export function initDesigner({ THREE, scene, frame, redrawScene, onSave, getUnit
     el.innerHTML = design ? designHtml() : startHtml();
     el.dataset.step = step;
     bind();
+    tools.mount(el.querySelector('.dz-tools-mount'));
     const body = el.querySelector('.dz-body');
     if (body) body.scrollTop = scroll;
     if (focus) el.querySelector(`.dz-param[data-key="${focus}"]`)?.focus();
@@ -180,8 +208,9 @@ export function initDesigner({ THREE, scene, frame, redrawScene, onSave, getUnit
         <button class="dz-close" title="Close (Esc)">×</button>
       </div>
       <nav class="dz-steps" aria-label="Design steps">
-        ${[['size', '1 · Size'], ['parts', '2 · Parts & joints'], ['review', '3 · Review']].map(([key, label]) => `<button data-step="${key}" aria-current="${step === key ? 'step' : 'false'}">${label}</button>`).join('')}
+        ${[['parts', 'Model'], ['size', 'Dimensions'], ['review', 'Review']].map(([key, label]) => `<button data-step="${key}" aria-current="${step === key ? 'step' : 'false'}">${label}</button>`).join('')}
       </nav>
+      <div class="dz-tools-mount"></div>
       <div class="dz-body">
         ${draftHtml()}
         <section class="dz-stage dz-stage-size">
@@ -219,7 +248,7 @@ export function initDesigner({ THREE, scene, frame, redrawScene, onSave, getUnit
   }
 
   function partsStageHtml() {
-    return `<p class="muted small">Adjust individual pieces and their joints. Positions locate the centre of each piece, in inches.</p>${partsHtml()}${jointsHtml()}`;
+    return `<p class="muted small">Adjust individual pieces and their joints. Click pieces in 3D and drag the handles. Shift-click selects more. The fields below show exact sizes and centre positions in inches.</p>${partsHtml()}${jointsHtml()}`;
   }
 
   function partsHtml() {
@@ -264,10 +293,10 @@ export function initDesigner({ THREE, scene, frame, redrawScene, onSave, getUnit
             <span class="dz-place-n">${i + 1}</span>
             ${['x', 'y', 'z'].map((ax, k) => `<label>${ax}<input type="number" step="0.25" class="dz-f" data-f="at${k}" value="${round(inst.at?.[k] ?? 0)}" /></label>`).join('')}
             <label title="Which way its length runs - and its grain with it">length runs
-              <select class="dz-f" data-f="along">${AXIS_OPTIONS.map((a) => `<option value="${a}"${a === (inst.along || 'x') ? ' selected' : ''}>${a}${AXIS_NAMES[a.replace('-', '')] ? ` (${AXIS_NAMES[a.replace('-', '')]})` : ''}</option>`).join('')}</select>
+              <select class="dz-f" data-f="along">${Array.isArray(inst.along) ? '<option value="custom" selected>Custom rotation</option>' : ''}${AXIS_OPTIONS.map((a) => `<option value="${a}"${a === (inst.along || 'x') ? ' selected' : ''}>${a}${AXIS_NAMES[a.replace('-', '')] ? ` (${AXIS_NAMES[a.replace('-', '')]})` : ''}</option>`).join('')}</select>
             </label>
             <label title="Which way its thickness runs">thickness
-              <select class="dz-f" data-f="up">${AXIS_OPTIONS.map((a) => `<option value="${a}"${a === (inst.up || 'y') ? ' selected' : ''}>${a}</option>`).join('')}</select>
+              <select class="dz-f" data-f="up">${Array.isArray(inst.up) ? '<option value="custom" selected>Custom rotation</option>' : ''}${AXIS_OPTIONS.map((a) => `<option value="${a}"${a === (inst.up || 'y') ? ' selected' : ''}>${a}</option>`).join('')}</select>
             </label>
             <button class="dz-x" data-act="unplace" title="Remove this one">×</button>
           </div>`).join('')}
@@ -326,7 +355,7 @@ export function initDesigner({ THREE, scene, frame, redrawScene, onSave, getUnit
     el.querySelector('.dz-next')?.addEventListener('click', () => { step = step === 'size' ? 'parts' : 'review'; render(); });
     el.querySelector('.dz-resume')?.addEventListener('click', () => {
       design = structuredClone(draft); draft = null; source = archetype(design.from);
-      dirty = true; step = source ? 'size' : 'parts'; render(); redraw({ fit: true });
+      history.reset(design); dirty = true; rememberDraft(); step = 'parts'; render(); redraw({ fit: true });
     });
     el.querySelector('.dz-discard')?.addEventListener('click', () => {
       try { localStorage.removeItem(draftKey); } catch { /* unavailable */ }
@@ -340,7 +369,7 @@ export function initDesigner({ THREE, scene, frame, redrawScene, onSave, getUnit
       const key = b.dataset.arch;
       design = key ? { ...buildArchetype(key), from: key } : emptyDesign();
       source = key ? archetype(key) : null;
-      dirty = true; draft = null; step = source ? 'size' : 'parts';
+      dirty = true; draft = null; step = 'parts';
       rememberDraft();
       render();
       redraw({ fit: true });
@@ -377,7 +406,7 @@ export function initDesigner({ THREE, scene, frame, redrawScene, onSave, getUnit
       const part = newPart(design);
       design.parts.push(part);
       openPart = part.id;
-      selected = part.id;
+      tools.select([pieceKey(part.id, 0)], false);
       design.customized = true; dirty = true; rememberDraft();
       render();
       redraw({ fit: true });
@@ -391,7 +420,7 @@ export function initDesigner({ THREE, scene, frame, redrawScene, onSave, getUnit
     if (!part) return;
     node.querySelector('[data-act="toggle"]').addEventListener('click', () => {
       openPart = openPart === part.id ? null : part.id;
-      selected = openPart;
+      tools.select(openPart ? [pieceKey(part.id, 0)] : [], false);
       render();
       redraw();
     });
@@ -404,7 +433,7 @@ export function initDesigner({ THREE, scene, frame, redrawScene, onSave, getUnit
         else if (key.startsWith('at') && inst) {
           inst.at = [...(inst.at || [0, 0, 0])];
           inst.at[Number(key.slice(2))] = Number(input.value) || 0;
-        } else if (inst) inst[key] = input.value;
+        } else if (inst && input.value !== 'custom') { inst[key] = input.value; if (key === 'along' || key === 'up') delete inst.tilt; }
         else if (key === 'name' || key === 'group' || key === 'material') part[key] = input.value;
         design.customized = true;
         changed();
@@ -434,6 +463,7 @@ export function initDesigner({ THREE, scene, frame, redrawScene, onSave, getUnit
       copy.name = `${part.name} copy`;
       design.parts.push(copy);
       openPart = copy.id;
+      tools.select([pieceKey(copy.id, 0)], false);
       design.customized = true; dirty = true; rememberDraft();
       render();
       redraw();
@@ -492,10 +522,11 @@ export function initDesigner({ THREE, scene, frame, redrawScene, onSave, getUnit
   // Esc closes; typing never reaches the viewer's one-key shortcuts.
   el.addEventListener('keydown', (e) => {
     e.stopPropagation();
+    if (tools.keydown(e)) return;
     if (e.key === 'Escape' && !/^(INPUT|SELECT)$/.test(e.target.tagName)) requestClose();
   });
 
-  return { open, close, requestClose, isOpen, current: () => design };
+  return { open, close, requestClose, isOpen, tools, keydown: tools.keydown, syncCamera: tools.sync, current: () => design };
 }
 
 const round = (v) => Math.round(v * 1000) / 1000;

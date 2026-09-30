@@ -128,6 +128,7 @@ function setOrtho(on) {
   camera = next;
   controls.object = camera;
   controls.update();
+  designer?.syncCamera();
   mover.camera = camera; // (only switched by you, long after startup)
   $('orthoBtn').classList.toggle('on', on);
 }
@@ -1184,7 +1185,7 @@ function stepTween(now) {
 
 function focusBox() {
   if (designer?.isOpen()) {
-    const box = new THREE.Box3().setFromObject(scene.getObjectByName('designPreview'));
+    const box = designer.tools.bounds();
     if (!box.isEmpty()) return box;
   }
   if (current && current.box) return current.box;
@@ -1194,7 +1195,9 @@ function focusBox() {
 }
 
 function setView(key) {
-  const v = config.views?.[key];
+  const v = designer?.isOpen()
+    ? ({ iso: { dir: [0.7, 0.5, 0.7] }, front: { dir: [0, 0, 1] }, side: { dir: [-1, 0, 0] }, top: { dir: [0, 1, 0.0001] } })[key]
+    : config.views?.[key];
   if (!v) return;
   frameBox(focusBox(), v.dir);
   // straight-on elevations/plans read best without perspective
@@ -1852,10 +1855,11 @@ function openDesigner({ fresh = false, blank = false } = {}) {
   editingDesign = !fresh && !!(LOCAL_ID && config.design);
   if (!designer) {
     designer = initDesigner({
-      THREE,
+      THREE, TransformControls, canvas: renderer.domElement, orbit: controls, getCamera: () => camera,
       scene,
       getUnits: () => settings().units,
       frame: (box) => { stage.fit(box, config.views?.iso?.dir); frameBox(box, config.views?.iso?.dir || [0.7, 0.5, 0.7], false); },
+      frameSelection: (box) => frameBox(box, [0.7, 0.5, 0.7], false),
       redrawScene: () => requestRender(),
       onOpenChange: (open) => {
         if (model) model.visible = !open;
@@ -2692,7 +2696,7 @@ function processHover() {
 }
 
 // ---------- toolbar / controls wiring ----------
-$('resetBtn').addEventListener('click', () => { clearSelection(); setExplode(0); frameBox(focusBox(), config.views?.iso?.dir); });
+$('resetBtn').addEventListener('click', () => { if (designer?.isOpen()) designer.tools.select([]); clearSelection(); setExplode(0); frameBox(focusBox(), config.views?.iso?.dir); });
 $('wireBtn').addEventListener('click', () => setWireframe(!wireOn));
 $('isolateBtn').addEventListener('click', () => updateSettings({ isolate: !settings().isolate }));
 $('orthoBtn').addEventListener('click', () => { settingsOrthoAuto = false; setOrtho(!camera.isOrthographicCamera); });
@@ -2995,6 +2999,7 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   if (designer?.isOpen()) {
+    if (designer.keydown(e)) return;
     if (e.key === 'Escape') designer.requestClose();
     else if (/^[1-9]$/.test(e.key)) {
       const key = Object.keys(config.views || {})[+e.key - 1];
@@ -3128,5 +3133,6 @@ window.__viewer = {
   outlineOf: (m) => meshInfo.get(m)?.edges.length / 6 || 0, // a part's outline segments
   threadsOf: (m) => meshInfo.get(m)?.threads || null,
   missingHoles: () => missingHoles.map((h) => ({ ...h, partName: rowByMeshName.get(h.part)?.name, bolt: rowByMeshName.get(h.shank)?.name })),
+  designer: () => designer,
   outlinesDrawn: () => Object.fromEntries(Object.entries(edgeLayers).map(([k, l]) => [k, (l.geometry.attributes.position?.count || 0) / 2])),
 };
