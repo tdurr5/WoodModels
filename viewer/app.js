@@ -23,7 +23,7 @@ import { initDiagramModal, computeLayouts, layoutsHTML, STOCK_DEFAULTS, shopping
 import { initShare } from './share.js';
 import { buildTemplate, parseMeasured, printCorrection } from './template.js';
 import { initLibrary, modelZip } from './library.js';
-import { getModelFiles, getModelMeta, lastOpened, rememberOpened, putModelFile, saveModel, addPhoto, listPhotos, deletePhoto, setThumbnail } from './modelstore.js';
+import { getModelFiles, getModelMeta, lastOpened, rememberOpened, putModelFile, saveModel, replaceModel, addPhoto, listPhotos, deletePhoto, setThumbnail } from './modelstore.js';
 import { obbFromDims, partsTouch, findOverlaps, findButts, applyJoins, endJoints, pointInObb } from './geometry.js';
 import { cutFeatures } from './features.js';
 import { renderReview, reviewPrintHtml } from './designreview.js';
@@ -327,10 +327,6 @@ async function init() {
     library.openSetup(LOCAL_ID);
   }
   else if (!settings().seenIntro && !seenIntroAnywhere()) $('introTip').style.display = 'block';
-  // A save reloads the page; carry on designing where you left off.
-  try {
-    if (sessionStorage.getItem(DESIGNER_OPEN)) { sessionStorage.removeItem(DESIGNER_OPEN); if (config.design) openDesigner(); }
-  } catch { /* private window */ }
   scheduleThumbnail();
 }
 
@@ -380,6 +376,7 @@ const share = initShare({
 // Model library (uploads). Opening a model reloads the page on it, so every
 // model starts from a clean scene.
 const library = initLibrary({
+  onNewDesign: (blank) => openDesigner({ fresh: true, blank }),
   current: LOCAL_ID ? `local:${LOCAL_ID}` : '',
   builtIn: {
     get title() { return builtInTitle; },
@@ -1186,6 +1183,10 @@ function stepTween(now) {
 }
 
 function focusBox() {
+  if (designer?.isOpen()) {
+    const box = new THREE.Box3().setFromObject(scene.getObjectByName('designPreview'));
+    if (!box.isEmpty()) return box;
+  }
   if (current && current.box) return current.box;
   const b = new THREE.Box3();
   meshes.forEach((m) => { if (m.visible) b.expandByObject(m); });
@@ -1846,8 +1847,9 @@ function renderModelCheck() {
 // drew gets a cut list, cutting diagrams and templates without a line of
 // special-case code.
 let designer = null;
-const DESIGNER_OPEN = 'woodmodels:designer-open';
-function openDesigner() {
+let editingDesign = false;
+function openDesigner({ fresh = false, blank = false } = {}) {
+  editingDesign = !fresh && !!(LOCAL_ID && config.design);
   if (!designer) {
     designer = initDesigner({
       THREE,
@@ -1857,7 +1859,14 @@ function openDesigner() {
       redrawScene: () => requestRender(),
       onOpenChange: (open) => {
         if (model) model.visible = !open;
+        Object.values(edgeLayers).forEach((layer) => { layer.visible = !open; });
+        if (open) {
+          clearSelection();
+          measure.cancel();
+          hoverTip.style.display = 'none';
+        }
         document.body.classList.toggle('designing', open);
+        resize();
         if (!open) {
           stage.fit(modelBox, config.views?.iso?.dir);
           frameBox(modelBox, config.views?.iso?.dir || [0.7, 0.5, 0.7], false);
@@ -1866,7 +1875,7 @@ function openDesigner() {
       onSave: saveDesign,
     });
   }
-  designer.open(config.design || null);
+  designer.open(fresh ? null : config.design || null, { blank, draftKey: editingDesign ? `woodmodels:design-draft:${LOCAL_ID}` : 'woodmodels:design-draft:new' });
 }
 
 // A design already open as a model is updated in place, so its ticks, notes
@@ -1875,14 +1884,12 @@ function openDesigner() {
 // is what makes the cut list, the diagrams and the review agree.
 async function saveDesign(out, design) {
   const name = design.title || 'My design';
-  if (LOCAL_ID && config.design) {
-    for (const [file, text] of Object.entries(out.files)) await putModelFile(LOCAL_ID, file, text, { name, parts: out.stats.parts });
-    try { sessionStorage.setItem(DESIGNER_OPEN, '1'); } catch { /* private window */ }
+  if (editingDesign) {
+    await replaceModel(LOCAL_ID, { name, files: out.files, parts: out.stats.parts });
     location.reload();
     return;
   }
   const id = await saveModel({ name, source: 'design', files: out.files, parts: out.stats.parts });
-  try { sessionStorage.setItem(DESIGNER_OPEN, '1'); } catch { /* private window */ }
   location.href = `${location.pathname}?model=${encodeURIComponent(`local:${id}`)}`;
 }
 
@@ -2635,7 +2642,7 @@ function wasDrag(e) {
 }
 
 renderer.domElement.addEventListener('click', (e) => {
-  if (!model || wasDrag(e)) return;
+  if (!model || wasDrag(e) || designer?.isOpen()) return;
   if (measure.handleClick(e)) return;
   const hit = raycastAt(e.clientX, e.clientY, meshes.filter((m) => m.visible));
   if (!hit) { if (current && !build && !merging) clearSelection(); return; }
@@ -2668,7 +2675,7 @@ renderer.domElement.addEventListener('pointerleave', () => { pendingMove = null;
 function processHover() {
   const e = pendingMove;
   pendingMove = null;
-  if (!e || !model) return;
+  if (!e || !model || designer?.isOpen()) return;
   measure.handleMove(e);
   if (measure.mode) { hoverTip.style.display = 'none'; renderer.domElement.style.cursor = 'crosshair'; setHoverRow(null); return; }
   if (moving) { hoverTip.style.display = 'none'; setHoverRow(null); return; } // nothing over the arrows
@@ -2985,6 +2992,14 @@ window.addEventListener('keydown', (e) => {
   const tag = (e.target.tagName || '').toLowerCase();
   if (tag === 'input' || tag === 'select' || tag === 'textarea') {
     if (e.key === 'Escape') e.target.blur();
+    return;
+  }
+  if (designer?.isOpen()) {
+    if (e.key === 'Escape') designer.requestClose();
+    else if (/^[1-9]$/.test(e.key)) {
+      const key = Object.keys(config.views || {})[+e.key - 1];
+      if (key) setView(key);
+    } else if (e.key === 'f') frameBox(focusBox(), null);
     return;
   }
   if (e.ctrlKey || e.metaKey || e.altKey) {

@@ -574,9 +574,40 @@ body.build-mode #dimCard, body.build-mode #bottombar, body.build-mode #introTip 
 .dz-newjoint { display: grid; grid-template-columns: 1fr 0.8fr 1fr; gap: 4px; }
 .dz-review { margin-top: 8px; }
 .dz-review .model-check { font-size: 11.5px; }
-.dz-save { background: var(--blue); color: #fff; border: none; border-radius: 5px; padding: 6px 12px; cursor: pointer; font-weight: 600; }
+.dz-save, .lib-new { background: var(--blue); color: #fff; border: none; border-radius: 5px; padding: 6px 12px; cursor: pointer; font-weight: 600; }
 .dz-save[disabled] { opacity: 0.6; cursor: default; }
 body.designing #dimCard, body.designing #buildPanel, body.designing #partTags, body.designing #introTip { display: none !important; }
 body.designing #toolbar { left: 348px; }
 @media (max-width: 700px) { #designer { width: 100%; border-right: none; } body.designing #toolbar { left: 0; } }
 @media print { #designer { display: none !important; } }
+
+/* Project creation and the guided designer. */
+.lib-create { padding: 16px; border: 1px solid var(--border); border-radius: 10px; margin: 12px 0; background: var(--input-bg); }
+.lib-create h3 { margin: 0; font-size: 17px; }
+.lib-create-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.dz-steps { display: flex; padding: 10px; gap: 4px; border-bottom: 1px solid var(--border); }
+.dz-steps button { flex: 1; padding: 9px 3px; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); color: var(--muted); cursor: pointer; }
+.dz-steps button[aria-current="step"] { color: var(--text); border-color: var(--blue); font-weight: 700; }
+.dz-stage { display: none; }
+#designer[data-step="size"] .dz-stage-size, #designer[data-step="parts"] .dz-stage-parts, #designer[data-step="review"] .dz-stage-review { display: block; }
+#designer:not([data-step="review"]) .dz-save, #designer[data-step="review"] .dz-next { display: none; }
+.dz-foot { flex-wrap: wrap; padding: 12px; }
+.dz-foot > div { flex-basis: 100%; }
+.dz-draft { padding: 12px; margin-bottom: 12px; border: 1px solid var(--blue); border-radius: 6px; }
+.dz-draft > div { margin-top: 8px; }
+.dz-draft-status { margin-top: 5px; }
+@media (max-width: 700px) {
+  #designer { top: auto; height: 55%; border-top: 1px solid var(--border); }
+  body.designing #toolbar { top: 0; }
+  .dz-place { grid-template-columns: 18px repeat(3, minmax(0, 1fr)); }
+  .dz-grid input, .dz-place input, .dz-place select { min-width: 0; width: 100%; box-sizing: border-box; }
+}
+body.designing #sidebar, body.designing #sidebarToggle, body.designing #bottombar { display: none; }
+body.designing #viewport { margin-left: 340px; }
+body.designing #toolbar { left: 8px; }
+@media (max-width: 700px) {
+  body.designing #viewport { margin-left: 0; flex: none; width: 100%; height: 45%; }
+  body.designing #toolbar { max-height: 80px; overflow-y: auto; }
+}
+
+body.designing #isolateBtn, body.designing #tagsBtn, body.designing #wireBtn, body.designing #measureDistBtn, body.designing #measureAngleBtn, body.designing #measureBevelBtn, body.designing #clearMeasureBtn { display: none; }

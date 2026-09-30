@@ -14,7 +14,7 @@ self.addEventListener('fetch', (e) => {
   e.respondWith((async () => {
     const cache = await caches.open(CACHE);
     try {
-      const res = await fetch(req);
+      const res = await fetch(req, { cache: 'no-cache' });
       // keep the worker alive until the copy is stored (scene.obj is large)
       if (res.ok) e.waitUntil(cache.put(req, res.clone()));
       return res;

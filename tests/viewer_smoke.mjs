@@ -1252,7 +1252,8 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     await loaded();
     await p2.locator('#introClose').click();
 
-    await p2.locator('#clDesign').click();
+    await p2.locator('#clLibrary').click();
+    await p2.locator('#libNewDesign').click();
     check(await p2.locator('#designer.open').isVisible(), 'Design opens the designer');
     check(await p2.locator('#designer [data-arch="stool"]').isVisible(), 'it offers pieces to start from');
 
@@ -1268,7 +1269,7 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
       const info = window.__viewer.renderer.info.render;
       const before = info.frame;
       document.querySelector('#designer .dz-param[data-key="topLength"]').value = '72';
-      document.querySelector('#designer .dz-param[data-key="topLength"]').dispatchEvent(new Event('input', { bubbles: true }));
+      document.querySelector('#designer .dz-param[data-key="topLength"]').dispatchEvent(new Event('change', { bubbles: true }));
       await new Promise((r) => setTimeout(r, 500));
       return info.frame - before;
     });
@@ -1277,16 +1278,22 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
 
     // A number you change rewrites the piece, and the review follows.
     await p2.locator('#designer .dz-param[data-key="topWidth"]').fill('44');
+    await p2.locator('.dz-param[data-key=topWidth]').press('Tab');
     await p2.waitForTimeout(400);
     const apron = await p2.locator('#designer .dz-part', { hasText: 'Apron, short' }).innerText();
     check(/32-1\/2"/.test(apron), `the aprons follow the top (${apron.replace(/\n/g, ' ')})`);
     await p2.locator('#designer .dz-param[data-key="height"]').fill('34');
+    await p2.locator('.dz-param[data-key=height]').press('Tab');
+    await p2.locator('[data-step=review]').click();
     await p2.waitForTimeout(400);
     const review = await p2.locator('#designer .dz-review').innerText();
     check(/worth changing/.test(review), `the review runs while you type (${review.trim()})`);
     await p2.locator('#designer .dz-review details').evaluate((d) => { d.open = true; });
     check(/usually 29-30in/.test(await p2.locator('#designer .dz-review').innerText()), 'and says a dining table is 29-30in');
+    await p2.locator('[data-step=size]').click();
     await p2.locator('#designer .dz-param[data-key="height"]').fill('29.5');
+    await p2.locator('.dz-param[data-key=height]').press('Tab');
+    await p2.locator('[data-step=review]').click();
     await p2.waitForTimeout(400);
 
     await p2.locator('#designer .dz-title').fill('Test table');
@@ -1326,10 +1333,67 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     check((await p2.locator('#designer .dz-title').inputValue()) === 'Test table', 'the design is kept with the model and opens again');
     check((await p2.locator('#designer .dz-part-head b').allInnerTexts()).length === 4, 'with its parts');
 
+    // Overall sizing cannot silently discard a custom part edit.
+    await p2.locator('[data-step=parts]').click();
+    await p2.locator('.dz-part-head').first().click();
+    await p2.locator('.dz-f[data-f=name]').fill('Custom top');
+    await p2.locator('[data-step=size]').click();
+    p2.removeAllListeners('dialog');
+    p2.once('dialog', (d) => d.dismiss());
+    await p2.locator('.dz-param[data-key=topWidth]').fill('45');
+    await p2.locator('.dz-param[data-key=topWidth]').press('Tab');
+    check(await p2.locator('.dz-param[data-key=topWidth]').inputValue() === '44', 'cancelling an overall resize keeps the old dimensions');
+    check((await p2.locator('.dz-part-head b').allTextContents()).includes('Custom top'), 'custom part edits survive a cancelled rebuild');
+    p2.on('dialog', (d) => d.accept());
+
+    // Draft recovery survives closing and reopening the editor.
+    await p2.locator('.dz-title').fill('Draft table');
+    await p2.locator('.dz-close').click();
+    await p2.locator('#clDesign').click();
+    await p2.locator('.dz-resume').click();
+    check(await p2.locator('.dz-title').inputValue() === 'Draft table', 'unsaved edits can be resumed');
+
+    // Editing a saved project updates it atomically in place.
+    const originalUrl = p2.url();
+    await p2.locator('.dz-title').fill('Test table');
+    await p2.locator('[data-step=review]').click();
+    await Promise.all([p2.waitForNavigation(), p2.locator('.dz-save').click()]);
+    await loaded();
+    check(p2.url() === originalUrl, 'editing keeps the same project identity');
+    await p2.locator('#clDesign').click();
+
+    // Creating another project must never replace the one being viewed.
+    await p2.locator('.dz-close').click();
+    await p2.locator('#clLibrary').click();
+    await p2.locator('#libBlankDesign').click();
+    await p2.locator('.dz-add').click();
+    await p2.locator('.dz-title').fill('Scrap project');
+    await p2.locator('[data-step=review]').click();
+    await p2.locator('.dz-save').click();
+    await p2.waitForURL((url) => url.href !== originalUrl);
+    await loaded();
+    check(/Scrap project/.test(await p2.title()), 'a blank project opens its own build plan');
+    await p2.locator('#clLibrary').click();
+    await p2.locator('.lib-item', { hasText: 'Test table' }).waitFor();
+    await p2.locator('.lib-item', { hasText: 'Scrap project' }).waitFor();
+    check(await p2.locator('.lib-item', { hasText: 'Test table' }).count() === 1, 'the original project remains in Models');
+    check(await p2.locator('.lib-item', { hasText: 'Scrap project' }).count() === 1, 'the new project is saved separately');
+    await p2.locator('#library .lib-close').click();
+    await p2.locator('#clDesign').click();
     // An empty design is a blank sheet you can add parts to.
     await p2.locator('#designer .dz-close').click();
     await p2.locator('#clDesign').click();
     await p2.waitForTimeout(200);
+    await p2.setViewportSize({ width: 390, height: 844 });
+    await p2.waitForTimeout(300);
+    const layout = await p2.evaluate(() => {
+      const panel = document.getElementById('designer').getBoundingClientRect();
+      const view = document.getElementById('viewport').getBoundingClientRect();
+      return panel.right <= window.innerWidth && panel.bottom <= window.innerHeight + 1
+        && view.bottom <= panel.top + 1 && document.body.scrollWidth <= window.innerWidth;
+    });
+    check(layout, 'phone keeps the preview above the editor without overflow');
+    await p2.screenshot({ path: path.join(OUT, 'designer-phone.png') });
     check(!errs.length, `no page errors in the designer (${errs.join('; ')})`);
   } finally {
     await b2.close();

@@ -39,24 +39,50 @@ export function initDesigner({ THREE, scene, frame, redrawScene, onSave, getUnit
   let selected = null;      // highlighted in the preview
   let dirty = false;
   let redrawTimer = null;
+  let step = 'size';
+  let draftKey = '';
+  let draft = null;
+  let draftStatus = '';
+
+  function rememberDraft() {
+    if (!design || !dirty) return;
+    try {
+      localStorage.setItem(draftKey, JSON.stringify(design));
+      draftStatus = 'Draft saved in this browser';
+    } catch { draftStatus = 'Draft could not be saved — keep this page open'; }
+    const status = el.querySelector('.dz-draft-status');
+    if (status) status.textContent = draftStatus;
+  }
+  function requestClose() {
+    rememberDraft();
+    if (dirty && draftStatus.startsWith('Draft could not') && !window.confirm('Browser storage is unavailable. Close and lose these unsaved changes?')) return;
+    close();
+  }
 
   const f = (v) => formatLength(v, getUnits());
   const isOpen = () => el.classList.contains('open');
 
-  function open(existing = null) {
-    design = existing ? structuredClone(existing) : null;
+  function open(existing = null, options = {}) {
+    clearTimeout(redrawTimer);
+    draftKey = options.draftKey || 'woodmodels:design-draft:new';
+    draft = null;
+    draftStatus = '';
+    try { draft = JSON.parse(localStorage.getItem(draftKey)); } catch { /* unavailable */ }
+    design = existing ? structuredClone(existing) : options.blank && !draft ? emptyDesign() : null;
+    step = design && !design.from ? 'parts' : 'size';
     source = design?.from ? archetype(design.from) : null;
     openPart = null;
     selected = null;
     dirty = false;
     el.classList.add('open');
     group.visible = true;
+    onOpenChange?.(true);
     render();
     redraw({ fit: true });
-    onOpenChange?.(true);
   }
 
   function close() {
+    clearTimeout(redrawTimer);
     el.classList.remove('open');
     group.visible = false;
     clearPreview();
@@ -111,6 +137,7 @@ export function initDesigner({ THREE, scene, frame, redrawScene, onSave, getUnit
   // keeps typing smooth and still feels immediate.
   function changed({ fit = false, rerender = true } = {}) {
     dirty = true;
+    rememberDraft();
     clearTimeout(redrawTimer);
     redrawTimer = setTimeout(() => redraw({ fit }), 60);
     if (rerender) renderSummary();
@@ -125,6 +152,7 @@ export function initDesigner({ THREE, scene, frame, redrawScene, onSave, getUnit
     const focus = keepFocus && document.activeElement?.dataset?.key;
     const scroll = el.querySelector('.dz-body')?.scrollTop || 0;
     el.innerHTML = design ? designHtml() : startHtml();
+    el.dataset.step = step;
     bind();
     const body = el.querySelector('.dz-body');
     if (body) body.scrollTop = scroll;
@@ -132,13 +160,18 @@ export function initDesigner({ THREE, scene, frame, redrawScene, onSave, getUnit
   }
 
   function startHtml() {
-    return `<div class="dz-head"><h2>Design something</h2><button class="dz-close" title="Close (Esc)">×</button></div>
+    return `<div class="dz-head"><h2>New project</h2><button class="dz-close" title="Close (Esc)">×</button></div>
       <div class="dz-body">
-        <p class="muted small">Start from a piece that is already right, then change its numbers. Everything you change is checked as you go, and what you save gets a cut list, a cutting diagram and full-size templates like any other model.</p>
+        <p class="muted small">Choose a starting point. Size it for your space and the wood you have, then open its cut list and build plan. All dimension fields use inches.</p>
+        ${draftHtml()}
         ${ARCHETYPES.map((a) => `<button class="dz-arch" data-arch="${a.key}">
           <b>${escapeHtml(a.name)}</b><span>${escapeHtml(a.what)}</span></button>`).join('')}
-        <button class="dz-arch" data-arch=""><b>Empty</b><span>Start with nothing and add parts one at a time.</span></button>
+        <button class="dz-arch" data-arch=""><b>Blank project</b><span>Start with nothing and add parts one at a time.</span></button>
       </div>`;
+  }
+
+  function draftHtml() {
+    return draft ? `<div class="dz-draft"><b>Unfinished: ${escapeHtml(draft.title || 'Untitled project')}</b><div><button class="dz-resume dz-small">Resume draft</button> <button class="dz-discard dz-small">Discard draft</button></div></div>` : '';
   }
 
   function designHtml() {
@@ -146,29 +179,47 @@ export function initDesigner({ THREE, scene, frame, redrawScene, onSave, getUnit
         <input class="dz-title" value="${escapeHtml(design.title || '')}" aria-label="Design name" />
         <button class="dz-close" title="Close (Esc)">×</button>
       </div>
+      <nav class="dz-steps" aria-label="Design steps">
+        ${[['size', '1 · Size'], ['parts', '2 · Parts & joints'], ['review', '3 · Review']].map(([key, label]) => `<button data-step="${key}" aria-current="${step === key ? 'step' : 'false'}">${label}</button>`).join('')}
+      </nav>
       <div class="dz-body">
-        ${source ? paramsHtml() : ''}
-        ${partsHtml()}
-        ${jointsHtml()}
-        <div class="dz-review"></div>
+        ${draftHtml()}
+        <section class="dz-stage dz-stage-size">
+          <p class="muted small">Dimensions are in inches. Use the actual sizes of your wood; the preview follows your changes.</p>
+          ${source ? paramsHtml() : '<p>Build your project one part at a time in <b>Parts &amp; joints</b>.</p>'}
+          <button class="dz-small dz-restart">Change starting point</button>
+        </section>
+        <section class="dz-stage dz-stage-parts">
+          ${partsStageHtml()}
+        </section>
+        <section class="dz-stage dz-stage-review">
+          <h3>Ready for the shop?</h3>
+          <p class="muted small">Check the findings below, then open your project for its cut list, full-size templates and build steps. You can come back to Design to make changes.</p>
+          <div class="dz-review"></div>
+        </section>
       </div>
       <div class="dz-foot">
-        <span class="dz-count muted small"></span>
-        <button class="dz-save primary">Save &amp; open</button>
+        <div><span class="dz-count muted small"></span><div class="dz-draft-status muted small" role="status">${escapeHtml(draftStatus)}</div></div>
+        <button class="dz-next dz-small">${step === 'size' ? 'Next: parts' : 'Next: review'}</button>
+        <button class="dz-save primary">Open build plan</button>
       </div>`;
   }
 
   function paramsHtml() {
     const p = design.params || {};
-    return `<details class="dz-sec" open><summary>Size</summary>
+    return `<details class="dz-sec" open><summary>Overall dimensions &amp; stock sizes</summary>
       <div class="dz-grid">${Object.entries(source.params).map(([key, spec]) => `
         <label title="${escapeHtml(spec.note || '')}">${escapeHtml(spec.label)}
           <input type="number" class="dz-param" data-key="${key}" value="${p[key] ?? spec.value}"
-            min="${spec.min}" max="${spec.max}" step="${spec.step}" />
+            min="${spec.min}" max="${spec.max}" step="${key === 'shelves' ? 1 : 'any'}" />
         </label>`).join('')}
       </div>
       ${Object.values(source.params).some((s) => s.note) ? `<ul class="dz-notes">${Object.values(source.params).filter((s) => s.note).map((s) => `<li><b>${escapeHtml(s.label)}:</b> ${escapeHtml(s.note)}</li>`).join('')}</ul>` : ''}
     </details>`;
+  }
+
+  function partsStageHtml() {
+    return `<p class="muted small">Adjust individual pieces and their joints. Positions locate the centre of each piece, in inches.</p>${partsHtml()}${jointsHtml()}`;
   }
 
   function partsHtml() {
@@ -270,38 +321,67 @@ export function initDesigner({ THREE, scene, frame, redrawScene, onSave, getUnit
 
   function bind() {
     renderSummary();
-    el.querySelector('.dz-close')?.addEventListener('click', () => {
-      if (!dirty || window.confirm('Close the designer? Anything not saved is lost.')) close();
+    el.querySelector('.dz-close')?.addEventListener('click', requestClose);
+    el.querySelectorAll('[data-step]').forEach((b) => b.addEventListener('click', () => { step = b.dataset.step; render(); }));
+    el.querySelector('.dz-next')?.addEventListener('click', () => { step = step === 'size' ? 'parts' : 'review'; render(); });
+    el.querySelector('.dz-resume')?.addEventListener('click', () => {
+      design = structuredClone(draft); draft = null; source = archetype(design.from);
+      dirty = true; step = source ? 'size' : 'parts'; render(); redraw({ fit: true });
+    });
+    el.querySelector('.dz-discard')?.addEventListener('click', () => {
+      try { localStorage.removeItem(draftKey); } catch { /* unavailable */ }
+      draft = null; render();
+    });
+    el.querySelector('.dz-restart')?.addEventListener('click', () => {
+      rememberDraft(); draft = structuredClone(design); design = null; source = null; render(); clearPreview(); redrawScene?.();
     });
     el.querySelectorAll('[data-arch]').forEach((b) => b.addEventListener('click', () => {
+      if (draft && !window.confirm('Replace the unfinished draft with this starting point?')) return;
       const key = b.dataset.arch;
       design = key ? { ...buildArchetype(key), from: key } : emptyDesign();
       source = key ? archetype(key) : null;
-      dirty = true;
+      dirty = true; draft = null; step = source ? 'size' : 'parts';
+      rememberDraft();
       render();
       redraw({ fit: true });
     }));
-    el.querySelector('.dz-title')?.addEventListener('input', (e) => { design.title = e.target.value; dirty = true; });
+    el.querySelector('.dz-title')?.addEventListener('input', (e) => { design.title = e.target.value; dirty = true; rememberDraft(); });
     el.querySelector('.dz-save')?.addEventListener('click', save);
-    el.querySelector('.dz-add')?.addEventListener('click', () => {
-      const part = newPart(design);
-      design.parts.push(part);
-      openPart = part.id;
-      render();
-      redraw();
-    });
     // Changing an archetype's number rebuilds the piece from it, keeping the
     // name you gave it.
-    el.querySelectorAll('.dz-param').forEach((input) => input.addEventListener('input', () => {
+    el.querySelectorAll('.dz-param').forEach((input) => input.addEventListener('change', () => {
+      if (!input.value || !input.checkValidity()) {
+        window.alert(`Enter ${input.min} to ${input.max}${input.dataset.key === 'shelves' ? ' whole shelves' : ' inches'}. The previous value has been kept.`);
+        input.value = design.params[input.dataset.key];
+        return;
+      }
+      if (design.customized && !window.confirm('Changing overall dimensions rebuilds the starting design and replaces your custom parts and joints. Continue?')) { render(); return; }
       const params = { ...defaultParams(source), ...design.params };
       params[input.dataset.key] = Number(input.value);
       const title = design.title;
       design = { ...buildArchetype(source.key, params), from: source.key, title };
-      dirty = true;
+      dirty = true; rememberDraft();
       clearTimeout(redrawTimer);
       redrawTimer = setTimeout(() => redraw(), 60);
-      render({ keepFocus: true });          // every part's size just changed
+      // Keep the active size field and navigation buttons in place. Replacing
+      // them on blur would swallow the click that committed this value.
+      el.querySelector('.dz-stage-parts').innerHTML = partsStageHtml();
+      bindParts();
+      renderSummary();
     }));
+    bindParts();
+  }
+
+  function bindParts() {
+    el.querySelector('.dz-add')?.addEventListener('click', () => {
+      const part = newPart(design);
+      design.parts.push(part);
+      openPart = part.id;
+      selected = part.id;
+      design.customized = true; dirty = true; rememberDraft();
+      render();
+      redraw({ fit: true });
+    });
     el.querySelectorAll('.dz-part').forEach(bindPart);
     bindJoints();
   }
@@ -326,6 +406,7 @@ export function initDesigner({ THREE, scene, frame, redrawScene, onSave, getUnit
           inst.at[Number(key.slice(2))] = Number(input.value) || 0;
         } else if (inst) inst[key] = input.value;
         else if (key === 'name' || key === 'group' || key === 'material') part[key] = input.value;
+        design.customized = true;
         changed();
         // Keep the row's own summary honest without rebuilding the editor
         // under the cursor.
@@ -336,21 +417,24 @@ export function initDesigner({ THREE, scene, frame, redrawScene, onSave, getUnit
     node.querySelector('[data-act="place"]')?.addEventListener('click', () => {
       const last = part.instances[part.instances.length - 1] || { at: [0, 0, 0], along: 'x', up: 'y' };
       part.instances.push({ ...last, at: [(last.at?.[0] || 0) + part.size[0] + 2, last.at?.[1] || 0, last.at?.[2] || 0] });
+      design.customized = true; dirty = true; rememberDraft();
       render();
       redraw();
     });
     node.querySelectorAll('[data-act="unplace"]').forEach((b) => b.addEventListener('click', () => {
       if (part.instances.length < 2) return;
       part.instances.splice(Number(b.closest('.dz-place').dataset.i), 1);
+      design.customized = true; dirty = true; rememberDraft();
       render();
       redraw();
     }));
     node.querySelector('[data-act="dup"]')?.addEventListener('click', () => {
       const copy = structuredClone(part);
-      copy.id = `${part.id}-${design.parts.length + 1}`;
+      copy.id = newPart(design).id;
       copy.name = `${part.name} copy`;
       design.parts.push(copy);
       openPart = copy.id;
+      design.customized = true; dirty = true; rememberDraft();
       render();
       redraw();
     });
@@ -358,6 +442,7 @@ export function initDesigner({ THREE, scene, frame, redrawScene, onSave, getUnit
       design.parts = design.parts.filter((p) => p !== part);
       design.joints = (design.joints || []).filter((j) => j.from !== part.id && j.into !== part.id);
       openPart = null;
+      design.customized = true; dirty = true; rememberDraft();
       render();
       redraw();
     });
@@ -366,9 +451,10 @@ export function initDesigner({ THREE, scene, frame, redrawScene, onSave, getUnit
   function bindJoints() {
     el.querySelectorAll('.dz-joint[data-j]').forEach((node) => {
       const j = design.joints[Number(node.dataset.j)];
-      node.querySelector('.dz-jtype')?.addEventListener('change', (e) => { j.type = e.target.value; changed(); });
+      node.querySelector('.dz-jtype')?.addEventListener('change', (e) => { j.type = e.target.value; design.customized = true; changed(); });
       node.querySelector('[data-act="unjoin"]')?.addEventListener('click', () => {
         design.joints.splice(Number(node.dataset.j), 1);
+        design.customized = true; dirty = true; rememberDraft();
         render();
         redraw();
       });
@@ -379,6 +465,7 @@ export function initDesigner({ THREE, scene, frame, redrawScene, onSave, getUnit
       if (!from || !into || from === into) return;
       design.joints = design.joints || [];
       design.joints.push({ from, into, end: Number(get('.dz-jend')), type: get('.dz-jtypenew') });
+      design.customized = true; dirty = true; rememberDraft();
       render();
       redraw();
     });
@@ -389,13 +476,15 @@ export function initDesigner({ THREE, scene, frame, redrawScene, onSave, getUnit
     button.disabled = true;
     button.textContent = 'Saving…';
     try {
+      if (!design.title?.trim()) throw new Error('Give your project a name first.');
       const out = compileDesign(design);
       if (!out.stats.parts) throw new Error('Nothing to save yet - add a part first.');
       await onSave(out, design);
+      try { localStorage.removeItem(draftKey); } catch { /* unavailable */ }
       dirty = false;
     } catch (err) {
       button.disabled = false;
-      button.textContent = 'Save & open';
+      button.textContent = 'Open build plan';
       window.alert(err.message || String(err));
     }
   }
@@ -403,10 +492,10 @@ export function initDesigner({ THREE, scene, frame, redrawScene, onSave, getUnit
   // Esc closes; typing never reaches the viewer's one-key shortcuts.
   el.addEventListener('keydown', (e) => {
     e.stopPropagation();
-    if (e.key === 'Escape' && !/^(INPUT|SELECT)$/.test(e.target.tagName)) close();
+    if (e.key === 'Escape' && !/^(INPUT|SELECT)$/.test(e.target.tagName)) requestClose();
   });
 
-  return { open, close, isOpen, current: () => design };
+  return { open, close, requestClose, isOpen, current: () => design };
 }
 
 const round = (v) => Math.round(v * 1000) / 1000;

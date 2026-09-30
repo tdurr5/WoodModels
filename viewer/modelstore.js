@@ -65,6 +65,19 @@ export async function saveModel({ name, source = '', files, parts = 0 }) {
   return id;
 }
 
+// Replace a compiled design atomically: a failed save leaves its old plan intact.
+export async function replaceModel(id, { name, files, parts }) {
+  await tx(['meta', 'files', 'config'], 'readwrite', async (meta, fs, c) => {
+    const previous = await req2p(meta.get(id));
+    if (!previous) throw new Error('Project not found');
+    fs.put(files, id);
+    c.put(files['model.json'], id);
+    delete previous.thumb;
+    delete previous.thumbAt;
+    meta.put({ ...previous, name, parts, updatedAt: Date.now() });
+  });
+}
+
 export async function listModels() {
   const all = await tx(['meta'], 'readonly', (meta) => req2p(meta.getAll()));
   return (all || []).sort((a, b) => b.updatedAt - a.updatedAt);

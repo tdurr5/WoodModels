@@ -195,7 +195,7 @@ export function applySetup(cfg, { title, subtitle, categories, front, labels = {
 
 // ---------- UI ----------
 
-export function initLibrary({ current, onOpen, builtIn }) {
+export function initLibrary({ current, onOpen, builtIn, onNewDesign }) {
   // current: 'local:<id>' | '' (built-in); onOpen(ref) navigates to a model
   const modal = document.getElementById('library');
   const listEl = modal.querySelector('.lib-list');
@@ -218,12 +218,12 @@ export function initLibrary({ current, onOpen, builtIn }) {
     const btn = (act, label, title) => `<button class="card-btn" data-act="${act}" title="${title}">${label}</button>`;
     listEl.innerHTML = row('', escapeHtml(builtIn.title), 'Built-in model', ref0Actions(), builtIn.thumb)
       + (models.length ? models.map((m) => row(`local:${m.id}`, m.name,
-        `${m.parts} parts · uploaded ${new Date(m.createdAt).toLocaleDateString()} · ${escapeHtml(m.source || '')}`,
+        `${m.parts} parts · ${m.source === 'design' ? 'designed' : 'imported'} ${new Date(m.createdAt).toLocaleDateString()} · ${escapeHtml(m.source || '')}`,
         (`local:${m.id}` === current ? '' : btn('open', 'Open', 'Open this model'))
         + btn('setup', 'Set up', 'Title, which materials are wood, which way is front')
         + btn('export', 'Download', 'Save this model as a zip (to keep, share, or add to the repo)')
         + btn('delete', 'Delete', 'Remove from this browser'), m.thumb)).join('')
-        : '<div class="muted small lib-empty">No uploaded models yet.</div>');
+        : '<div class="muted small lib-empty">Your saved projects will appear here.</div>');
     function ref0Actions() { return current === '' ? '' : btn('open', 'Open', 'Open this model'); }
   }
 
@@ -262,6 +262,10 @@ export function initLibrary({ current, onOpen, builtIn }) {
       else render();
     }
   });
+
+  modal.querySelector('#libNewDesign').addEventListener('click', () => { close(); onNewDesign?.(false); });
+  modal.querySelector('#libBlankDesign').addEventListener('click', () => { close(); onNewDesign?.(true); });
+  modal.querySelector('.lib-drop').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); } });
 
   input.addEventListener('change', () => { if (input.files[0]) handleFile(input.files[0]); input.value = ''; });
   modal.querySelector('.lib-drop').addEventListener('click', () => input.click());

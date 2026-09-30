@@ -392,7 +392,8 @@ export function emptyDesign(title = 'My design') {
 
 // A new part, placed clear of everything else so it is visible on arrival.
 export function newPart(design, over = {}) {
-  const n = (design.parts || []).length + 1;
+  let n = (design.parts || []).length + 1;
+  while ((design.parts || []).some((p) => p.id === `part${n}`)) n++;
   const box = designBounds(design);
   return {
     id: `part${n}`,
