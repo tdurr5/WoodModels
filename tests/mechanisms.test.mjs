@@ -90,7 +90,10 @@ test('trays slide only as far as the walls and the other trays let them', () => 
   // with the saw till out, the chisel tray runs to the back wall
   const out = { ...st, 'saw-till': { slide: 0, out: 1 } };
   near(slideLimits(byId['chisel-tray'], mechs, out, boxes)[0], -(boxes['chisel-tray'].min[2] - -15));
-  assert.deepEqual(slideLimits(byId['saw-till'], mechs, st, boxes), [0, 0]); // the saw till doesn't slide
+  // the saw till hangs on the runners by rabbets in its ends: it slides too,
+  // back to the wall and no further forward than the trays in front let it
+  const [sLo, sHi] = slideLimits(byId['saw-till'], mechs, st, boxes);
+  near(sLo, -0.375); near(sHi, 0.38);
 });
 
 test('the plane tray waits for the chisel tray sitting on it, wherever either is slid', () => {

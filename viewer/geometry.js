@@ -241,6 +241,18 @@ export function applyJoins(rawRows, joins, dims, toLabel = (x) => `${x}`) {
 // far side (a through tenon). Ends that stop at another part's surface are
 // butt joints. A: obbFromDims (axes Length, Width, Thickness); tris: A's
 // triangle vertices [x,y,z, ...]; others: [{ name, box }].
+//
+// What goes in isn't always a tenon, and calling it one gets the advice
+// wrong. The shape of the end says which joint it is:
+//   'mitre'    the end is cut at 45° (a moulding or frame meeting at a corner)
+//   'dovetail' faces near the end slope a few degrees off the length: the
+//              flanks of drawn tails or pins (slope: 6 for 1:6)
+//   'corner'   full size, into the end of the other part: a box joint, lap
+//              or rabbet at a corner, drawn as the boards overlapping
+//   'tongue'   full width but thinner: a panel's edge in a groove (rabbeted:
+//              flush with one face, as a chest bottom often is)
+//   'housed'   full size, into the other part's face: a dado
+//   'tenon'    shouldered all round, or on its edges
 export function endJoints(A, tris, others, { tol = 1 / 32, minDepth = 1 / 8 } = {}) {
   const [L, W, T] = A.axes;
   const len = A.half[0] * 2;
@@ -290,11 +302,56 @@ export function endJoints(A, tris, others, { tol = 1 / 32, minDepth = 1 / 8 } = 
       const shouldered = width < fullW - 1 / 16 || thick < fullT - 1 / 16;
       // out the far side: A's end stands proud of B, or is flush with its far face
       const through = t0 > tol || !pointInObb(end.map((c, k) => c + back[k] * -tol * 2), box, 0);
-      best = { name, depth, kind: shouldered ? 'tenon' : 'housed', width, thick, through, proud: t0 > tol ? t0 : 0 };
+      const shape = endShape(tris, end, back, L, depth + tol, W, T);
+      // does A, where it goes in, reach the end of B (a corner) or meet its
+      // middle? Judged on A's whole section: of a mitre, only a sliver overlaps
+      const BL = box.axes[0];
+      const reach = Math.abs(dot(sub(mid, box.center), BL)) + (Math.abs(dot(W, BL)) * fullW + Math.abs(dot(T, BL)) * fullT) / 2;
+      const atCorner = reach >= box.half[0] - tol * 2;
+      let kind;
+      // (a mitre closes a corner: 45° faces in the middle of a part are
+      // something else - a ratchet's teeth, a bevelled stop)
+      if (atCorner && shape.mitre > 0.3 * fullW * fullT) kind = 'mitre';
+      else if (shape.flank > 0.5 * fullT * depth) kind = 'dovetail';
+      else if (!shouldered) kind = atCorner ? 'corner' : 'housed';
+      else if (width >= fullW - 1 / 16 && fullW > fullT * 2) kind = 'tongue';
+      else kind = 'tenon';
+      best = { name, depth, kind, width, thick, through, proud: t0 > tol ? t0 : 0 };
+      if (kind === 'dovetail') { best.slope = Math.max(3, Math.round(1 / Math.tan(Math.asin(shape.flankSin)))); best.pins = shape.pins; }
+      // a tongue flush with one face is a rabbeted edge
+      if (kind === 'tongue') best.rabbeted = (Math.abs(u0 + fullT / 2) < 1 / 32) !== (Math.abs(u1 - fullT / 2) < 1 / 32);
     }
     if (best) out.push({ end: s, ...best });
   }
   return out;
+}
+
+// The faces of a part within `zone` of its end, by how they lie against its
+// length: cut at 45° (a mitre), or sloped a few degrees off it (the flanks
+// of dovetails, 1:5 to 1:10). Square ends and long faces count as neither.
+// Areas are as exported (SketchUp's faces come in back-to-back pairs), which
+// only matters as a ratio.
+function endShape(tris, end, back, L, zone, W, T) {
+  let mitre = 0, flank = 0, sinSum = 0, pins = 0;
+  for (let i = 0; i + 8 < tris.length; i += 9) {
+    const a = [tris[i], tris[i + 1], tris[i + 2]], b = [tris[i + 3], tris[i + 4], tris[i + 5]], c = [tris[i + 6], tris[i + 7], tris[i + 8]];
+    const centroid = [0, 1, 2].map((k) => (a[k] + b[k] + c[k]) / 3);
+    const along = dot(sub(centroid, end), back);
+    if (along < -1e-6 || along > zone) continue;
+    const n = cross(sub(b, a), sub(c, a));
+    const twice = Math.hypot(n[0], n[1], n[2]);
+    if (twice < 1e-9) continue;
+    const k = Math.abs(dot(n, L)) / twice;
+    if (k > 0.5 && k < 0.87) mitre += twice / 2;
+    else if (k > 0.05 && k < 0.35) { flank += twice / 2; sinSum += k * twice / 2; }
+    else if (k < 0.05) {
+      // a pin's flanks run along the length but slope across the thickness
+      const kw = Math.abs(dot(n, W)) / twice, kt = Math.abs(dot(n, T)) / twice;
+      const off = Math.min(kw, kt);
+      if (off > 0.05 && off < 0.35) { flank += twice / 2; sinSum += off * twice / 2; pins += twice / 2; }
+    }
+  }
+  return { mitre, flank, flankSin: flank ? sinSum / flank : 0, pins: pins > flank / 2 };
 }
 
 // The stretch [t0, t1] (t0 >= 0) of the ray p + t*dir that lies inside box

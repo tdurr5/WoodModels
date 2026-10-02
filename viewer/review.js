@@ -23,9 +23,12 @@
 //   touches: [{ key, name, grain, span }],
 //   tenons: [{ into, intoKey, thickness, length, width, through, fromEnd }],
 //   butts:  [{ key, name }],      // ends that only meet another part
+//   inGrooves: [key],             // parts its edges sit in grooves in (a panel)
+//   faceFixed: [key],             // parts it's fastened to face to face (a cleat)
 //   cuts:   [{ kind, depth, through }],
 //   holes:  [{ diameter, fromEnd }],
 //   supportSpan,                  // clear distance between its supports
+//   spanDepth,                    // how deep the span is, if not its width (held along its edges)
 // }
 
 import { formatLength } from './format.js';
@@ -103,6 +106,18 @@ rule('cross-grain', 'movement', (m, c) => {
     const props = p.props || TYPICAL_HARDWOOD;
     const slot = slotAllowance(widest, props, { env: m.env, sawn: p.sawn });
     if (slot.total < 1 / 16) continue;
+    // A panel in grooves - a raised panel in its frame, a chest bottom in its
+    // walls - is the joint built for this: it floats. Slotted screws are the
+    // wrong advice; what matters is that nobody glues it, and that the
+    // grooves it grows into have room.
+    if (crossing.every((x) => p.inGrooves?.includes(x.key))) {
+      out.push(finding(p, 'watch', 'Floating panel',
+        `sits in grooves in ${list(crossing.map((x) => x.name))}, ${c.f(widest)} across its grain.`,
+        `${nameOf(p)} grows and shrinks ${c.f(slot.total)} across its width over a season. In a groove it can - the panel slides and the frame or walls never feel it - as long as nothing pins it. Glued in, it splits or pushes the joints apart.`,
+        `Don't glue it in: at most a dab at the middle of each end to keep it centred. Make it ${c.f(slot.total / 2)} short of the bottom of the grooves at each long edge, so it has room to swell (a little more if you build in a dry winter, a little less in a humid summer).`,
+        crossing.map((x) => x.key)));
+      continue;
+    }
     const severity = slot.total >= 3 / 16 ? 'problem' : 'watch';
     out.push(finding(p, severity, 'Cross-grain joint',
       `is held across its grain by ${list(crossing.map((x) => x.name))}, over about ${c.f(widest)}.`,
@@ -120,6 +135,8 @@ rule('cross-grain', 'movement', (m, c) => {
 rule('tenon-proportions', 'joinery', (m, c) => {
   const out = [];
   for (const p of m.parts) {
+    // the same tenon at both ends of a rail is one thing to fix
+    const seen = new Map();
     for (const t of p.tenons || []) {
       const into = m.byKey.get(t.intoKey);
       const problems = checkTenon({
@@ -127,12 +144,17 @@ rule('tenon-proportions', 'joinery', (m, c) => {
         railThickness: p.dims[2], intoThickness: into?.dims[2], fromEnd: t.fromEnd, round: t.round,
       }, c.f);
       for (const pr of problems) {
-        out.push(finding(p, pr.id === 'tenon-fat' ? 'note' : 'watch', 'Tenon proportions',
+        const k = `${t.intoKey}|${pr.id}|${pr.text}`;
+        if (seen.has(k)) { seen.get(k).n++; continue; }
+        const f = finding(p, pr.id === 'tenon-fat' ? 'note' : 'watch', 'Tenon proportions',
           `has a tenon into ${t.into} that ${pr.text}.`,
-          'A tenon is sized to get the most long-grain glue area it can without weakening either part: a third of the rail thick, at least five times its own thickness long, and no wider than six times its thickness.',
-          capitalise(`${pr.fix}.`), into ? [into.key] : []));
+          'A tenon is sized to get the most long-grain glue area it can without weakening either part: a third of the rail thick, at least five times its own thickness long, and - once it is over 3in wide - no wider than six times its thickness.',
+          capitalise(`${pr.fix}.`), into ? [into.key] : []);
+        seen.set(k, { f, n: 1 });
+        out.push(f);
       }
     }
+    seen.forEach(({ f, n }) => { if (n > 1) f.text = f.text.replace(/\.$/, ', at both ends.'); });
   }
   return out;
 });
@@ -143,6 +165,9 @@ rule('butt-joint', 'joinery', (m) => {
   for (const p of m.parts) {
     if (!p.wood || !(p.butts || []).length) continue;
     if (p.dims[0] < 8) continue;               // a short block is usually captured
+    // A cleat or runner glued and screwed face to face along its length is
+    // held by that long-grain face; its ends just stop against something.
+    if ((p.faceFixed || []).length) continue;
     const conn = p.horizontal ? 'shelf-to-side' : 'rail-to-leg';
     const picks = recommendJoints(conn, { tools: m.tools }).filter((j) => j.key !== 'butt-screw');
     const upright = p.grain && Math.abs(p.grain[1]) > 0.9;
@@ -214,7 +239,8 @@ rule('sag', 'span', (m, c) => {
     const span = p.supportSpan;
     const props = p.props || (p.wood ? TYPICAL_HARDWOOD : null);
     if (!span || !props?.moe || !p.horizontal) continue;
-    const [, depth, thickness] = p.dims;
+    const [, width, thickness] = p.dims;
+    const depth = p.spanDepth ?? width;
     if (span < 18 || thickness > 2) continue;
     // Shelves carry a spread load; a seat carries a person in the middle,
     // which is a different sum and the one that makes a bench feel springy.
@@ -349,7 +375,13 @@ function finding(part, severity, title, what, why, fix, also = []) {
 
 const nameOf = (p) => p?.name || 'the other part';
 // "A, B and C", because a list of parts reads badly with commas alone.
-const list = (names) => (names.length < 2 ? names[0] || '' : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`);
+const list = (all) => {
+  // two pieces of one part are "both Lid rails", not "Lid rails and Lid rails"
+  const counts = new Map();
+  all.forEach((n) => counts.set(n, (counts.get(n) || 0) + 1));
+  const names = [...counts].map(([n, k]) => (k === 2 ? `both ${n}` : k > 2 ? `all ${k} ${n}` : n));
+  return names.length < 2 ? names[0] || '' : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+};
 const capitalise = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const describeConn = (key) => (key === 'shelf-to-side' ? 'a shelf into a side' : 'a rail into a leg');
 
@@ -377,6 +409,10 @@ export function reviewModel(model, { units = 'in16', only = null } = {}) {
     }
     for (const f of got) findings.push({ ...f, rule: r.id, family: r.family });
   }
+  // a floating panel's finding already says how much it moves and where the
+  // room goes: the general note would only repeat it
+  const held = new Set(findings.filter((f) => f.title === 'Floating panel').map((f) => f.key));
+  for (let i = findings.length - 1; i >= 0; i--) if (findings[i].rule === 'wide-board' && held.has(findings[i].key)) findings.splice(i, 1);
   findings.sort((a, b) => SEVERITY[b.severity] - SEVERITY[a.severity] || a.rule.localeCompare(b.rule));
   const count = (s) => findings.filter((f) => f.severity === s).length;
   return {

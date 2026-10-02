@@ -136,6 +136,28 @@ try {
   await page.screenshot({ path: path.join(out, 'chest-unpacked.png') });
   ok('Unpack it all opens the lid and lifts every tray out');
 
+  // the review and the cards name the chest's joints for what they are
+  const cardOf = (name) => page.evaluate((n) => {
+    const v = window.__viewer;
+    v.selectRow(v.rows().find((r) => r.name === n));
+    return document.getElementById('dimCard').innerText;
+  }, name);
+  assert.match(await cardOf('Chest front & back'), /through dovetailed to Chest ends \(tails, about 1:6/);
+  assert.match(await cardOf('Chest ends'), /dovetailed to Chest front & back \(pins/);
+  assert.match(await cardOf('Top molding, ends'), /mitred to Top molding/);
+  assert.match(await cardOf('Chest bottom'), /rabbeted to a 3\/8" tongue, 3\/8" into a groove in Chest ends/);
+  assert.match(await cardOf('Lid rails'), /tenon 1\/4" × 2-1\/8"/);
+  assert.doesNotMatch(await cardOf('Plane tray bottom'), /Tray runner/); // it slides on the runners, it isn't joined to them
+  const review = await page.evaluate(async () => {
+    const d = [...document.querySelectorAll('#sidebar details')].find((x) => /Design review/.test(x.textContent));
+    d.open = true;
+    await new Promise((r) => setTimeout(r, 300));
+    return d.innerText;
+  });
+  assert.doesNotMatch(review, /will cause trouble|Tenon proportions|Butt joint|Will sag/i);
+  assert.match(review, /Floating panel[\s\S]*Lid panel|Lid panel[\s\S]*Floating panel/i);
+  ok('the review names the dovetails, mitres, the rabbeted bottom and the floating panels, and flags no false trouble');
+
   // an upload with no moving parts listed: they're found by name
   const folder = path.join(viewer, 'models', 'heirloom-chest');
   const files = Object.fromEntries(fs.readdirSync(folder).map((f) => [f, new Uint8Array(fs.readFileSync(path.join(folder, f)))]));

@@ -168,7 +168,9 @@ test('checkTenon finds what is wrong and nothing else', () => {
   // A round tenon on the end of a leg is sized off the leg, not the 1/3 rule.
   assert.deepEqual(checkTenon({ thickness: 0.9, length: 1.2, width: 0.9, railThickness: 1.5, intoThickness: 1.5, round: true }), []);
   assert.ok(ids({ thickness: 0.25, length: 1.7, width: 1, railThickness: 0.75, intoThickness: 1.75 }).includes('tenon-bottoms'));
-  assert.ok(ids({ thickness: 0.25, length: 1.25, width: 3, railThickness: 0.75, intoThickness: 1.75 }).includes('tenon-wide'));
+  assert.ok(ids({ thickness: 0.25, length: 1.25, width: 4, railThickness: 0.75, intoThickness: 1.75 }).includes('tenon-wide'));
+  // A haunched frame tenon, 1/4in by 2-1/8in in a 2-1/2in rail, is the textbook joint, not a wide one.
+  assert.ok(!ids({ thickness: 0.25, length: 1.25, width: 2.125, railThickness: 0.75, intoThickness: 1.75 }).includes('tenon-wide'));
   assert.ok(ids({ thickness: 0.25, length: 1.25, width: 1, railThickness: 0.75, intoThickness: 1.75, fromEnd: 0.5 }).includes('mortise-end'));
   // A through tenon that comes out the far side is the point of it.
   assert.ok(!ids({ thickness: 0.25, length: 1.75, width: 1, railThickness: 0.75, intoThickness: 1.75, through: true }).includes('tenon-bottoms'));
@@ -416,4 +418,48 @@ test('the panel and the printed sheet render the findings', async () => {
   assert.equal(reviewPrintHtml(null), '');
   // Nothing to say is worth saying too.
   assert.match(reviewHtml({ findings: [], counts: {} }), /nothing to flag/);
+});
+
+// ---------- getting a chest right (the heirloom tool chest's review) ----------
+
+test('a panel in grooves floats: the advice is not to glue it, not slotted screws', () => {
+  // a chest bottom, its tongues in grooves in both ends, which run the way it moves
+  const bottom = part({ key: 'b', name: 'Chest bottom', dims: [27.25, 14.25, 0.75], props: WOOD.ash, grain: ALONG, across: ACROSS, horizontal: true,
+    touches: [{ key: 'e', name: 'Chest ends', span: 14.25 }, { key: 'e', name: 'Chest ends', span: 14.25 }], inGrooves: ['e'] });
+  const ends = part({ key: 'e', name: 'Chest ends', dims: [15, 13, 0.75], props: WOOD.ash, grain: ACROSS, across: [0, 1, 0] });
+  const { findings } = reviewModel({ parts: [bottom, ends] });
+  const f = findings.find((x) => x.rule === 'cross-grain');
+  assert.equal(f.title, 'Floating panel');
+  assert.equal(f.severity, 'watch');
+  assert.match(f.fix, /don't glue/i);
+  assert.doesNotMatch(f.fix, /slot|screw|figure-8/i);
+  assert.match(f.text, /both Chest ends/);
+  // its movement is in the finding, so the general note isn't repeated
+  assert.ok(!findings.some((x) => x.rule === 'wide-board' && x.key === 'b'));
+  // the same board screwed across those parts instead is still the classic split
+  const screwed = reviewModel({ parts: [{ ...bottom, inGrooves: [] }, ends] }).findings.find((x) => x.rule === 'cross-grain');
+  assert.equal(screwed.title, 'Cross-grain joint');
+});
+
+test('a cleat fastened by its face is not a butt joint', () => {
+  const cleat = part({ key: 'c', name: 'Tray runner', dims: [13.5, 4, 0.5], props: WOOD.ash, grain: ACROSS, butts: [{ key: 'f', name: 'Chest front' }], faceFixed: ['e'] });
+  assert.ok(!reviewModel({ parts: [cleat] }).findings.some((f) => f.rule === 'butt-joint'));
+  // with nothing holding its face, the same ends are worth a word
+  assert.ok(reviewModel({ parts: [{ ...cleat, faceFixed: [] }] }).findings.some((f) => f.rule === 'butt-joint'));
+});
+
+test('a tray bottom held along its long edges spans its width, not its length', () => {
+  const free = part({ key: 't', name: 'Tray bottom', dims: [26, 5.5, 0.25], props: WOOD.cherry, grain: ALONG, across: ACROSS, horizontal: true, supportSpan: 26 });
+  assert.ok(reviewModel({ parts: [free] }).findings.some((f) => f.rule === 'sag'));
+  const held = { ...free, supportSpan: 5.5, spanDepth: 26 };
+  assert.ok(!reviewModel({ parts: [held] }).findings.some((f) => f.rule === 'sag'));
+});
+
+test('the same tenon problem at both ends of a rail is one finding', () => {
+  const t = { into: 'Leg', intoKey: 'l', thickness: 0.25, length: 1.25, width: 5, through: false };
+  const rail = part({ key: 'r', name: 'Apron', dims: [30, 6, 0.75], props: WOOD.maple, grain: ALONG, tenons: [t, t] });
+  const leg = part({ key: 'l', name: 'Leg', dims: [29, 1.75, 1.75], props: WOOD.maple, grain: [0, 1, 0] });
+  const wide = reviewModel({ parts: [rail, leg] }).findings.filter((f) => f.rule === 'tenon-proportions');
+  assert.equal(wide.length, 1);
+  assert.match(wide[0].text, /at both ends\.$/);
 });

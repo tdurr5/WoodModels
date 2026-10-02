@@ -59,6 +59,35 @@ function clearSpan(d, others) {
 
 const UP = [0, 1, 0];
 
+// A part's extent along a direction: [lo, hi] of its corners.
+function extent(d, dir) {
+  const vs = corners(d).map((c) => dot(c, dir));
+  return [Math.min(...vs), Math.max(...vs)];
+}
+const overlap = ([a0, a1], [b0, b1]) => Math.max(0, Math.min(a1, b1) - Math.max(a0, b0));
+
+// Fastened face to face: its broad face lies flat against the other part's
+// face over most of its area - a cleat on a case side, a runner on a wall.
+function faceToFace(d, o) {
+  const [L, W, T] = d.axes.map((a) => a.direction);
+  const [t0, t1] = extent(d, T), [o0, o1] = extent(o, T);
+  const flush = Math.abs(t0 - o1) < 1 / 32 || Math.abs(t1 - o0) < 1 / 32;
+  if (!flush || !o.axes.some((a) => Math.abs(dot(a.direction, T)) > 0.99)) return false;
+  return overlap(extent(d, L), extent(o, L)) >= d.axes[0].length * 0.8
+    && overlap(extent(d, W), extent(o, W)) >= d.axes[1].length * 0.8;
+}
+
+// A flat part held along both its long edges (a tray bottom in the grooves
+// of its sides, a panel in its frame) spans its width, not its length: the
+// sides are the beams. Returns its width if so.
+function edgeSpan(d, others) {
+  const [L, W, T] = d.axes.map((a) => a.direction);
+  const [w0, w1] = extent(d, W), mid = (w0 + w1) / 2, len = d.axes[0].length;
+  const along = others.filter((o) => overlap(extent(d, L), extent(o, L)) >= len * 0.8 && overlap(extent(d, T), extent(o, T)) > 0);
+  const sides = along.map((o) => extent(o, W)).map(([a, b]) => (a + b) / 2);
+  return sides.some((x) => x < mid) && sides.some((x) => x > mid) ? d.axes[1].length : 0;
+}
+
 // Pairs of parts a design says are free to slide against each other (a top on
 // buttons). Keyed by part name, which is what the cut list calls a row.
 function movingJoints(design) {
@@ -116,12 +145,17 @@ export function buildReviewModel(ctx) {
         part.touches.push({ key: or.key, name: or.name, span: spanAcross(d, od) });
       }
     }
+    part.faceFixed = [...new Set(contacts.filter((c) => faceToFace(d, c.dims)).map((c) => c.row.key))];
     if (part.horizontal) {
       // What holds it up: anything it touches that isn't sitting on top of
       // it. A shelf is held at its ends, a seat from underneath.
       const top = Math.max(...corners(d).map((p2) => p2[1]));
       const below = contacts.filter((c) => Math.min(...corners(c.dims).map((p2) => p2[1])) < top - 1 / 32);
-      part.supportSpan = clearSpan(d, below.map((c) => c.dims));
+      // held along both edges by what it's fixed to, above or below (a tray
+      // bottom nailed up under its sides)
+      const across = edgeSpan(d, contacts.map((c) => c.dims));
+      if (across) { part.supportSpan = across; part.spanDepth = d.axes[0].length; }
+      else part.supportSpan = clearSpan(d, below.map((c) => c.dims));
       part.seat = /\b(seat|bench|stool)\b/i.test(part.name || '');
     }
 
@@ -132,9 +166,11 @@ export function buildReviewModel(ctx) {
         thickness: Math.min(t.width, t.thick), width: Math.max(t.width, t.thick),
       }));
       part.butts = j.butts.map((b) => ({ key: b.key, name: b.name }));
+      // the parts its edges sit in grooves in: a panel that should float
+      part.inGrooves = [...new Set(j.cuts.filter((t) => t.kind === 'tongue').map((t) => t.row.key))];
       // What other parts cut into this one: their tenon, its depth, and the
       // direction it comes in - which is the length of the part it belongs to.
-      part.mortises = j.holes.map((h) => {
+      part.mortises = j.holes.filter((h) => h.j.kind === 'tenon' || h.j.kind === 'housed').map((h) => {
         const od = objectDims[h.row.obj_names?.[0]];
         return { key: h.row.key, name: h.row.name, depth: h.j.depth, dir: od?.axes?.[0]?.direction || null };
       });
@@ -145,9 +181,14 @@ export function buildReviewModel(ctx) {
       if (f.kind === 'hole' && f.dia) {
         part.holes.push({ diameter: f.dia, fromEnd: Math.max(0, Math.min(f.box[0][0], len - f.box[1][0])) });
       } else {
-        part.cuts.push({ kind: f.kind, through: f.through, depth });
+        part.cuts.push({ kind: f.kind, through: f.through, depth, forKey: f.row?.key || null });
       }
     }
+    // its edges cut down to fit another part (a raised panel's rabbeted edge
+    // in its frame's groove): it sits in that part
+    part.cuts.forEach((cut) => {
+      if (cut.forKey && ['notch', 'rabbet', 'groove'].includes(cut.kind) && !part.inGrooves?.includes(cut.forKey)) (part.inGrooves ||= []).push(cut.forKey);
+    });
     const ys = corners(d).map((c) => c[1]);
     part.top = Math.max(...ys);
     part.bottom = Math.min(...ys);

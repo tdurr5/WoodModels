@@ -15,7 +15,10 @@
 // - Tenon length at least 5x its thickness: shorter and the glue area is too
 //   small to resist the rail levering out.
 // - Tenon width at most 6x its thickness, else twin tenons: a wide tenon
-//   shrinks across its width and shears its own glue line.
+//   shrinks across its width and shears its own glue line. That's a rule for
+//   wide rails (aprons, bed rails, door bottom rails); a frame's 2in tenon
+//   moves a few hundredths of an inch a year, and nobody splits it, so it
+//   only applies past 3in wide.
 // - A mortise nearer than about 1in to the end of the mortised piece blows
 //   the end out; drop it down and haunch the tenon instead.
 // - Dado depth 1/3 of the stock, 1/2 at the very most: deeper and the housed
@@ -32,7 +35,8 @@ export const CHISEL_SIZES = [1 / 8, 3 / 16, 1 / 4, 5 / 16, 3 / 8, 1 / 2, 5 / 8, 
 export const TENON = {
   thicknessRatio: 1 / 3,
   minLengthRatio: 5,      // length >= 5 x thickness
-  maxWidthRatio: 6,       // wider than this, use twin tenons
+  maxWidthRatio: 6,       // wider than this, use twin tenons...
+  splitAbove: 3,          // ...once it's wider than this (inches) at all
   blindDepthRatio: 2 / 3, // a stub tenon goes about 2/3 into the mortised part
   endMargin: 1,           // keep a mortise this far from the end of its part
   minShoulder: 1 / 8,     // anything less doesn't hide a gap
@@ -60,7 +64,7 @@ export function tenonFor({ railThickness, railWidth, intoThickness, through = fa
     : Math.min(thickness * TENON.minLengthRatio, intoThickness * TENON.blindDepthRatio);
   const wantWidth = railWidth ? railWidth / 2 : 0;
   const maxWidth = thickness * TENON.maxWidthRatio;
-  const twin = wantWidth > maxWidth;
+  const twin = wantWidth > maxWidth && wantWidth > TENON.splitAbove;
   return {
     thickness,
     length,
@@ -94,7 +98,7 @@ export function checkTenon({ thickness, length, width, railThickness, intoThickn
   if (!through && intoThickness && length > intoThickness * 0.85) {
     out.push({ id: 'tenon-bottoms', text: 'reaches almost through the part it goes into', fix: 'stop at two-thirds, or commit to a through tenon and wedge it' });
   }
-  if (width && !isRound && width > thickness * TENON.maxWidthRatio) {
+  if (width && !isRound && width > thickness * TENON.maxWidthRatio && width > TENON.splitAbove) {
     out.push({ id: 'tenon-wide', text: `is ${f(width)} wide, over 6 x its thickness`, fix: 'split it into twin tenons with a bridge between: the same glue area, without a wide tenon shearing itself as it shrinks' });
   }
   if (fromEnd != null && fromEnd < TENON.endMargin) {

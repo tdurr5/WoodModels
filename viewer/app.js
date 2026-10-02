@@ -318,6 +318,7 @@ async function init() {
   woodPhotos = await loadWoodPhotos(cfg, files);
   prepareMeshes(materialNames);
   mechCtl.setup(config, meshes, mechanismParts()); // the lid, trays and handles that move
+  jointCache.clear(); cutCache.clear(); // what's joined depends on what moves
   setExplodePositions(explode);
   updateModelBox(); // framed with the lid as it stands
   findHoles();
@@ -1624,6 +1625,11 @@ function contactsOf(mesh) {
   contactCache.set(mesh, out);
   return out;
 }
+// What a part is fixed to: what it touches, less what it only rests against
+// and moves away from (a tray on its runners, a lid on the walls).
+function joinedContactsOf(mesh) {
+  return new Set([...contactsOf(mesh)].filter((o) => mechCtl.sameAssembly(o, mesh)));
+}
 
 // ---------- joinery: tenons, housed ends, mortises (geometry.js endJoints) ----------
 const jointCache = new Map();
@@ -1635,7 +1641,8 @@ function jointsOf(mesh) {
     const others = [];
     meshes.forEach((o) => {
       const r = rowByMeshName.get(o.name), dB = objectDims[o.name];
-      if (o !== mesh && r && isCut(r) && !r.status && dB) others.push({ name: o.name, box: obbFromDims(dB) });
+      // a tray isn't joined to the chest it slides in, or a lid to the walls
+      if (o !== mesh && r && isCut(r) && !r.status && dB && mechCtl.sameAssembly(o, mesh)) others.push({ name: o.name, box: obbFromDims(dB) });
     });
     out = endJoints(obbFromDims(d), meshTris(mesh), others);
   }
@@ -1650,7 +1657,14 @@ function joineryOf(row, mesh) {
   if (!mesh || !isCut(row) || row.joined || row.customDims) return null;
   const rowOf = (name) => rowByMeshName.get(name);
   const js = jointsOf(mesh).filter((j) => rowOf(j.name));
-  const cuts = js.filter((j) => j.kind !== 'butt').map((j) => ({ ...j, row: rowOf(j.name) }));
+  // One joint, seen from both parts: the rail's tenon and the stile's end
+  // around it, the tails and the pins. Each side says what it is; an end
+  // that only overlaps the other part's joint ('corner', 'housed') is that
+  // joint, already told.
+  const SPECIFIC = new Set(['tenon', 'dovetail', 'mitre', 'tongue']);
+  const named = (a, b) => jointsOf(meshByName.get(b) || mesh).some((j) => j.name === a && SPECIFIC.has(j.kind));
+  const cuts = js.filter((j) => j.kind !== 'butt' && !(['corner', 'housed'].includes(j.kind) && named(mesh.name, j.name)))
+    .map((j) => ({ ...j, row: rowOf(j.name) }));
   const length = objectDims[mesh.name].axes[0].length;
   const shoulders = length - cuts.reduce((a, j) => a + j.depth, 0);
   // (almost) all of it inside the parts it joins: a loose tenon, spline or dowel
@@ -1661,6 +1675,7 @@ function joineryOf(row, mesh) {
     if (o === mesh || !r || !isCut(r) || r.status || r.joined) return;
     jointsOf(o).forEach((j) => {
       if (j.name !== mesh.name || j.kind === 'butt') return;
+      if (['corner', 'housed'].includes(j.kind) && jointsOf(mesh).some((k) => k.name === o.name && SPECIFIC.has(k.kind))) return;
       const k = `${Math.round(Math.min(j.width, j.thick) * 64)}|${Math.round(Math.max(j.width, j.thick) * 64)}|${j.through ? 'through' : Math.round(j.depth * 64)}|${r.key}`;
       const h = holes.get(k) || { j, row: r, n: 0 };
       h.n++;
@@ -1677,16 +1692,42 @@ function joineryText(jy, link, units) {
   const f = (x) => formatLength(x, units);
   const size = (j) => `${f(Math.min(j.width, j.thick))} × ${f(Math.max(j.width, j.thick))}`;
   const out = {};
+  const through = (j) => (j.through ? ` (through${j.proud ? `, ${f(j.proud)} proud` : ''})` : '');
+  // what this end is, said the way a joiner would
+  const endText = (j) => {
+    if (j.kind === 'tenon') return `tenon ${size(j)}, ${f(j.depth)} long${through(j)} into ${link(j.row)}`;
+    if (j.kind === 'dovetail') return `${j.through ? 'through ' : ''}dovetailed to ${link(j.row)} (${j.pins ? 'pins' : 'tails'}, about 1:${j.slope}, ${f(j.depth)} deep)`;
+    if (j.kind === 'mitre') return `mitred to ${link(j.row)}`;
+    if (j.kind === 'tongue') return `${j.rabbeted ? 'rabbeted to a ' : ''}${f(j.thick)} tongue, ${f(j.depth)} into a groove in ${link(j.row)}`;
+    if (j.kind === 'corner') return `lapped or box-jointed into the end of ${link(j.row)} (${f(j.depth)}${through(j)})`;
+    return `goes ${f(j.depth)} in${through(j)} into ${link(j.row)}`;
+  };
   if (jy.cuts.length) {
-    const texts = jy.cuts.map((j) => `${j.kind === 'tenon' ? `tenon ${size(j)}, ${f(j.depth)} long` : `goes ${f(j.depth)} in`}${j.through ? ` (through${j.proud ? `, ${f(j.proud)} proud` : ''})` : ''} into ${link(j.row)}`);
+    const texts = jy.cuts.map(endText);
     const both = texts.length === 2 && texts[0] === texts[1];
-    out.ends = `${both ? `${texts[0]}, each end` : texts.join('; ')}. ${jy.loose
-      ? 'It sits almost wholly inside the parts it joins, like a loose tenon or dowel.'
-      : `The length includes ${jy.cuts.length > 1 ? 'both' : 'it'}: <b>${f(jy.shoulders)}</b> ${jy.cuts.length > 1 ? 'shoulder to shoulder' : 'from the shoulder to the other end'}.`}`;
+    const kinds = new Set(jy.cuts.map((j) => j.kind));
+    const many = jy.cuts.length > 1;
+    let length;
+    if (jy.loose) length = 'It sits almost wholly inside the parts it joins, like a loose tenon or dowel.';
+    else if (kinds.size === 1 && kinds.has('mitre')) length = `The length is ${many ? 'long point to long point' : 'to the long point'}: <b>${f(jy.shoulders)}</b> ${many ? 'between the short points' : 'to the short point'}.`;
+    else if (kinds.size === 1 && kinds.has('dovetail')) length = `The length includes ${many ? 'both' : 'it'}: <b>${f(jy.shoulders)}</b> ${many ? 'baseline to baseline' : 'from the baseline to the other end'}.`;
+    else length = `The length includes ${many ? 'both' : 'it'}: <b>${f(jy.shoulders)}</b> ${many ? 'shoulder to shoulder' : 'from the shoulder to the other end'}.`;
+    out.ends = `${both ? `${texts[0]}, each end` : texts.join('; ')}. ${length}`;
   }
   if (jy.holes.length) {
-    out.holesLabel = jy.holes.some((h) => h.j.kind === 'tenon') ? 'Mortises' : 'Housings';
-    out.holes = jy.holes.map(({ j, row: r, n }) => `${size(j)}, ${j.through ? 'through' : `${f(j.depth)} deep`}, for ${link(r)}${n > 1 ? ` (${n})` : ''}`).join('; ');
+    // what other parts need cut in this one, named for the joint
+    const LABEL = { tenon: 'Mortises', housed: 'Housings', tongue: 'Grooves', dovetail: 'Dovetails', mitre: 'Mitres', corner: 'Corner joints' };
+    const kinds = [...new Set(jy.holes.map((h) => h.j.kind))];
+    out.holesLabel = kinds.length === 1 ? LABEL[kinds[0]] || 'Housings' : 'Joints';
+    const holeText = ({ j, row: r, n }) => {
+      const x = n > 1 ? ` (${n})` : '';
+      if (j.kind === 'dovetail') return `${j.through ? 'through ' : ''}${j.pins ? 'pins' : 'tails'} for ${link(r)}${x}`;
+      if (j.kind === 'mitre') return `mitre for ${link(r)}${x}`;
+      if (j.kind === 'tongue') return `groove ${f(j.thick)} wide, ${f(j.depth)} deep, for ${link(r)}${x}`;
+      if (j.kind === 'corner') return `the end of ${link(r)} laps in ${f(j.depth)}${x}`;
+      return `${size(j)}, ${j.through ? 'through' : `${f(j.depth)} deep`}, for ${link(r)}${x}`;
+    };
+    out.holes = jy.holes.map(holeText).join('; ');
   }
   if (jy.butts.length) {
     const many = jy.buttEnds > 1;
@@ -1952,7 +1993,7 @@ let lastReview = null;
 function reviewContext() {
   return {
     rows, objectDims, meshByName, rowByMeshName, isCut,
-    contactsOf, joineryOf, cutsOf,
+    contactsOf: joinedContactsOf, joineryOf, cutsOf,
     speciesOf: (row) => {
       const mc = config.materials?.[row.material] || {};
       return SPECIES[mc.species] ? mc.species : speciesFor(row.materialLabel, row.material);
@@ -1979,7 +2020,7 @@ function renderDesignReview() {
 // Contacts of one piece of the selected row, grouped by the row they belong to.
 function pieceContacts(mesh, row) {
   const byRow = new Map();
-  contactsOf(mesh).forEach((o) => {
+  joinedContactsOf(mesh).forEach((o) => {
     const r = rowByMeshName.get(o.name);
     if (!r || r.key === row.key || r.status) return; // not deleted / set-aside parts
     byRow.set(r.key, { row: r, n: (byRow.get(r.key)?.n || 0) + 1 });

@@ -438,6 +438,8 @@ export function initMechanisms(ctx) {
     handsOn: () => hands,
     busy,
     moves: (m) => mechOf.has(m),
+    // fixed together, rather than one moving against the other
+    sameAssembly: (a, b) => mechOf.get(a) === mechOf.get(b),
     syncPanel,
     // for tests: the state of every mechanism, and setting one directly
     state: () => JSON.parse(JSON.stringify(state)),
