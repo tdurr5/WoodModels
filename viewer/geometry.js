@@ -159,6 +159,50 @@ export function findButts(dims, { tol = 1 / 32 } = {}) {
   return [...groups.values()].filter((g) => g.length > 1);
 }
 
+// Pieces drawn inside another part that are really part of it: teeth cut
+// in a ratchet block, a tongue left on a board, drawn as their own little
+// components. Each sits wholly inside the host's box, comes out to one of
+// its faces (it's the shape of that face, not something buried in it), and
+// is the same stuff. A dowel or peg in a hole is round, a bolt is hardware,
+// an inlay is a different wood: those stay their own parts.
+// sameStuff(a, b): same material; round(name): a turned part.
+// Returns [[host, ...pieces]].
+export function findInsets(dims, { sameStuff = () => true, round = () => false, tol = 1 / 32 } = {}) {
+  const parts = Object.entries(dims)
+    .filter(([, d]) => d.axes && d.axes.length === 3)
+    .map(([name, d]) => ({ name, d, box: obbFromDims(d), vol: d.axes.reduce((v, a) => v * a.length, 1) }));
+  const hostOf = new Map();
+  for (const A of parts) {
+    if (round(A.name)) continue;
+    const corners = cornersOf(A.box);
+    let best = null;
+    for (const B of parts) {
+      if (B === A || B.vol < A.vol * 4 || !sameStuff(A.name, B.name)) continue;
+      if (!corners.every((c) => pointInObb(c, B.box, tol))) continue;
+      // out to one of B's faces: some corner on B's surface
+      const local = (c) => B.box.axes.map((ax, k) => Math.abs(dot(sub(c, B.box.center), ax)) - B.box.half[k]);
+      if (!corners.some((c) => local(c).some((v) => Math.abs(v) <= tol))) continue;
+      if (!best || B.vol < best.vol) best = B; // the tightest host
+    }
+    if (best) hostOf.set(A.name, best.name);
+  }
+  const groups = new Map();
+  hostOf.forEach((host, name) => {
+    if (hostOf.has(host)) return; // a piece inside a piece: leave it
+    if (!groups.has(host)) groups.set(host, [host]);
+    groups.get(host).push(name);
+  });
+  return [...groups.values()];
+}
+function cornersOf(B) {
+  const out = [];
+  for (let i = 0; i < 8; i++) {
+    const s = [i & 1 ? 1 : -1, i & 2 ? 1 : -1, i & 4 ? 1 : -1];
+    out.push(B.center.map((c, k) => c + B.axes.reduce((a, ax, j) => a + ax[k] * s[j] * B.half[j], 0)));
+  }
+  return out;
+}
+
 // ---------- joining pieces into one ----------
 // Pieces that are really one: a rail modeled as two overlapping or butted
 // boards, or pieces you merged yourself (a glued-up slab). list: their
@@ -252,6 +296,8 @@ export function applyJoins(rawRows, joins, dims, toLabel = (x) => `${x}`) {
 //   'tongue'   full width but thinner: a panel's edge in a groove (rabbeted:
 //              flush with one face, as a chest bottom often is)
 //   'housed'   full size, into the other part's face: a dado
+//   'teeth'    a sawtooth end (45° faces) in the middle of the other part:
+//              a ratchet catching its teeth - adjustable, never glued
 //   'tenon'    shouldered all round, or on its edges
 export function endJoints(A, tris, others, { tol = 1 / 32, minDepth = 1 / 8 } = {}) {
   const [L, W, T] = A.axes;
@@ -312,6 +358,7 @@ export function endJoints(A, tris, others, { tol = 1 / 32, minDepth = 1 / 8 } = 
       // (a mitre closes a corner: 45° faces in the middle of a part are
       // something else - a ratchet's teeth, a bevelled stop)
       if (atCorner && shape.mitre > 0.3 * fullW * fullT) kind = 'mitre';
+      else if (shape.mitre > 0.3 * fullW * fullT) kind = 'teeth'; // a ratchet's sawtooth end in another part's teeth
       else if (shape.flank > 0.5 * fullT * depth) kind = 'dovetail';
       else if (!shouldered) kind = atCorner ? 'corner' : 'housed';
       else if (width >= fullW - 1 / 16 && fullW > fullT * 2) kind = 'tongue';

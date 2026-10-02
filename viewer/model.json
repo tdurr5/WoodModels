@@ -90,5 +90,11 @@
     "Shaft_1_2_-13_6_7_8": "Threaded Rod 1/2\"-13",
     "Shaft_1_2_-13_8_1_4": "Threaded Rod 1/2\"-13",
     "Shaft_1_2__-13_4_3_4": "Threaded Rod 1/2\"-13"
+  },
+  "edits": {
+    "names": {
+      "Seat_Handle|4.501x0.375x0.375": "Seat Screw",
+      "Seat_Handle|3.495x1.233x1.125": "Thumb Nut"
+    }
   }
 }

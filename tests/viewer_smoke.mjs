@@ -123,9 +123,11 @@ try {
   await page.waitForSelector('#clList .row');
   const report = JSON.parse(fs.readFileSync(path.join(VIEWER, 'parts_report.json'), 'utf8'));
   const rowCount = await page.locator('#clList .row').count();
-  check(rowCount === report.length, `sidebar has one row per cut-list entry (${rowCount}/${report.length})`);
+  // one row per entry, less the Key row: the six teeth are cut in the Jaw Support, so they're part of it
+  check(rowCount === report.length - 1, `sidebar has one row per cut-list entry, the jaw support's teeth folded into it (${rowCount}/${report.length - 1})`);
   const warns = await page.locator('#clList .note.warn').allInnerTexts();
-  check(warns.length === 2 && warns.some((w) => w.includes('Named 8-1/4"')), `rods whose names disagree with their geometry are flagged (${warns.length})`);
+  // the rods are stretched copies of one rod component (8-1/4" is 6-7/8" x 1.2): measured as placed, they match their names
+  check(warns.length === 0, `rods measured at their placed size match the lengths in their names (${warns.length} warnings)`);
   const disabled = await page.locator('#clList .row.disabled').count();
   const expectedDisabled = report.filter((r) => !r.obj_names || !r.obj_names.length).length;
   check(disabled === expectedDisabled, `rows with no 3D geometry are disabled (${disabled}/${expectedDisabled})`);
@@ -427,7 +429,7 @@ try {
   const [download] = await Promise.all([page.waitForEvent('download'), page.click('#clCsv')]);
   const csv = fs.readFileSync(await download.path(), 'utf8');
   check(csv.split('\r\n')[0].startsWith('Ref,Category,Group,Part,Qty,Thickness,Width,Length'), 'CSV export has a header row');
-  check(/,Wood,Legs,Leg Rear,2,/.test(csv) && csv.includes('Wood,Legs,Leg Rear,2,"1-5/8""","3-3/8""","20-7/8"""'), 'CSV export contains the rear legs (inch marks quoted)');
+  check(/,Wood,Legs,Leg Rear,2,/.test(csv) && csv.includes('Wood,Legs,Leg Rear,2,"1-5/8""","3-7/16""","20-7/8"""'), 'CSV export contains the rear legs (inch marks quoted)');
   fs.writeFileSync(path.join(OUT, 'cut-list.csv'), csv);
 
   await page.locator('#explodeRange').fill('1');
@@ -465,7 +467,7 @@ try {
   const drill = await page.locator('#printSheet h2', { hasText: 'Holes to drill' }).count();
   check(drill === 1, 'print sheet includes a drilling list');
   const joinery = await page.locator('#printSheet .ps-extra').innerText();
-  check(/Joinery[\s\S]*Ratchet Dove[\s\S]*tenon/.test(joinery), 'print sheet lists the joinery drawn in the model');
+  check(/Joinery[\s\S]*Ratchet Dove[\s\S]*ratchet/.test(joinery), 'print sheet lists the joinery drawn in the model');
   check(/Cuts[\s\S]*Bench[\s\S]*cut-away/.test(joinery), 'print sheet lists the cuts in each part');
   check(printRows === 24, `print sheet lists every part (${printRows})`);
   await page.emulateMedia({ media: 'print' });
@@ -487,13 +489,13 @@ try {
   const bore = await page.locator('#dimCard .card-rel').innerText();
   check(/Bore ⌀1\/2".*Bench ×2.*Filler Rear.*Leg Rear ×2/.test(bore), `rod card is a drilling list (${bore})`);
   await selectPart('Ratchet Dove');
-  const tenon = await page.locator('#dimCard .card-joinery').innerText().catch(() => '');
-  check(/tenon 7\/16" × 1-7\/8", 1\/2" long.*into Jaw Support/.test(tenon), `a tenon drawn into another part is sized, with where it goes (${tenon})`);
+  const ratchet = await page.locator('#dimCard .card-joinery').innerText().catch(() => '');
+  check(/toothed end catches the teeth of Jaw Support \(a ratchet, not a glued joint\)/.test(ratchet), `the ratchet's sawtooth end is a ratchet, not a tenon (${ratchet})`);
   await page.locator('#dimCard .card-joinery a', { hasText: 'Jaw Support' }).click();
   await page.waitForTimeout(400);
-  const mortise = await page.locator('#dimCard .card-joinery').innerText().catch(() => '');
-  check(/Mortises: 7\/16" × 1-7\/8", 1\/2" deep, for Ratchet Dove/.test(mortise), `the part it goes into lists the mortise to cut (${mortise})`);
-  check(await page.locator('#dimCard .card-cuts').count() === 0, 'a mortise listed under joinery isn\'t listed again as a cut');
+  const jaw = await page.locator('#dimCard').innerText();
+  check(/draws this as 7 pieces/.test(jaw) && !/Mortises/.test(jaw), `the jaw support's teeth are part of it, not six parts (${jaw.slice(0, 120)})`);
+  check(!(await page.locator('#clList .row .name').allInnerTexts()).includes('Key'), 'no Key parts in the cut list');
 
   console.log('full-size template');
   await selectPart('Leg Front');
@@ -529,8 +531,8 @@ try {
   const shop = await page.locator('#diagram .cd-shop').innerText();
   check(boards >= 5 && /8\/4 Wood/.test(shop), `diagram lays parts out on boards (${boards} boards)`);
   const partsInDiagram = await page.locator('#diagram .part').count();
-  check(partsInDiagram === 26, `every wood piece appears once in the diagram (${partsInDiagram}/26)`);
-  check(/Threaded Rod 1\/2"-13: 4 pieces \(6-7\/8" ×2, 5-1\/16" ×2\), 23-7\/8" total — buy 3'/.test(shop), 'hardware list totals rod by size with a stock length to buy');
+  check(partsInDiagram === 20, `every wood piece appears once in the diagram (${partsInDiagram}/20)`);
+  check(/Threaded Rod 1\/2"-13: 4 pieces \(6-7\/8", 8-1\/4", 4-3\/4" ×2\), 24-5\/8" total — buy 3'/.test(shop), `hardware list totals rod by size with a stock length to buy (${shop.match(/Threaded Rod[^\n]*/)?.[0]})`);
   await page.fill('.cd-prices input[data-mat="Wood"]', '8');
   await page.locator('.cd-prices input[data-mat="Wood"]').dispatchEvent('change');
   const priced = await page.locator('#diagram .cd-shop').innerText();
@@ -581,7 +583,7 @@ try {
   await page.reload();
   await page.waitForFunction(() => document.getElementById('loading').style.display === 'none', null, { timeout: 30000 });
   check(await page.locator('#clList .row.cut', { hasText: 'Leg Rear' }).count() === 1, 'ticked-off part stays ticked after reload');
-  check(/2 of 26 pieces cut/.test(await page.locator('.progress').innerText()), 'progress counts pieces (Leg Rear ×2 = 2 of 26)');
+  check(/2 of 20 pieces cut/.test(await page.locator('.progress').innerText()), 'progress counts pieces (Leg Rear ×2 = 2 of 20)');
   const selectedAfterReload = await activeRowName().catch(() => '');
   check(selectedAfterReload === selectedBeforeReload, `reload restores the selection from the URL hash (${selectedAfterReload})`);
   check(await page.locator('#clRough').isChecked(), 'settings persist across reload');
@@ -669,7 +671,7 @@ try {
     await p2.waitForFunction(() => document.getElementById('loading').style.display === 'none', null, { timeout: 30000 });
     check((await p2.locator('#sidebar h1').innerText()) === 'Test Copy', '?model= loads another model folder');
     const rodNotes = (await p2.locator('#clList .row', { hasText: 'Author note' }).locator('.note').allInnerTexts()).join(' | ');
-    check(/Named 8-1\/4"/.test(rodNotes) && /stainless/.test(rodNotes), `a model.json note shows alongside the parser warning (${rodNotes})`);
+    check(/stainless/.test(rodNotes), `a model.json note shows on its part (${rodNotes})`);
     await p2.locator('#clList .row', { hasText: '2" × 2-7/8" × 7-7/8"' }).first().click();
     const ref = decodeURIComponent(new URL(p2.url()).hash);
     check(/^#part=Bench@\d$/.test(ref), `duplicate labels get a distinct link (${ref})`);
@@ -1187,8 +1189,9 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     await p2.waitForTimeout(300);
     check(/No hole drawn where/.test(await p2.locator('#dimCard').innerText()), 'the part\'s card says the hole was added');
     await p2.keyboard.press('Escape');
-    const seatHandle = await p2.evaluate(() => { const v = window.__viewer; return v.threadsOf(v.meshesOf('Seat Handle')[0]); });
-    check(!seatHandle || !seatHandle.length, 'a plain pin gets no threads');
+    const seat = await p2.evaluate(() => { const v = window.__viewer; return { screw: v.threadsOf(v.meshesOf('Seat Screw')[0]), nut: v.threadsOf(v.meshesOf('Thumb Nut')[0]) }; });
+    check(seat.screw?.length === 1 && seat.screw.pitch === 1 / 16 && Math.abs(seat.screw.origin[1] - 14.529) < 0.01, `the seat screw is threaded 3/8"-16 where its thumb nut goes (${JSON.stringify(seat.screw)})`);
+    check(!seat.nut?.length, 'the thumb nut itself gets no threads drawn on it');
     // (by its name: other parts' notes mention the rod too)
     await p2.locator('#clList .row').filter({ has: p2.locator('.name', { hasText: /Threaded Rod/ }) }).first().click();
     await p2.waitForTimeout(300);
@@ -1198,21 +1201,21 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     check(full > 4, `the card's Threads choice can make it threaded all along (${full}")`);
     await p2.keyboard.press('Control+z');
     await p2.keyboard.press('Escape');
-    await p2.locator('#clList .row').filter({ has: p2.locator('.name', { hasText: 'Seat Handle' }) }).first().click();
+    await p2.locator('#clList .row').filter({ has: p2.locator('.name', { hasText: 'Thumb Nut' }) }).first().click();
     await p2.keyboard.press('Delete');
-    check(!(await names()).includes('Seat Handle'), 'a built-in model part can be deleted');
+    check(!(await names()).includes('Thumb Nut'), 'a built-in model part can be deleted');
     const letters = await p2.locator('#clList > .row .letter').allInnerTexts();
     check(letters.length === 23 && letters[22] === 'W', `part letters close up without gaps (${letters.length}, last ${letters[22]})`);
     await p2.reload();
     await loaded();
-    check(!(await names()).includes('Seat Handle'), 'the delete is remembered after a reload');
+    check(!(await names()).includes('Thumb Nut'), 'the delete is remembered after a reload');
     await p2.locator('#helpBtn').click();
     await p2.locator('#resetPrefs').click();
     await loaded();
-    check(!(await names()).includes('Seat Handle'), '"reset preferences" leaves your model edits alone');
+    check(!(await names()).includes('Thumb Nut'), '"reset preferences" leaves your model edits alone');
     await p2.locator('.aside-section summary', { hasText: 'Deleted' }).click();
-    await p2.locator('.aside-section .row', { hasText: 'Seat Handle' }).locator('[data-act=build]').click();
-    check((await names()).includes('Seat Handle') && (await names()).length === 24, 'restoring brings it back');
+    await p2.locator('.aside-section .row', { hasText: 'Thumb Nut' }).locator('[data-act=build]').click();
+    check((await names()).includes('Thumb Nut') && (await names()).length === 24, 'restoring brings it back');
 
     // one piece of a part with several
     await p2.locator('#clList .row', { hasText: 'Bench' }).first().click();

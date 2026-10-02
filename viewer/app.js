@@ -27,7 +27,7 @@ import { initShare } from './share.js';
 import { buildTemplate, parseMeasured, printCorrection } from './template.js';
 import { initLibrary, modelZip } from './library.js';
 import { getModelFiles, getModelMeta, lastOpened, rememberOpened, putModelFile, saveModel, replaceModel, addPhoto, listPhotos, deletePhoto, setThumbnail } from './modelstore.js';
-import { obbFromDims, partsTouch, findOverlaps, findButts, applyJoins, endJoints, pointInObb } from './geometry.js';
+import { obbFromDims, partsTouch, findOverlaps, findButts, findInsets, applyJoins, endJoints, pointInObb } from './geometry.js';
 import { cutFeatures } from './features.js';
 import { renderReview, reviewPrintHtml } from './designreview.js';
 import { initDesigner } from './designer.js';
@@ -566,9 +566,36 @@ function classifyOverlaps() {
   // boards butted end grain to end grain are one board drawn in pieces
   const used = new Set([...autoFixes.joins.flat(), ...autoFixes.dupes]);
   findButts(baseObjectDims).forEach((names) => {
+    if (names.every((n) => !used.has(n) && meshByName.has(n))) { autoFixes.joins.push(names); names.forEach((n) => used.add(n)); }
+  });
+  // teeth cut in a block (a ratchet's), drawn as little parts of their own
+  const wood = (n) => { const r = rowByMeshName.get(n); return r && isCut(r) ? r : null; };
+  findInsets(baseObjectDims, {
+    sameStuff: (a, b) => wood(a) && wood(b) && wood(a).material === wood(b).material,
+    round: (n) => isTurned(meshByName.get(n)),
+  }).forEach((names) => {
     if (names.every((n) => !used.has(n) && meshByName.has(n))) autoFixes.joins.push(names);
   });
   return autoFixes.joins.length + autoFixes.dupes.length > 0;
+}
+// A turned part (a dowel, a peg): its faces point every way round its length,
+// where a sawn one's point four ways.
+function isTurned(mesh) {
+  const pos = mesh?.geometry.attributes.position;
+  if (!pos) return false;
+  const dirs = new Set();
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3();
+  const idx = mesh.geometry.index, count = idx ? idx.count : pos.count;
+  for (let i = 0; i + 2 < count; i += 3) {
+    const at = (k) => (idx ? idx.getX(i + k) : i + k);
+    a.fromBufferAttribute(pos, at(0)); b.fromBufferAttribute(pos, at(1)); c.fromBufferAttribute(pos, at(2));
+    n.subVectors(b, a).cross(c.clone().sub(a));
+    if (n.lengthSq() < 1e-12) continue;
+    n.normalize();
+    dirs.add(`${Math.round(n.x * 10)},${Math.round(n.y * 10)},${Math.round(n.z * 10)}`);
+    if (dirs.size > 24) return true;
+  }
+  return false;
 }
 
 // Say what was fixed automatically, once per model (and after it changes).
@@ -580,7 +607,7 @@ function announceAutoFixes() {
   if (settings().autoFixSeen === sig) return;
   updateSettings({ autoFixSeen: sig });
   const parts = [];
-  if (joined) parts.push(`joined ${joined} part${joined > 1 ? 's' : ''} the model drew in pieces (overlapping, or butted end to end)`);
+  if (joined) parts.push(`joined ${joined} part${joined > 1 ? 's' : ''} the model drew in pieces (overlapping, butted end to end, or teeth cut in a block)`);
   if (dropped) parts.push(`removed ${dropped} exact cop${dropped > 1 ? 'ies' : 'y'}`);
   if (holes) parts.push(`added ${holes} bolt hole${holes > 1 ? 's' : ''} the model didn't draw`);
   showToast(`Fixed automatically: ${parts.join(', ')}. See the part's card to undo.`, { ms: 9000 });
@@ -751,7 +778,8 @@ function mechanismParts() {
 
 // ---------- threads on bolts and rods ----------
 // A round hardware part is a bolt when a bolt head sits on one end: plain
-// shank from the head, threads the usual length at the far end. With no
+// shank from the head, threads the usual length at the far end. A nut on
+// one end (hex, wing, a thumb nut) means it's threaded where the nut runs. With no
 // head, a rod whose name says it's threaded (1/2"-13, M10, all-thread) is
 // threaded all along. The part's card can say otherwise (edits.threads:
 // row key -> 'full' | 'none' | inches of thread).
@@ -771,12 +799,17 @@ function threadSpecFor(m) {
   const dia = (W.length + T.length) / 2;
   const axis = new THREE.Vector3(...L.direction), c = new THREE.Vector3(...d.center);
   const ends = [c.clone().addScaledVector(axis, -L.length / 2), c.clone().addScaledVector(axis, L.length / 2)];
-  let head = -1;
+  let head = -1, nut = -1;
   meshes.forEach((o) => {
     const r = meshInfo.get(o).row;
-    if (o === m || head >= 0 || !r || r.category !== 'Hardware' || !/head/i.test(`${r.name} ${r.label}`)) return;
+    if (o === m || !r || r.category !== 'Hardware' || r === meshInfo.get(m).row) return;
     const b = o.geometry.boundingBox.clone().expandByScalar(dia * 0.3);
-    head = b.containsPoint(ends[0]) ? 0 : b.containsPoint(ends[1]) ? 1 : -1;
+    const at = b.containsPoint(ends[0]) ? 0 : b.containsPoint(ends[1]) ? 1 : -1;
+    if (at < 0) return;
+    // a bolt's head, or a nut - hex, wing, thumb - wound onto its end: it's
+    // threaded where a nut is
+    if (/head/i.test(`${r.name} ${r.label}`)) { if (head < 0) head = at; }
+    else if (nut < 0 && Math.max(...o.geometry.boundingBox.getSize(new THREE.Vector3()).toArray()) > dia * 1.5) nut = at;
   });
   const names = [row.name, row.label]; // not its size: 4-1/2" isn't a thread
   const choice = edits.threads?.[row.key];
@@ -784,13 +817,13 @@ function threadSpecFor(m) {
   if (choice === 'none') return { shank: true, length: 0 };
   if (typeof choice === 'number') length = Math.min(choice, L.length);
   else if (choice === 'full') length = L.length;
-  else if (head >= 0) length = boltThreadLength(dia, L.length);
-  else if (/thread|\brod\b|stud|all.?thread|\d\s*"?\s*-\s*\d{1,2}\b|\bUN[CF]\b|\bM\d/i.test(names.join(' '))) length = L.length;
+  else if (head >= 0 || nut >= 0) length = boltThreadLength(dia, L.length); // the bolt's usual thread, at the tip or where the nut runs
+  else if (/thread|\brod\b|stud|all.?thread|screw|\d\s*"?\s*-\s*\d{1,2}\b|\bUN[CF]\b|\bM\d/i.test(names.join(' '))) length = L.length;
   else return { shank: true, length: 0 };
-  // from the tip (the end away from the head) towards the head
-  const tip = head === 0 ? 1 : 0;
+  // from the tip (the end away from the head, or the end with the nut) towards the other
+  const tip = head >= 0 ? 1 - head : nut >= 0 ? nut : 0;
   const dir = tip === 0 ? axis : axis.clone().negate();
-  return { shank: true, axis: dir.toArray(), origin: ends[tip].toArray(), length, pitch: threadPitch(dia, ...names), head: head >= 0 };
+  return { shank: true, axis: dir.toArray(), origin: ends[tip].toArray(), length, full: L.length, pitch: threadPitch(dia, ...names), head: head >= 0 };
 }
 function applyThreads() {
   meshes.forEach((m) => {
@@ -1698,6 +1731,7 @@ function joineryText(jy, link, units) {
     if (j.kind === 'tenon') return `tenon ${size(j)}, ${f(j.depth)} long${through(j)} into ${link(j.row)}`;
     if (j.kind === 'dovetail') return `${j.through ? 'through ' : ''}dovetailed to ${link(j.row)} (${j.pins ? 'pins' : 'tails'}, about 1:${j.slope}, ${f(j.depth)} deep)`;
     if (j.kind === 'mitre') return `mitred to ${link(j.row)}`;
+    if (j.kind === 'teeth') return `its toothed end catches the teeth of ${link(j.row)} (a ratchet, not a glued joint)`;
     if (j.kind === 'tongue') return `${j.rabbeted ? 'rabbeted to a ' : ''}${f(j.thick)} tongue, ${f(j.depth)} into a groove in ${link(j.row)}`;
     if (j.kind === 'corner') return `lapped or box-jointed into the end of ${link(j.row)} (${f(j.depth)}${through(j)})`;
     return `goes ${f(j.depth)} in${through(j)} into ${link(j.row)}`;
@@ -1708,21 +1742,23 @@ function joineryText(jy, link, units) {
     const kinds = new Set(jy.cuts.map((j) => j.kind));
     const many = jy.cuts.length > 1;
     let length;
-    if (jy.loose) length = 'It sits almost wholly inside the parts it joins, like a loose tenon or dowel.';
+    if (kinds.size === 1 && kinds.has('teeth')) length = '';
+    else if (jy.loose) length = 'It sits almost wholly inside the parts it joins, like a loose tenon or dowel.';
     else if (kinds.size === 1 && kinds.has('mitre')) length = `The length is ${many ? 'long point to long point' : 'to the long point'}: <b>${f(jy.shoulders)}</b> ${many ? 'between the short points' : 'to the short point'}.`;
     else if (kinds.size === 1 && kinds.has('dovetail')) length = `The length includes ${many ? 'both' : 'it'}: <b>${f(jy.shoulders)}</b> ${many ? 'baseline to baseline' : 'from the baseline to the other end'}.`;
     else length = `The length includes ${many ? 'both' : 'it'}: <b>${f(jy.shoulders)}</b> ${many ? 'shoulder to shoulder' : 'from the shoulder to the other end'}.`;
-    out.ends = `${both ? `${texts[0]}, each end` : texts.join('; ')}. ${length}`;
+    out.ends = `${both ? `${texts[0]}, each end` : texts.join('; ')}.${length ? ` ${length}` : ''}`;
   }
   if (jy.holes.length) {
     // what other parts need cut in this one, named for the joint
-    const LABEL = { tenon: 'Mortises', housed: 'Housings', tongue: 'Grooves', dovetail: 'Dovetails', mitre: 'Mitres', corner: 'Corner joints' };
+    const LABEL = { tenon: 'Mortises', housed: 'Housings', tongue: 'Grooves', dovetail: 'Dovetails', mitre: 'Mitres', corner: 'Corner joints', teeth: 'Ratchet' };
     const kinds = [...new Set(jy.holes.map((h) => h.j.kind))];
     out.holesLabel = kinds.length === 1 ? LABEL[kinds[0]] || 'Housings' : 'Joints';
     const holeText = ({ j, row: r, n }) => {
       const x = n > 1 ? ` (${n})` : '';
       if (j.kind === 'dovetail') return `${j.through ? 'through ' : ''}${j.pins ? 'pins' : 'tails'} for ${link(r)}${x}`;
       if (j.kind === 'mitre') return `mitre for ${link(r)}${x}`;
+      if (j.kind === 'teeth') return `teeth that ${link(r)} catches${x}`;
       if (j.kind === 'tongue') return `groove ${f(j.thick)} wide, ${f(j.depth)} deep, for ${link(r)}${x}`;
       if (j.kind === 'corner') return `the end of ${link(r)} laps in ${f(j.depth)}${x}`;
       return `${size(j)}, ${j.through ? 'through' : `${f(j.depth)} deep`}, for ${link(r)}${x}`;
@@ -2530,7 +2566,7 @@ function threadsHtml(row) {
   if (!spec?.shank) return '';
   const choice = edits.threads?.[row.key] ?? 'auto';
   const units = settings().units;
-  const auto = spec && choice === 'auto' ? (spec.length ? `Auto (${spec.head ? `${formatLength(spec.length, units)} at the end` : 'whole length'})` : 'Auto (none)') : 'Auto';
+  const auto = spec && choice === 'auto' ? (spec.length ? `Auto (${spec.length < spec.full - 1 / 64 ? `${formatLength(spec.length, units)} at the end` : 'whole length'})` : 'Auto (none)') : 'Auto';
   const opt = (v, label) => `<option value="${v}"${String(v) === String(choice) ? ' selected' : ''}>${escapeHtml(label)}</option>`;
   return `<label class="card-threads" title="How much of it is threaded - drawn on the model">Threads
     <select data-act="threads">${opt('auto', auto)}${THREAD_CHOICES.map((v) => opt(v, v === 'full' ? 'Whole length' : v === 'none' ? 'None (plain pin)' : `${formatLength(v, units)} at the end`)).join('')}</select></label>`;

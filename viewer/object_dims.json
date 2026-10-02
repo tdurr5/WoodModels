@@ -155,6 +155,45 @@
       }
     ]
   },
+  "Seat_Seat_Handle_1": {
+    "center": [
+      14.8353,
+      13.9127,
+      -9.1875
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 3.4955,
+        "role": "Length",
+        "label": "3-1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 1.2328,
+        "role": "Width",
+        "label": "1-1/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 1.125,
+        "role": "Thickness",
+        "label": "1-1/8\""
+      }
+    ]
+  },
   "Rachet_Dove": {
     "center": [
       31.3173,
@@ -781,9 +820,9 @@
           0.0,
           -1.0
         ],
-        "length": 5.0529,
+        "length": 4.75,
         "role": "Length",
-        "label": "5-1/16\""
+        "label": "4-3/4\""
       },
       {
         "direction": [
@@ -1166,9 +1205,9 @@
           0.0,
           -1.0
         ],
-        "length": 6.8739,
+        "length": 8.2487,
         "role": "Length",
-        "label": "6-7/8\""
+        "label": "8-1/4\""
       },
       {
         "direction": [
@@ -1936,9 +1975,9 @@
           0.0,
           -1.0
         ],
-        "length": 5.0529,
+        "length": 4.75,
         "role": "Length",
-        "label": "5-1/16\""
+        "label": "4-3/4\""
       },
       {
         "direction": [
@@ -3175,23 +3214,23 @@
   },
   "Legs_Leg_Rear": {
     "center": [
-      2.8036,
-      9.3859,
-      -14.3447
+      2.8003,
+      9.3903,
+      -14.3516
     ],
     "axes": [
       {
         "direction": [
-          0.2065,
-          0.948805,
-          0.239014
+          0.206536,
+          0.949613,
+          0.23575
         ],
-        "length": 20.8953,
+        "length": 20.8881,
         "role": "Length",
         "label": "20-7/8\"",
         "angle": {
           "reference": "+Y (vertical)",
-          "total_deg": 18.4,
+          "total_deg": 18.3,
           "components": [
             {
               "label": "x",
@@ -3199,55 +3238,55 @@
             },
             {
               "label": "z",
-              "deg": 14.1
+              "deg": 13.9
             }
           ]
         }
       },
       {
         "direction": [
-          -0.086548,
-          -0.225609,
-          0.970366
+          -0.097677,
+          -0.21973,
+          0.970658
         ],
-        "length": 3.367,
+        "length": 3.4367,
         "role": "Width",
-        "label": "3-3/8\"",
+        "label": "3-7/16\"",
         "angle": {
           "reference": "+Z",
-          "total_deg": 14.0,
+          "total_deg": 13.9,
           "components": [
             {
               "label": "x",
-              "deg": -5.1
+              "deg": -5.7
             },
             {
               "label": "vertical",
-              "deg": -13.1
+              "deg": -12.8
             }
           ]
         }
       },
       {
         "direction": [
-          -0.974611,
-          0.221067,
-          -0.035529
+          -0.973551,
+          0.223503,
+          -0.047374
         ],
-        "length": 1.6031,
+        "length": 1.6362,
         "role": "Thickness",
         "label": "1-5/8\"",
         "angle": {
           "reference": "-X",
-          "total_deg": 12.9,
+          "total_deg": 13.2,
           "components": [
             {
               "label": "vertical",
-              "deg": 12.8
+              "deg": 12.9
             },
             {
               "label": "z",
-              "deg": -2.1
+              "deg": -2.8
             }
           ]
         }
@@ -3265,7 +3304,7 @@
         "direction": [
           0.479498,
           -0.877543,
-          -0.0
+          0.0
         ],
         "length": 27.1384,
         "role": "Length",
@@ -3280,7 +3319,7 @@
             },
             {
               "label": "z",
-              "deg": -0.0
+              "deg": 0.0
             }
           ]
         }
@@ -3323,23 +3362,23 @@
   },
   "Legs_Leg_Rear_1": {
     "center": [
-      2.8036,
-      9.3859,
-      -4.0303
+      2.8003,
+      9.3903,
+      -4.0234
     ],
     "axes": [
       {
         "direction": [
-          0.2065,
-          0.948805,
-          -0.239014
+          0.206536,
+          0.949613,
+          -0.23575
         ],
-        "length": 20.8953,
+        "length": 20.8881,
         "role": "Length",
         "label": "20-7/8\"",
         "angle": {
           "reference": "+Y (vertical)",
-          "total_deg": 18.4,
+          "total_deg": 18.3,
           "components": [
             {
               "label": "x",
@@ -3347,55 +3386,55 @@
             },
             {
               "label": "z",
-              "deg": -14.1
+              "deg": -13.9
             }
           ]
         }
       },
       {
         "direction": [
-          -0.086548,
-          -0.225609,
-          -0.970366
+          -0.097677,
+          -0.21973,
+          -0.970658
         ],
-        "length": 3.367,
+        "length": 3.4367,
         "role": "Width",
-        "label": "3-3/8\"",
+        "label": "3-7/16\"",
         "angle": {
           "reference": "-Z",
-          "total_deg": 14.0,
+          "total_deg": 13.9,
           "components": [
             {
               "label": "x",
-              "deg": -5.1
+              "deg": -5.7
             },
             {
               "label": "vertical",
-              "deg": -13.1
+              "deg": -12.8
             }
           ]
         }
       },
       {
         "direction": [
-          -0.974611,
-          0.221067,
-          0.035529
+          -0.973551,
+          0.223503,
+          0.047374
         ],
-        "length": 1.6031,
+        "length": 1.6362,
         "role": "Thickness",
         "label": "1-5/8\"",
         "angle": {
           "reference": "-X",
-          "total_deg": 12.9,
+          "total_deg": 13.2,
           "components": [
             {
               "label": "vertical",
-              "deg": 12.8
+              "deg": 12.9
             },
             {
               "label": "z",
-              "deg": 2.1
+              "deg": 2.8
             }
           ]
         }

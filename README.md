@@ -84,7 +84,7 @@ On a phone the layout follows how you hold it (model above the list upright, sid
   - Enter a price per board foot for a lumber cost estimate. Species you leave blank use a **typical price** (≈), from `prices.json`: typical US retail $/bf per species, raised for thick stock, and moved with the public US producer price indexes for hardwood and softwood lumber. The **update lumber prices** workflow refreshes it every Monday (or run it from the Actions tab) and republishes the viewer when prices change. Yards vary a lot - put in what yours charges.
   - **My boards**: list the boards you already have (species, thickness, width, length, how many). Parts are laid out on your boards first, marked *Your board* in the diagram, and the shopping list only counts what's left to buy. The list is kept in this browser for every project.
 - **Your notes**: add a note to any part from its card; it shows in the list, CSV and printout.
-- ⚠ notes flag known problems in the source model (e.g. rods whose name says 8-1/4" but are modeled 6-7/8").
+- ⚠ notes flag known problems in the source model (e.g. a rod whose name says 8-1/4" but is drawn shorter).
 
 **Build mode** (▶ Build at the top of the cut list) - the plan as a step-by-step guide for the shop, made for a phone:
 - One part per step, big: letter, name, quantity, finished and rough size, what it joins, its tenons or mortises, its holes, the other cuts in it and your notes. Tick **Cut** and it moves on to the next part.
@@ -265,4 +265,6 @@ The source SketchUp file has a few quirks that `parse_dae.py` works around (comm
 - One hardware component's geometry is corrupted (huge bogus bounding box). It's left out of the 3D view, and its quantity is inferred from the matching rod count.
 - Two hardware parts are modeled as several small face facets per real fastener rather than one part per instance, so quantities are corrected to the real fastener count.
 - Some parts' mesh geometry is pre-rotated in the source file rather than transformed through the scene graph. `parse_dae.py` detects this by comparing an axis-aligned box against a PCA-fitted oriented one and uses whichever is tighter.
-- Two threaded rods are named for a different length than they're modeled at (8-1/4" named / 6-7/8" modeled, and 4-3/4" / 5-1/16"). `parse_dae.py` checks every part's name for a stated length like this and flags mismatches, and the viewer shows them with a ⚠. Check the paper plan before buying rod.
+- The 8-1/4" and 4-3/4" threaded rods are copies of the 6-7/8" rod component, stretched to length (×1.2 and ×0.94). Measured as placed they match their names. (The first conversion of this model ignored the stretch and flagged them as wrong lengths; they aren't.) `parse_dae.py` still checks every part's name for a stated length and flags a real mismatch with a ⚠.
+- The six teeth of the ratchet on the Jaw Support are drawn as separate "Key" components. They're cut in the block, so the viewer folds them into the Jaw Support (its card says so, with **Split apart** to undo), and the Ratchet Dove's sawtooth end is listed as a ratchet, not a joint.
+- The seat screw (3/8") has a thumb nut on its lower end; it's threaded 3/8"-16 where the nut runs.
