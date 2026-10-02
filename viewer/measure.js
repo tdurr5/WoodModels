@@ -219,7 +219,7 @@ export function initMeasure(ctx) {
     const segLine = new THREE.Vector3(), segPt = new THREE.Vector3();
     const meshes = ctx.pickMeshes();
     const segments = [];
-    meshes.forEach((m) => featureEdges(m).segments.forEach(([a, b]) => segments.push([a.clone().add(m.position), b.clone().add(m.position), 'edge'])));
+    meshes.forEach((m) => featureEdges(m).segments.forEach(([a, b]) => segments.push([a.clone().applyMatrix4(m.matrix), b.clone().applyMatrix4(m.matrix), 'edge'])));
     (ctx.guideEdges ? ctx.guideEdges() : []).forEach(([a, b]) => segments.push([a, b, 'box edge']));
     const rc = new THREE.Raycaster();
     axes.forEach((ax) => {

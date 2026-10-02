@@ -1,0 +1,677 @@
+[
+  {
+    "label": "top_mold-front_back",
+    "top_group": "group_0",
+    "dims": [
+      29.5,
+      1.25,
+      0.75
+    ],
+    "count": 1,
+    "materials": [
+      "Apple-2_Ver",
+      "Wood-4_Hor_0"
+    ],
+    "paths": [
+      "group_0/instance_1/top_mold-front_back"
+    ],
+    "obj_names": [
+      "group_0_instance_1_top_mold_front_back"
+    ],
+    "material": "Wood-4_Hor_0",
+    "dims_str": "29-1/2\" x 1-1/4\" x 3/4\""
+  },
+  {
+    "label": "top_mold-front_back_1",
+    "top_group": "group_0",
+    "dims": [
+      29.5,
+      1.25,
+      0.75
+    ],
+    "count": 1,
+    "materials": [
+      "Wood-4_Hor",
+      "Wood-4_Hor_0"
+    ],
+    "paths": [
+      "group_0/instance_0/top_mold-front_back_1"
+    ],
+    "obj_names": [
+      "group_0_instance_0_top_mold_front_back_1"
+    ],
+    "material": "Wood-4_Hor",
+    "dims_str": "29-1/2\" x 1-1/4\" x 3/4\""
+  },
+  {
+    "label": "top_mold-sides",
+    "top_group": "group_0",
+    "dims": [
+      16.5,
+      1.25,
+      0.75
+    ],
+    "count": 2,
+    "materials": [
+      "Wood-4_Hor",
+      "Wood-4_Hor_0"
+    ],
+    "paths": [
+      "group_0/instance_2/top_mold-sides",
+      "group_0/instance_3/top_mold-sides"
+    ],
+    "obj_names": [
+      "group_0_instance_2_top_mold_sides",
+      "group_0_instance_3_top_mold_sides"
+    ],
+    "material": "Wood-4_Hor",
+    "dims_str": "16-1/2\" x 1-1/4\" x 3/4\""
+  },
+  {
+    "label": "lid_molding-rails",
+    "top_group": "group_1",
+    "dims": [
+      16.5,
+      0.875,
+      0.688
+    ],
+    "count": 2,
+    "materials": [
+      "Cherry-1_Hor1",
+      "Wood-4_Hor"
+    ],
+    "paths": [
+      "group_1/instance_5/lid_molding-rails",
+      "group_1/instance_10/lid_molding-rails"
+    ],
+    "obj_names": [
+      "group_1_instance_5_lid_molding_rails",
+      "group_1_instance_10_lid_molding_rails"
+    ],
+    "material": "Cherry-1_Hor1",
+    "dims_str": "16-1/2\" x 7/8\" x 11/16\""
+  },
+  {
+    "label": "lid_molding-stiles",
+    "top_group": "group_1",
+    "dims": [
+      29.5,
+      0.875,
+      0.688
+    ],
+    "count": 1,
+    "materials": [
+      "Cherry-1_Hor1",
+      "Wood-4_Hor"
+    ],
+    "paths": [
+      "group_1/instance_12/lid_molding-stiles"
+    ],
+    "obj_names": [
+      "group_1_instance_12_lid_molding_stiles"
+    ],
+    "material": "Wood-4_Hor",
+    "dims_str": "29-1/2\" x 7/8\" x 11/16\""
+  },
+  {
+    "label": "lid_molding-stiles_1",
+    "top_group": "group_1",
+    "dims": [
+      29.5,
+      0.875,
+      0.687
+    ],
+    "count": 1,
+    "materials": [
+      "Cherry-1_Hor1",
+      "Wood-4_Hor"
+    ],
+    "paths": [
+      "group_1/instance_11/lid_molding-stiles_1"
+    ],
+    "obj_names": [
+      "group_1_instance_11_lid_molding_stiles_1"
+    ],
+    "material": "Wood-4_Hor",
+    "dims_str": "29-1/2\" x 7/8\" x 11/16\""
+  },
+  {
+    "label": "lid_panel",
+    "top_group": "group_1",
+    "dims": [
+      23.625,
+      10.625,
+      0.875
+    ],
+    "count": 1,
+    "materials": [
+      "Cherry-1_Hor1",
+      "Wood-4_Hor",
+      "Wood-4_Hor_1"
+    ],
+    "paths": [
+      "group_1/instance_6/lid_panel"
+    ],
+    "obj_names": [
+      "group_1_instance_6_lid_panel"
+    ],
+    "material": "Cherry-1_Hor1",
+    "dims_str": "23-5/8\" x 10-5/8\" x 7/8\""
+  },
+  {
+    "label": "lid_rails",
+    "top_group": "group_1",
+    "dims": [
+      15.125,
+      2.5,
+      0.75
+    ],
+    "count": 2,
+    "materials": [
+      "Cherry-1_Hor1",
+      "Wood-4_Hor"
+    ],
+    "paths": [
+      "group_1/instance_4/lid_rails",
+      "group_1/instance_8/lid_rails"
+    ],
+    "obj_names": [
+      "group_1_instance_4_lid_rails",
+      "group_1_instance_8_lid_rails"
+    ],
+    "material": "Cherry-1_Hor1",
+    "dims_str": "15-1/8\" x 2-1/2\" x 3/4\""
+  },
+  {
+    "label": "lid_stiles",
+    "top_group": "group_1",
+    "dims": [
+      28.125,
+      2.5,
+      0.75
+    ],
+    "count": 2,
+    "materials": [
+      "Cherry-1_Hor1",
+      "Wood-4_Hor"
+    ],
+    "paths": [
+      "group_1/instance_7/lid_stiles",
+      "group_1/instance_9/lid_stiles"
+    ],
+    "obj_names": [
+      "group_1_instance_7_lid_stiles",
+      "group_1_instance_9_lid_stiles"
+    ],
+    "material": "Wood-4_Hor",
+    "dims_str": "28-1/8\" x 2-1/2\" x 3/4\""
+  },
+  {
+    "label": "Strip",
+    "top_group": "group_11",
+    "dims": [
+      2.0,
+      1.001,
+      0.251
+    ],
+    "count": 4,
+    "materials": [
+      "Buff"
+    ],
+    "paths": [
+      "group_11/group_12",
+      "group_11/group_13",
+      "group_14/group_15",
+      "group_14/group_16"
+    ],
+    "obj_names": [
+      "group_11_group_12",
+      "group_11_group_13",
+      "group_14_group_15",
+      "group_14_group_16"
+    ],
+    "auto_name": true,
+    "material": "Buff",
+    "dims_str": "2\" x 1\" x 1/4\""
+  },
+  {
+    "label": "handplane_tray_bottom",
+    "top_group": "group_2",
+    "dims": [
+      26.0,
+      5.5,
+      0.25
+    ],
+    "count": 1,
+    "materials": [
+      "Cherry-1_Hor3",
+      "Cherry-1_Hor3_2"
+    ],
+    "paths": [
+      "group_2/instance_17/handplane_tray_bottom"
+    ],
+    "obj_names": [
+      "group_2_instance_17_handplane_tray_bottom"
+    ],
+    "material": "Cherry-1_Hor3",
+    "dims_str": "26\" x 5-1/2\" x 1/4\""
+  },
+  {
+    "label": "handplane_tray_front_back",
+    "top_group": "group_2",
+    "dims": [
+      26.0,
+      2.75,
+      0.25
+    ],
+    "count": 2,
+    "materials": [
+      "Cherry-1_Hor3"
+    ],
+    "paths": [
+      "group_2/instance_13/handplane_tray_front_back",
+      "group_2/instance_16/handplane_tray_front_back"
+    ],
+    "obj_names": [
+      "group_2_instance_13_handplane_tray_front_back",
+      "group_2_instance_16_handplane_tray_front_back"
+    ],
+    "material": "Cherry-1_Hor3",
+    "dims_str": "26\" x 2-3/4\" x 1/4\""
+  },
+  {
+    "label": "handplane_tray_sides",
+    "top_group": "group_2",
+    "dims": [
+      5.5,
+      2.75,
+      0.25
+    ],
+    "count": 2,
+    "materials": [
+      "Cherry-1_Hor3"
+    ],
+    "paths": [
+      "group_2/instance_14/handplane_tray_sides",
+      "group_2/instance_15/handplane_tray_sides"
+    ],
+    "obj_names": [
+      "group_2_instance_14_handplane_tray_sides",
+      "group_2_instance_15_handplane_tray_sides"
+    ],
+    "material": "Cherry-1_Hor3",
+    "dims_str": "5-1/2\" x 2-3/4\" x 1/4\""
+  },
+  {
+    "label": "chisel_tray_bottom",
+    "top_group": "group_3",
+    "dims": [
+      26.375,
+      5.5,
+      0.25
+    ],
+    "count": 1,
+    "materials": [
+      "Cherry-1_Hor3"
+    ],
+    "paths": [
+      "group_3/instance_19/chisel_tray_bottom"
+    ],
+    "obj_names": [
+      "group_3_instance_19_chisel_tray_bottom"
+    ],
+    "material": "Cherry-1_Hor3",
+    "dims_str": "26-3/8\" x 5-1/2\" x 1/4\""
+  },
+  {
+    "label": "chisel_tray_front_back",
+    "top_group": "group_3",
+    "dims": [
+      26.375,
+      1.5,
+      0.25
+    ],
+    "count": 2,
+    "materials": [
+      "Cherry-1_Hor3"
+    ],
+    "paths": [
+      "group_3/instance_18/chisel_tray_front_back",
+      "group_3/instance_22/chisel_tray_front_back"
+    ],
+    "obj_names": [
+      "group_3_instance_18_chisel_tray_front_back",
+      "group_3_instance_22_chisel_tray_front_back"
+    ],
+    "material": "Cherry-1_Hor3",
+    "dims_str": "26-3/8\" x 1-1/2\" x 1/4\""
+  },
+  {
+    "label": "chisel_tray_sides",
+    "top_group": "group_3",
+    "dims": [
+      5.5,
+      1.5,
+      0.25
+    ],
+    "count": 2,
+    "materials": [
+      "Cherry-1_Hor3"
+    ],
+    "paths": [
+      "group_3/instance_20/chisel_tray_sides",
+      "group_3/instance_21/chisel_tray_sides"
+    ],
+    "obj_names": [
+      "group_3_instance_20_chisel_tray_sides",
+      "group_3_instance_21_chisel_tray_sides"
+    ],
+    "material": "Cherry-1_Hor3",
+    "dims_str": "5-1/2\" x 1-1/2\" x 1/4\""
+  },
+  {
+    "label": "handsaw_box_bottom",
+    "top_group": "group_4",
+    "dims": [
+      25.375,
+      3.5,
+      0.25
+    ],
+    "count": 1,
+    "materials": [
+      "Cherry-1_Hor3"
+    ],
+    "paths": [
+      "group_4/instance_23/handsaw_box_bottom"
+    ],
+    "obj_names": [
+      "group_4_instance_23_handsaw_box_bottom"
+    ],
+    "material": "Cherry-1_Hor3",
+    "dims_str": "25-3/8\" x 3-1/2\" x 1/4\""
+  },
+  {
+    "label": "handsaw_box_front_back",
+    "top_group": "group_4",
+    "dims": [
+      26.375,
+      5.75,
+      0.25
+    ],
+    "count": 2,
+    "materials": [
+      "Cherry-1_Hor3"
+    ],
+    "paths": [
+      "group_4/instance_24/handsaw_box_front_back",
+      "group_4/instance_25/handsaw_box_front_back"
+    ],
+    "obj_names": [
+      "group_4_instance_24_handsaw_box_front_back",
+      "group_4_instance_25_handsaw_box_front_back"
+    ],
+    "material": "Cherry-1_Hor3",
+    "dims_str": "26-3/8\" x 5-3/4\" x 1/4\""
+  },
+  {
+    "label": "handsaw_box_sides",
+    "top_group": "group_4",
+    "dims": [
+      5.75,
+      3.5,
+      0.75
+    ],
+    "count": 2,
+    "materials": [
+      "Cherry-1_Hor3"
+    ],
+    "paths": [
+      "group_4/instance_26/handsaw_box_sides",
+      "group_4/instance_27/handsaw_box_sides"
+    ],
+    "obj_names": [
+      "group_4_instance_26_handsaw_box_sides",
+      "group_4_instance_27_handsaw_box_sides"
+    ],
+    "material": "Cherry-1_Hor3",
+    "dims_str": "5-3/4\" x 3-1/2\" x 3/4\""
+  },
+  {
+    "label": "handle",
+    "top_group": "group_5",
+    "dims": [
+      2.553,
+      1.562,
+      0.125
+    ],
+    "count": 2,
+    "materials": [
+      "Ash-1_Hor",
+      "Buff"
+    ],
+    "paths": [
+      "group_5/instance_32/handle",
+      "group_8/instance_33/handle"
+    ],
+    "obj_names": [
+      "group_5_instance_32_handle",
+      "group_8_instance_33_handle"
+    ],
+    "material": "Buff",
+    "dims_str": "2-9/16\" x 1-9/16\" x 1/8\""
+  },
+  {
+    "label": "handle_base",
+    "top_group": "group_5",
+    "dims": [
+      0.75,
+      0.75,
+      0.312
+    ],
+    "count": 4,
+    "materials": [
+      "Ash-1_Hor",
+      "Buff"
+    ],
+    "paths": [
+      "group_5/group_6/instance_31/handle_base",
+      "group_5/group_7/instance_31/handle_base",
+      "group_8/group_9/instance_31/handle_base",
+      "group_8/group_10/instance_31/handle_base"
+    ],
+    "obj_names": [
+      "group_5_group_6_instance_31_handle_base",
+      "group_5_group_7_instance_31_handle_base",
+      "group_8_group_9_instance_31_handle_base",
+      "group_8_group_10_instance_31_handle_base"
+    ],
+    "material": "Buff",
+    "dims_str": "3/4\" x 3/4\" x 5/16\""
+  },
+  {
+    "label": "screw_hed",
+    "top_group": "group_5",
+    "dims": [
+      0.125,
+      0.125,
+      0.062
+    ],
+    "count": 12,
+    "materials": [
+      "Ash-1_Hor",
+      "Buff"
+    ],
+    "paths": [
+      "group_5/group_6/instance_28/screw_hed",
+      "group_5/group_6/instance_29/screw_hed",
+      "group_5/group_6/instance_30/screw_hed",
+      "group_5/group_7/instance_28/screw_hed",
+      "group_5/group_7/instance_29/screw_hed",
+      "group_5/group_7/instance_30/screw_hed",
+      "group_8/group_9/instance_28/screw_hed",
+      "group_8/group_9/instance_29/screw_hed",
+      "group_8/group_9/instance_30/screw_hed",
+      "group_8/group_10/instance_28/screw_hed",
+      "group_8/group_10/instance_29/screw_hed",
+      "group_8/group_10/instance_30/screw_hed"
+    ],
+    "obj_names": [
+      "group_5_group_6_instance_28_screw_hed",
+      "group_5_group_6_instance_29_screw_hed",
+      "group_5_group_6_instance_30_screw_hed",
+      "group_5_group_7_instance_28_screw_hed",
+      "group_5_group_7_instance_29_screw_hed",
+      "group_5_group_7_instance_30_screw_hed",
+      "group_8_group_9_instance_28_screw_hed",
+      "group_8_group_9_instance_29_screw_hed",
+      "group_8_group_9_instance_30_screw_hed",
+      "group_8_group_10_instance_28_screw_hed",
+      "group_8_group_10_instance_29_screw_hed",
+      "group_8_group_10_instance_30_screw_hed"
+    ],
+    "material": "Buff",
+    "dims_str": "1/8\" x 1/8\" x 1/16\""
+  },
+  {
+    "label": "bottom",
+    "top_group": "instance_34",
+    "dims": [
+      27.25,
+      14.25,
+      0.75
+    ],
+    "count": 1,
+    "materials": [
+      "Ash-1_Hor",
+      "Cherry-1_Hor2"
+    ],
+    "paths": [
+      "instance_34/bottom"
+    ],
+    "obj_names": [
+      "instance_34_bottom"
+    ],
+    "material": "Ash-1_Hor",
+    "dims_str": "27-1/4\" x 14-1/4\" x 3/4\""
+  },
+  {
+    "label": "sides",
+    "top_group": "instance_35",
+    "dims": [
+      15.0,
+      13.0,
+      0.75
+    ],
+    "count": 2,
+    "materials": [
+      "Ash-1_Hor",
+      "Wood-4_Hor"
+    ],
+    "paths": [
+      "instance_35/sides",
+      "instance_44/sides"
+    ],
+    "obj_names": [
+      "instance_35_sides",
+      "instance_44_sides"
+    ],
+    "material": "Wood-4_Hor",
+    "dims_str": "15\" x 13\" x 3/4\""
+  },
+  {
+    "label": "front_back",
+    "top_group": "instance_36",
+    "dims": [
+      28.0,
+      13.0,
+      0.75
+    ],
+    "count": 2,
+    "materials": [
+      "Ash-1_Hor",
+      "Wood-4_Hor"
+    ],
+    "paths": [
+      "instance_36/front_back",
+      "instance_37/front_back"
+    ],
+    "obj_names": [
+      "instance_36_front_back",
+      "instance_37_front_back"
+    ],
+    "material": "Ash-1_Hor",
+    "dims_str": "28\" x 13\" x 3/4\""
+  },
+  {
+    "label": "Base_mold-front_back",
+    "top_group": "instance_38",
+    "dims": [
+      29.5,
+      2.625,
+      0.75
+    ],
+    "count": 2,
+    "materials": [
+      "Ash-1_Hor",
+      "Wood-4_Hor"
+    ],
+    "paths": [
+      "instance_38/Base_mold-front_back",
+      "instance_41/Base_mold-front_back"
+    ],
+    "obj_names": [
+      "instance_38_Base_mold_front_back",
+      "instance_41_Base_mold_front_back"
+    ],
+    "material": "Wood-4_Hor",
+    "dims_str": "29-1/2\" x 2-5/8\" x 3/4\""
+  },
+  {
+    "label": "base_mold-sides",
+    "top_group": "instance_39",
+    "dims": [
+      16.5,
+      2.625,
+      0.75
+    ],
+    "count": 2,
+    "materials": [
+      "Ash-1_Hor",
+      "Wood-4_Hor"
+    ],
+    "paths": [
+      "instance_39/base_mold-sides",
+      "instance_40/base_mold-sides"
+    ],
+    "obj_names": [
+      "instance_39_base_mold_sides",
+      "instance_40_base_mold_sides"
+    ],
+    "material": "Wood-4_Hor",
+    "dims_str": "16-1/2\" x 2-5/8\" x 3/4\""
+  },
+  {
+    "label": "cleat",
+    "top_group": "instance_42",
+    "dims": [
+      13.5,
+      4.0,
+      0.5
+    ],
+    "count": 2,
+    "materials": [
+      "Ash-1_Hor",
+      "Wood-4_Hor1"
+    ],
+    "paths": [
+      "instance_42/cleat",
+      "instance_43/cleat"
+    ],
+    "obj_names": [
+      "instance_42_cleat",
+      "instance_43_cleat"
+    ],
+    "material": "Ash-1_Hor",
+    "dims_str": "13-1/2\" x 4\" x 1/2\""
+  }
+]

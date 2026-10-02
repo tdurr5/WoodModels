@@ -21,6 +21,7 @@ import {
   normalizeEdits, withStatus, withName, withGroupName, withPieceStatus, withJoin, withSplit, withAutoFixes, joinKey, withExplodeOffset,
 } from './edits.js';
 import { initMeasure } from './measure.js';
+import { initMechanisms } from './mechpanel.js';
 import { initDiagramModal, computeLayouts, layoutsHTML, STOCK_DEFAULTS, shoppingText, setSpeciesLookup } from './diagram.js';
 import { initShare } from './share.js';
 import { buildTemplate, parseMeasured, printCorrection } from './template.js';
@@ -168,6 +169,7 @@ const stage = createStage(scene, renderer);
 // follows the theme)
 const edgeMats = { plain: edgeMaterial(0x000000, 0.4), hl: edgeMaterial(0x5a1a00, 0.55), hover: edgeMaterial(0xffa640, 0.95), ghost: edgeMaterial(0xffffff, 0.14) };
 let hoverRow = null; // the part under the pointer: its outline lights up
+let hoverMeshes = new Set(); // a lid or tray under the pointer in Hands on
 // All the outlines of one style are drawn as one object - four draw calls
 // however many parts, which keeps a 2000-part timber frame quick to orbit on
 // a phone. Rebuilt when a part moves, shows, hides or changes style
@@ -315,6 +317,9 @@ async function init() {
   scene.add(model);
   woodPhotos = await loadWoodPhotos(cfg, files);
   prepareMeshes(materialNames);
+  mechCtl.setup(config, meshes); // the lid, trays and handles that move
+  setExplodePositions(explode);
+  updateModelBox(); // framed with the lid as it stands
   findHoles();
   if (classifyOverlaps()) refreshRows();
   else if (missingHoles.length) refreshRows(); // their notes
@@ -625,7 +630,7 @@ function isShownPart(m) {
 }
 function updateModelBox() {
   const b = new THREE.Box3();
-  meshes.forEach((m) => { if (isShownPart(m)) b.expandByPoint(m.geometry.boundingBox.min).expandByPoint(m.geometry.boundingBox.max); });
+  meshes.forEach((m) => { if (isShownPart(m)) b.union(mechCtl.moves(m) ? partBox(m) : m.geometry.boundingBox); }); // a lid as it stands, not as drawn
   modelBox = b.isEmpty() ? new THREE.Box3().setFromObject(model) : b;
   modelCenter = modelBox.getCenter(new THREE.Vector3());
   fitStage();
@@ -909,7 +914,7 @@ function applyMaterials() {
 const EDGE_STYLES = Object.keys(edgeMats);
 function edgeStyle(m, info) {
   if (!m.visible || wireOn || !info.edges.length) return null;
-  if (hoverRow && info.row === hoverRow) return 'hover';
+  if ((hoverRow && info.row === hoverRow) || hoverMeshes.has(m)) return 'hover';
   if (m.material === info.dim) return 'ghost';
   return m.material === info.hl || m.material === info.hlPiece ? 'hl' : 'plain';
 }
@@ -920,7 +925,7 @@ function updateEdges() {
   const styles = meshes.map((m, i) => {
     const st = edgeStyle(m, meshInfo.get(m));
     mix(i + 1); mix(st ? EDGE_STYLES.indexOf(st) : -1);
-    if (st) { mix(m.position.x); mix(m.position.y); mix(m.position.z); }
+    if (st) { mix(m.position.x); mix(m.position.y); mix(m.position.z); mix(m.quaternion.x); mix(m.quaternion.y); mix(m.quaternion.z); }
     return st;
   });
   if (h === edgeSig) return;
@@ -932,8 +937,13 @@ function updateEdges() {
     let o = 0;
     meshes.forEach((m, i) => {
       if (styles[i] !== style) return;
-      const src = meshInfo.get(m).edges, { x, y, z } = m.position; // exploded offset
-      for (let k = 0; k < src.length; k += 3) { arr[o++] = src[k] + x; arr[o++] = src[k + 1] + y; arr[o++] = src[k + 2] + z; }
+      const src = meshInfo.get(m).edges, e = m.matrix.elements; // exploded offset, a lid's swing
+      for (let k = 0; k < src.length; k += 3) {
+        const x = src[k], y = src[k + 1], z = src[k + 2];
+        arr[o++] = e[0] * x + e[4] * y + e[8] * z + e[12];
+        arr[o++] = e[1] * x + e[5] * y + e[9] * z + e[13];
+        arr[o++] = e[2] * x + e[6] * y + e[10] * z + e[14];
+      }
     });
     const layer = edgeLayers[style];
     layer.geometry.dispose();
@@ -1073,7 +1083,9 @@ function setExplodePositions(f) {
     const info = meshInfo.get(m);
     m.position.copy(offset(info.anchor ? meshInfo.get(info.anchor) : info)); // hardware moves with its wood
     if (info.anchor) m.position.add(moved(info));
-    if (isShownPart(m)) reach.union(m.geometry.boundingBox.clone().translate(m.position));
+    mechCtl.applyPose(m); // the lid open, a tray slid or lifted out
+    m.updateMatrix();
+    if (isShownPart(m)) reach.union(partBox(m));
   });
   fitStage(reach); // the floor drops with parts pulled below it, and shadows follow them out
 }
@@ -1194,6 +1206,15 @@ function stepTween(now) {
   if (k >= 1) tween = null;
 }
 
+// Where a part is now, as a box: its drawn box moved with it, or measured
+// from its corners when it's turned (a lid open or shut), since a turned
+// box of a turned part is loose.
+function partBox(m) {
+  m.updateMatrix();
+  const b = m.geometry.boundingBox.clone();
+  const turned = Math.abs(m.quaternion.w) < 1 - 1e-9;
+  return turned ? new THREE.Box3().setFromObject(m, true) : b.applyMatrix4(m.matrix);
+}
 function focusBox() {
   if (designer?.isOpen()) {
     const box = designer.tools.bounds();
@@ -1201,7 +1222,7 @@ function focusBox() {
   }
   if (current && current.box) return current.box;
   const b = new THREE.Box3();
-  meshes.forEach((m) => { if (m.visible) b.expandByObject(m); });
+  meshes.forEach((m) => { if (m.visible) b.union(partBox(m)); });
   return b.isEmpty() ? modelBox : b;
 }
 
@@ -1315,7 +1336,7 @@ function buildSelectionOverlays() {
   requestRender();
   disposeOverlays();
   const box = new THREE.Box3();
-  current.meshes.forEach((m) => box.expandByObject(m));
+  current.meshes.forEach((m) => box.union(partBox(m)));
   current.box = box.isEmpty() ? null : box;
   const gizmo = new THREE.Group();
   const labelSpecs = [];
@@ -1350,22 +1371,23 @@ function buildSelectionOverlays() {
     if (!data || !data.axes) return;
     const sub = new THREE.Group();
     sub.position.copy(m.position); // exploded-view offset
+    sub.quaternion.copy(m.quaternion); // a lid swung open
     if (i < (current.row.customDims ? 1 : MAX_DIMENSIONED)) {
-      buildDimensionGizmo(sub, data, labelSpecs, m.position, i ? first : null);
+      buildDimensionGizmo(sub, data, labelSpecs, m.matrix, i ? first : null);
       // the end the card measures its cuts from: the version's first piece's
       // start, and the matching end of the others (a mirrored pair's are opposite)
       const g = variants.find((v) => v.meshes.includes(m));
       if (g && cutsOf(current.row, g.meshes[0]).some((c) => c.surface !== 'end' && !c.full)) {
         const L = new THREE.Vector3(...data.axes[0].direction);
         const end = m === g.meshes[0] || lengthBias(m) * lengthBias(g.meshes[0]) >= 0 ? -1 : 1;
-        labelSpecs.push({ pos: new THREE.Vector3(...data.center).addScaledVector(L, end * data.axes[0].length / 2).add(m.position), text: '0', color: '#f2f2f2', cls: 'origin' });
+        labelSpecs.push({ pos: new THREE.Vector3(...data.center).addScaledVector(L, end * data.axes[0].length / 2).applyMatrix4(m.matrix), text: '0', color: '#f2f2f2', cls: 'origin' });
       }
     }
-    if (settings().showPartAngles) buildAngleGizmo(sub, data, labelSpecs, m.position);
+    if (settings().showPartAngles) buildAngleGizmo(sub, data, labelSpecs, m.matrix);
     // several versions of the part: number each piece by its version
     if (variants.length > 1) {
       const v = variants.findIndex((g) => g.meshes.includes(m));
-      labelSpecs.push({ pos: new THREE.Vector3(...data.center).add(m.position), text: `${v + 1}`, color: '#f2f2f2', cls: 'version' });
+      labelSpecs.push({ pos: new THREE.Vector3(...data.center).applyMatrix4(m.matrix), text: `${v + 1}`, color: '#f2f2f2', cls: 'version' });
     }
     gizmo.add(sub);
   });
@@ -1471,7 +1493,7 @@ function buildDimensionGizmo(group, data, labelSpecs, offset, ref = null) {
     });
     const text = formatLength(axes[i].length, units);
     const differs = !!ref && ref.axes[i] && formatLength(ref.axes[i].length, units) !== text;
-    labelSpecs.push({ pos: lineCenter.clone().add(offset), text, color: AXIS_COLORS[axes[i].role], differs });
+    labelSpecs.push({ pos: lineCenter.clone().applyMatrix4(offset), text, color: AXIS_COLORS[axes[i].role], differs });
   }
 }
 
@@ -1500,7 +1522,7 @@ function addArc(group, pivot, v1, v2, radius, color, labelSpecs, labelText, offs
   }));
   mesh.renderOrder = 998;
   group.add(mesh);
-  if (labelText) labelSpecs.push({ pos: pts[12].clone().add(offset), text: labelText, color });
+  if (labelText) labelSpecs.push({ pos: pts[12].clone().applyMatrix4(offset), text: labelText, color });
 }
 
 // Draws the lean as something you can actually SEE: a reference line (plumb,
@@ -2016,7 +2038,7 @@ function selectGroup(group, { frame = true } = {}) {
 }
 function groupBox(group) {
   const box = new THREE.Box3();
-  meshes.forEach((m) => { if (meshInfo.get(m).row?.top_group === group && m.visible) box.expandByObject(m); });
+  meshes.forEach((m) => { if (meshInfo.get(m).row?.top_group === group && m.visible) box.union(partBox(m)); });
   return box;
 }
 
@@ -2069,7 +2091,7 @@ let build = null; // { order: rows, stepOf: key -> index, i }
 function buildSteps() {
   const boxOf = (r) => {
     const box = new THREE.Box3();
-    (r.obj_names || []).forEach((n) => { const m = meshByName.get(n); if (m) box.expandByObject(m); });
+    (r.obj_names || []).forEach((n) => { const m = meshByName.get(n); if (m) box.union(partBox(m)); });
     if (box.isEmpty()) return null;
     const sz = box.getSize(new THREE.Vector3());
     return { minY: box.min.y, volume: sz.x * sz.y * sz.z };
@@ -2495,7 +2517,7 @@ function startMove() {
   const m = current.piece || current.meshes[0];
   const info = meshInfo.get(m);
   const base = edits.explode?.[info.unitKey] || [0, 0, 0];
-  moverTarget.position.copy(info.unitCenter).add(m.position);
+  moverTarget.position.copy(info.unitCenter).applyMatrix4(m.matrix);
   moving = { key: info.unitKey, base: [...base], live: [...base], start: moverTarget.position.clone() };
   mover.camera = camera;
   mover.attach(moverTarget);
@@ -2603,13 +2625,13 @@ function selectionGuidePoints() {
 function selectionBoxCorners(m) {
   const d = objectDims[m.name];
   if (!d) return null;
-  const b = obbFromDims(d, m.position.toArray());
+  const b = obbFromDims(d);
   const cs = [];
   for (let i = 0; i < 8; i++) {
     const sgn = [i & 1 ? 1 : -1, i & 2 ? 1 : -1, i & 4 ? 1 : -1];
     const p = new THREE.Vector3(...b.center);
     for (let k = 0; k < 3; k++) p.addScaledVector(new THREE.Vector3(...b.axes[k]), sgn[k] * b.half[k]);
-    cs.push(p);
+    cs.push(p.applyMatrix4(m.matrix)); // where the part is now (exploded, a lid open)
   }
   return cs;
 }
@@ -2657,6 +2679,42 @@ function wasDrag(e) {
   return drag;
 }
 
+// The model's moving parts (mechpanel.js): the lid, trays and handles, worked
+// from the "Open it up" panel or by hand in 3D (Hands on). Set up after the
+// press tracking above, so its own presses on a lid come after it.
+const mechCtl = initMechanisms({
+  panel: $('mechPanel'),
+  canvas: renderer.domElement,
+  controls,
+  camera: () => camera,
+  units: () => settings().units,
+  raycast: (x, y) => raycastAt(x, y, meshes.filter((m) => m.visible)),
+  rayAt: (x, y) => { raycastAt(x, y, []); return raycaster.ray.clone(); },
+  enabled: () => !!model && !measure.mode && !designer?.isOpen() && !merging && !moving,
+  toast: (msg) => showToast(msg, { ms: 6000 }),
+  tip: (e, html) => {
+    if (!e) { hoverTip.style.display = 'none'; return; }
+    const r = viewport.getBoundingClientRect();
+    hoverTip.innerHTML = html;
+    hoverTip.style.display = 'block';
+    hoverTip.style.left = `${e.clientX - r.left + 14}px`;
+    hoverTip.style.top = `${e.clientY - r.top + 14}px`;
+  },
+  setHoverMeshes: (list) => { hoverMeshes = new Set(list); requestRender(); },
+  // every frame something moves: parts to their new places
+  moved: () => {
+    setExplodePositions(explode);
+    if (current && current.meshes.some((m) => mechCtl.moves(m))) buildSelectionOverlays();
+  },
+  // it has stopped: measurements were taken where the parts were
+  settled: () => {
+    if (measure.measurements.length) measure.clear();
+    stage.invalidateShadows();
+    requestRender();
+  },
+  handsChanged: (on) => { if (!on) { hoverTip.style.display = 'none'; renderer.domElement.style.cursor = ''; } },
+});
+
 renderer.domElement.addEventListener('click', (e) => {
   if (!model || wasDrag(e) || designer?.isOpen()) return;
   if (measure.handleClick(e)) return;
@@ -2695,6 +2753,7 @@ function processHover() {
   measure.handleMove(e);
   if (measure.mode) { hoverTip.style.display = 'none'; renderer.domElement.style.cursor = 'crosshair'; setHoverRow(null); return; }
   if (moving) { hoverTip.style.display = 'none'; setHoverRow(null); return; } // nothing over the arrows
+  if (mechCtl.hover(e)) { setHoverRow(null); return; } // Hands on: the lid and trays, not the parts
   const hit = raycastAt(e.clientX, e.clientY, meshes.filter((m) => m.visible));
   const row = hit && rowByMeshName.get(hit.object.name);
   renderer.domElement.style.cursor = row ? 'pointer' : '';
@@ -2822,7 +2881,7 @@ function captureOverview({ exploded = 0, width = 1800, height = 1200 } = {}) {
   if (capsOn) showSectionCaps(false);
   stage.ground.visible = false;
   scene.background = new THREE.Color(0xffffff);
-  const box = exploded ? meshes.reduce((b, m) => (m.visible ? b.expandByObject(m) : b), new THREE.Box3()) : modelBox;
+  const box = exploded ? meshes.reduce((b, m) => (m.visible ? b.union(partBox(m)) : b), new THREE.Box3()) : modelBox;
   frameBox(box, config.views?.iso?.dir || [0.7, 0.5, 0.7], false);
   let url = null;
   stage.invalidateShadows(); // parts set aside or exploded for the picture
@@ -2875,7 +2934,7 @@ function drawCallouts(g, w, h) {
     const d = objectDims[m.name];
     if (!row || !d || row.customDims || row.status || seen.has(row.key)) return;
     seen.add(row.key);
-    const a = toPx(new THREE.Vector3(...d.center).add(m.position));
+    const a = toPx(new THREE.Vector3(...d.center).applyMatrix4(m.matrix));
     marks.push({ letter: row.letter, ax: a.x, ay: a.y, x: a.x, y: a.y });
   });
   // relax overlapping circles apart
@@ -2993,7 +3052,7 @@ function updateTags() {
   if (!tagsOn) return;
   tags.forEach(({ mesh, center, el }) => {
     if (!mesh.visible) { el.style.display = 'none'; return; }
-    const s = project(center.clone().add(mesh.position));
+    const s = project(center.clone().applyMatrix4(mesh.matrix));
     el.style.display = s.behind ? 'none' : 'block';
     el.style.left = `${s.x}px`;
     el.style.top = `${s.y}px`;
@@ -3033,6 +3092,7 @@ window.addEventListener('keydown', (e) => {
     else if (share.isOpen()) share.close();
     else if (diagram && diagram.isOpen()) diagram.close();
     else if (measure.cancel()) syncToolButtons();
+    else if (mechCtl.handsOn()) mechCtl.setHands(false);
     else if (build) exitBuild();
     else clearSelection();
   } else if (k === 'ArrowDown' || k === 'j') { stepSelection(1); e.preventDefault(); }
@@ -3045,6 +3105,7 @@ window.addEventListener('keydown', (e) => {
   else if (k === 't') setTags(!tagsOn);
   else if (k === 'i') updateSettings({ isolate: !settings().isolate });
   else if (k === 'e') setExplode(explode > 0 ? 0 : 0.6);
+  else if (k === 'h' && mechCtl.has()) mechCtl.setHands(!mechCtl.handsOn());
   else if (k === 'd') setTool('distance');
   else if (k === 'a') setTool('angle');
   else if (k === 'b') setTool('bevel');
@@ -3092,6 +3153,7 @@ function updateOverlays() {
 function animate(now) {
   requestAnimationFrame(animate);
   stepTween(now);
+  if (mechCtl.step(now)) requestRender(); // a lid swinging, a tray on its way out
   if (controls.update() || tween) requestRender(); // moving (incl. the orbit's glide to a stop)
   if (now > renderUntil) return; // nothing has changed: don't redraw the same picture
   if (camera.isOrthographicCamera) updateOrthoFrustumIfNeeded();
@@ -3146,5 +3208,6 @@ window.__viewer = {
   threadsOf: (m) => meshInfo.get(m)?.threads || null,
   missingHoles: () => missingHoles.map((h) => ({ ...h, partName: rowByMeshName.get(h.part)?.name, bolt: rowByMeshName.get(h.shank)?.name })),
   designer: () => designer,
+  mechanisms: () => mechCtl,
   outlinesDrawn: () => Object.fromEntries(Object.entries(edgeLayers).map(([k, l]) => [k, (l.geometry.attributes.position?.count || 0) / 2])),
 };

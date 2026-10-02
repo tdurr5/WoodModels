@@ -1,0 +1,23 @@
+newmtl ID7
+Kd 0.700 0.550 0.350
+map_Kd Wood-4_Hor.jpg
+
+newmtl ID17
+Kd 0.700 0.550 0.350
+map_Kd Wood-4_Hor_0.jpg
+
+newmtl ID213
+Kd 0.700 0.550 0.350
+map_Kd Cherry-1_Hor1.jpg
+
+newmtl ID363
+Kd 0.700 0.550 0.350
+map_Kd Cherry-1_Hor3.jpg
+
+newmtl ID1416
+Kd 0.969 0.918 0.745
+
+newmtl ID1525
+Kd 0.700 0.550 0.350
+map_Kd Ash-1_Hor.jpg
+

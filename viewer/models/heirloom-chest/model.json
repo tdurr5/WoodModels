@@ -1,0 +1,306 @@
+{
+  "title": "Heirloom Tool Chest",
+  "subtitle": "Frame-and-panel lid on hinges, two sliding trays and a lift-out saw till",
+  "axisNames": {
+    "x": "side-to-side",
+    "y": "vertical",
+    "z": "front-to-back"
+  },
+  "views": {
+    "iso": {
+      "label": "3D",
+      "dir": [
+        0.7,
+        0.5,
+        0.7
+      ]
+    },
+    "front": {
+      "label": "Front",
+      "dir": [
+        0,
+        0,
+        1
+      ]
+    },
+    "side": {
+      "label": "Side",
+      "dir": [
+        -1,
+        0,
+        0
+      ]
+    },
+    "top": {
+      "label": "Top",
+      "dir": [
+        0,
+        1,
+        0.0001
+      ]
+    }
+  },
+  "materials": {
+    "Ash-1_Hor": {
+      "category": "Wood",
+      "color": "#b28c59",
+      "texture": {
+        "base": "#c9975c",
+        "streak": "#a06f3b",
+        "ring": "#8a5a2c",
+        "tile": 5,
+        "image": "Ash-1_Hor.jpg"
+      }
+    },
+    "Buff": {
+      "category": "Hardware",
+      "color": "#c9a64b",
+      "label": "Brass"
+    },
+    "Cherry-1_Hor1": {
+      "category": "Wood",
+      "color": "#b28c59",
+      "texture": {
+        "base": "#c9975c",
+        "streak": "#a06f3b",
+        "ring": "#8a5a2c",
+        "tile": 5,
+        "image": "Cherry-1_Hor1.jpg"
+      }
+    },
+    "Cherry-1_Hor3": {
+      "category": "Wood",
+      "color": "#b28c59",
+      "texture": {
+        "base": "#c9975c",
+        "streak": "#a06f3b",
+        "ring": "#8a5a2c",
+        "tile": 5,
+        "image": "Cherry-1_Hor3.jpg"
+      }
+    },
+    "Wood-4_Hor": {
+      "category": "Wood",
+      "color": "#b28c59",
+      "texture": {
+        "base": "#c9975c",
+        "streak": "#a06f3b",
+        "ring": "#8a5a2c",
+        "tile": 5,
+        "image": "Wood-4_Hor.jpg"
+      }
+    },
+    "Wood-4_Hor_0": {
+      "category": "Wood",
+      "color": "#b28c59",
+      "texture": {
+        "base": "#c9975c",
+        "streak": "#a06f3b",
+        "ring": "#8a5a2c",
+        "tile": 5,
+        "image": "Wood-4_Hor_0.jpg"
+      }
+    }
+  },
+  "categoryOrder": [
+    "Wood",
+    "Hardware",
+    "Leather",
+    "Other"
+  ],
+  "displayNames": {
+    "top_mold-front_back": "Top molding, front & back",
+    "top_mold-front_back_1": "Top molding, front & back",
+    "top_mold-sides": "Top molding, ends",
+    "lid_molding-rails": "Lid molding, ends",
+    "lid_molding-stiles": "Lid molding, front & back",
+    "lid_molding-stiles_1": "Lid molding, front & back",
+    "lid_panel": "Lid panel",
+    "lid_rails": "Lid rails",
+    "lid_stiles": "Lid stiles",
+    "handplane_tray_bottom": "Plane tray bottom",
+    "handplane_tray_front_back": "Plane tray front & back",
+    "handplane_tray_sides": "Plane tray ends",
+    "chisel_tray_bottom": "Chisel tray bottom",
+    "chisel_tray_front_back": "Chisel tray front & back",
+    "chisel_tray_sides": "Chisel tray ends",
+    "handsaw_box_bottom": "Saw till bottom",
+    "handsaw_box_front_back": "Saw till front & back",
+    "handsaw_box_sides": "Saw till ends",
+    "bottom": "Chest bottom",
+    "sides": "Chest ends",
+    "front_back": "Chest front & back",
+    "Base_mold-front_back": "Base molding, front & back",
+    "base_mold-sides": "Base molding, ends",
+    "cleat": "Tray runner",
+    "Strip": "Hinge leaf",
+    "handle": "Chest handle",
+    "handle_base": "Handle plate",
+    "screw_hed": "Screw head"
+  },
+  "notes": {},
+  "mechanisms": [
+    {
+      "id": "lid",
+      "label": "Lid",
+      "kind": "hinge",
+      "parts": [
+        "group_1_*",
+        "group_11_group_13",
+        "group_14_group_16"
+      ],
+      "pivot": [
+        0,
+        12.875,
+        -16.5
+      ],
+      "axis": [
+        -1,
+        0,
+        0
+      ],
+      "drawnAt": 20.2,
+      "partsDrawnAt": {
+        "group_11_group_13": 0,
+        "group_14_group_16": 0
+      },
+      "range": [
+        0,
+        100
+      ],
+      "open": 95,
+      "start": 0
+    },
+    {
+      "id": "chisel-tray",
+      "label": "Chisel tray",
+      "kind": "tray",
+      "parts": [
+        "group_3_*"
+      ],
+      "slide": {
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "within": [
+          -15.0,
+          -1.5
+        ]
+      },
+      "needs": {
+        "lid": 80
+      }
+    },
+    {
+      "id": "plane-tray",
+      "label": "Plane tray",
+      "kind": "tray",
+      "parts": [
+        "group_2_*"
+      ],
+      "slide": {
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "within": [
+          -15.0,
+          -1.5
+        ]
+      },
+      "needs": {
+        "lid": 80
+      }
+    },
+    {
+      "id": "saw-till",
+      "label": "Saw till",
+      "kind": "tray",
+      "parts": [
+        "group_4_*"
+      ],
+      "needs": {
+        "lid": 80
+      }
+    },
+    {
+      "id": "handle-right",
+      "label": "Right handle",
+      "kind": "hinge",
+      "parts": [
+        "group_5_instance_32_handle"
+      ],
+      "pivot": [
+        28.91,
+        9.5,
+        0
+      ],
+      "axis": [
+        0,
+        0,
+        1
+      ],
+      "range": [
+        0,
+        90
+      ],
+      "open": 90,
+      "openLabel": "Raise",
+      "closeLabel": "Lower",
+      "closedText": "down"
+    },
+    {
+      "id": "handle-left",
+      "label": "Left handle",
+      "kind": "hinge",
+      "parts": [
+        "group_8_instance_33_handle"
+      ],
+      "pivot": [
+        0.59,
+        9.5,
+        0
+      ],
+      "axis": [
+        0,
+        0,
+        -1
+      ],
+      "range": [
+        0,
+        90
+      ],
+      "open": 90,
+      "openLabel": "Raise",
+      "closeLabel": "Lower",
+      "closedText": "down"
+    }
+  ],
+  "edits": {
+    "groups": {
+      "group_0": "Top molding",
+      "group_1": "Lid",
+      "group_2": "Plane tray",
+      "group_3": "Chisel tray",
+      "group_4": "Saw till",
+      "group_5": "Right handle",
+      "group_8": "Left handle",
+      "group_11": "Right hinge",
+      "group_14": "Left hinge",
+      "instance_34": "Chest bottom",
+      "instance_35": "Chest ends",
+      "instance_36": "Chest front & back",
+      "instance_37": "Chest front & back",
+      "instance_38": "Base molding",
+      "instance_39": "Base molding ends",
+      "instance_40": "Base molding ends",
+      "instance_41": "Base molding",
+      "instance_42": "Tray runners",
+      "instance_43": "Tray runners",
+      "instance_44": "Chest ends"
+    }
+  }
+}

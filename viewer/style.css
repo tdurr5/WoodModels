@@ -699,3 +699,34 @@ body.designing #toast { display: none; }
 .dz-inspect[aria-pressed=true] { border-color: var(--blue); }
 .dz-joint { display: grid; grid-template-columns: 1fr auto; gap: 6px; padding: 8px 0; border-bottom: 1px solid var(--border); }
 .dz-joint > span { grid-column: 1 / -1; }
+/* the model's moving parts: lid, trays, handles (mechpanel.js) */
+#mechPanel { position: absolute; top: 52px; right: 10px; z-index: 4; width: 236px; box-sizing: border-box;
+  background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px 8px; font-size: 12px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.35); }
+#mechPanel .mp-head { display: flex; align-items: center; gap: 6px; }
+#mechPanel .mp-head b { flex: 1; font-size: 12.5px; }
+#mechPanel button { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 3px 8px; font-size: 11.5px; cursor: pointer; }
+#mechPanel button:hover:not(:disabled) { background: var(--hover); }
+#mechPanel button.on { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+#mechPanel button:disabled { opacity: 0.45; cursor: default; }
+#mechPanel .mp-min { background: none; border: none; color: var(--muted); font-size: 15px; padding: 0 4px; line-height: 1; }
+#mechPanel.collapsed .mp-body { display: none; }
+#mechPanel .mp-row { margin-top: 7px; }
+#mechPanel .mp-line { display: flex; align-items: center; gap: 6px; }
+#mechPanel .mp-name { font-weight: 600; }
+#mechPanel .mp-val { flex: 1; color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#mechPanel .mp-act { min-width: 66px; }
+#mechPanel .mp-range { width: 100%; margin: 3px 0 0; accent-color: var(--accent); }
+#mechPanel .mp-range:disabled { opacity: 0.4; }
+#mechPanel .mp-why { font-size: 10.5px; color: var(--warn); line-height: 1.3; }
+#mechPanel .mp-why:empty { display: none; }
+#mechPanel .mp-all { display: flex; gap: 6px; margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--line); }
+#mechPanel .mp-all button { flex: 1; }
+#viewport canvas.hands-on { cursor: grab; }
+@media (max-width: 800px) {
+  #mechPanel { top: 50px; right: 8px; width: 210px; max-height: calc(100% - 110px); overflow: auto; }
+}
+@media (pointer: coarse) {
+  #mechPanel button { min-height: 32px; }
+}
+@media print { #mechPanel { display: none !important; } }
