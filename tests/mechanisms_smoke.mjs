@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { zip } from '../viewer/zip.js';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const viewer = path.join(root, 'viewer');
 const out = path.join(root, 'test-output');
@@ -56,9 +57,8 @@ try {
   assert.match(await page.locator(`${row('plane-tray')} .mp-why`).textContent(), /Chisel tray sits on top/);
   ok('opens with the lid shut and the plane tray held under the chisel tray');
 
-  // hands on: a click on the lid opens it, and doesn't select a part
-  await page.keyboard.press('h');
-  assert.ok(await page.locator('#mechPanel .mp-hands.on').count());
+  // hands on (on from the start): a click on the lid opens it, and doesn't select a part
+  assert.ok(await page.locator('#mechPanel .mp-hands.on').count(), 'Hands on starts on');
   const lidFront = await at([14.75, 13.6, -0.4]);
   await page.mouse.move(lidFront.x, lidFront.y);
   await page.waitForTimeout(150);
@@ -90,9 +90,14 @@ try {
   assert.ok(Math.abs(stop - 3.74) < 0.01, `stopped at ${stop}`);
   ok(`the chisel tray drags along its runners and stops at the front wall (${stop.toFixed(2)}")`);
 
-  // lift the chisel tray out by clicking it: then the plane tray is free
+  // drag the chisel tray up out of the chest and let go: it's set down on the floor
   const chisel = await at([14.75, 12.9, -8 + stop]);
-  await page.mouse.click(chisel.x, chisel.y);
+  await page.mouse.move(chisel.x, chisel.y);
+  await page.mouse.down();
+  for (let i = 1; i <= 10; i++) await page.mouse.move(chisel.x, chisel.y - 25 * i);
+  const lifting = (await mech())['chisel-tray'].out;
+  assert.ok(lifting > 0 && lifting < 0.5, `follows the pointer up (${lifting})`);
+  await page.mouse.up();
   await settled();
   assert.equal((await mech())['chisel-tray'].out, 1);
   assert.ok((await box('group_3_instance_19_chisel_tray_bottom')).min[1] < 0.01, 'on the floor');
@@ -100,7 +105,7 @@ try {
   await page.locator(`${row('plane-tray')} .mp-act`).click();
   await settled();
   assert.equal((await mech())['plane-tray'].out, 1);
-  ok('the chisel tray lifts out to the floor, and then the plane tray can come out');
+  ok('the chisel tray drags up out of the chest onto the floor, and then the plane tray can come out');
 
   // a lid part selected while the lid is open: its dimensions turn with it
   await page.keyboard.press('h');
@@ -130,6 +135,23 @@ try {
   assert.ok(['chisel-tray', 'plane-tray', 'saw-till'].every((id) => open[id].out === 1));
   await page.screenshot({ path: path.join(out, 'chest-unpacked.png') });
   ok('Unpack it all opens the lid and lifts every tray out');
+
+  // an upload with no moving parts listed: they're found by name
+  const folder = path.join(viewer, 'models', 'heirloom-chest');
+  const files = Object.fromEntries(fs.readdirSync(folder).map((f) => [f, new Uint8Array(fs.readFileSync(path.join(folder, f)))]));
+  const cfg = JSON.parse(fs.readFileSync(path.join(folder, 'model.json'), 'utf8'));
+  delete cfg.mechanisms; delete cfg.edits;
+  files['model.json'] = JSON.stringify(cfg);
+  // as the browser's own export has it: the photos ride along in the zip, not in scene.mtl
+  files['scene.mtl'] = fs.readFileSync(path.join(folder, 'scene.mtl'), 'utf8').replace(/^map_Kd .*$/gm, '');
+  await page.goto(base);
+  await page.waitForFunction(() => document.getElementById('loading').style.display === 'none');
+  await page.locator('#libFile').setInputFiles({ name: 'chest.zip', mimeType: 'application/zip', buffer: Buffer.from(zip(files)) });
+  await page.waitForFunction(() => /local/.test(location.search) && document.getElementById('loading').style.display === 'none' && window.__viewer?.mechanisms().has(), null, { timeout: 30000 });
+  const found = await page.evaluate(() => window.__viewer.mechanisms().list().map((m) => m.label));
+  assert.deepEqual(found, ['Lid', 'Chisel tray', 'Handsaw box', 'Handplane tray']);
+  assert.ok(await page.evaluate(() => window.__viewer.mechanisms().handsOn()));
+  ok(`an uploaded chest finds its own lid and trays (${found.join(', ')})`);
 
   // the built-in model has nothing that moves: no panel
   await page.goto(`${base}?model=`);

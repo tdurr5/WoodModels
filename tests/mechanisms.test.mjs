@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   resolveMechanisms, initialState, hingeTurn, liftHeight, restOffsets, trayOffset, slideLimits,
-  liftBlockers, returnBlockers, unmetNeeds, angleAbout, moveBox,
+  liftBlockers, returnBlockers, unmetNeeds, angleAbout, moveBox, detectMechanisms,
 } from '../viewer/mechanisms.js';
 
 // The heirloom tool chest: its own moving parts against its own measurements.
@@ -148,4 +148,30 @@ test('angleAbout measures a point swung about the hinge line', () => {
 test('mechanisms with no parts in the model, or of an unknown kind, are left out', () => {
   assert.deepEqual(resolveMechanisms([{ id: 'x', kind: 'hinge', parts: ['nothing_*'] }, { id: 'y', kind: 'drawer', parts: ['group_1_*'] }], Object.keys(dims)), []);
   assert.deepEqual(resolveMechanisms(undefined, []), []);
+});
+
+// An upload has no "mechanisms" list: they're found from part names and shapes.
+const partsOf = (dir) => {
+  const d = JSON.parse(readFileSync(new URL('object_dims.json', dir)));
+  const rows = JSON.parse(readFileSync(new URL('parts_report.json', dir)));
+  return rows.flatMap((r) => r.obj_names.map((name, i) => ({ name, group: r.paths[i].split('/')[0], label: r.label, dims: d[name] })));
+};
+
+test('an uploaded chest: the lid and its trays are found, hinged and sliding as the hand-written list has them', () => {
+  const found = detectMechanisms(partsOf(folder), { front: [0, 0, 1] });
+  assert.deepEqual(found.map((m) => [m.kind, m.label]), [['hinge', 'Lid'], ['tray', 'Chisel tray'], ['tray', 'Handsaw box'], ['tray', 'Handplane tray']]);
+  const lid = found[0];
+  assert.deepEqual(lid.axis, byId.lid.axis);
+  near(lid.pivot[1], byId.lid.pivot[1]); near(lid.pivot[2], byId.lid.pivot[2]);
+  near(lid.drawnAt, byId.lid.drawnAt);
+  assert.deepEqual([...lid.parts].sort(), byId.lid.parts.filter((n) => n.startsWith('group_1_')).sort());
+  const chisel = found.find((m) => m.label === 'Chisel tray');
+  assert.deepEqual(chisel.slide, { axis: [0, 0, 1], within: [-15, -1.5] });
+  assert.deepEqual(chisel.needs, { lid: 80 });
+  // the handles on the outside aren't trays
+  assert.ok(!found.some((m) => m.parts.some((n) => /handle/.test(n))));
+});
+
+test('a piece with no lid and nothing named like a tray has no moving parts', () => {
+  assert.deepEqual(detectMechanisms(partsOf(new URL('../viewer/', import.meta.url)), { front: [1, 0, 0] }), []);
 });

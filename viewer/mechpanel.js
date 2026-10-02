@@ -12,8 +12,8 @@
 import * as THREE from 'three';
 import { escapeHtml, formatLength } from './format.js';
 import {
-  resolveMechanisms, initialState, hingeTurn, liftHeight, restOffsets, trayOffset, slideLimits,
-  liftBlockers, returnBlockers, unmetNeeds, angleAbout, smoothstep, UP,
+  resolveMechanisms, initialState, hingeTurn, liftHeight, restOffsets, trayOffset, trayPath, slideLimits,
+  liftBlockers, returnBlockers, unmetNeeds, angleAbout, smoothstep, detectMechanisms, UP,
 } from './mechanisms.js';
 
 const DRAG_PX = 5;
@@ -28,10 +28,15 @@ export function initMechanisms(ctx) {
   let hands = false, grab = null, hoverMech = null;
   // folded away to start on a phone, where it would cover half the model
   let collapsed = !!window.matchMedia?.('(max-width: 800px)').matches;
+  let detected = false; // found in the model rather than listed in model.json
 
   // ---------- setup ----------
-  function setup(config, meshes) {
-    mechs = resolveMechanisms(config.mechanisms, meshes.map((m) => m.name));
+  // detect: { parts, groupName } to find the moving parts of a model whose
+  // model.json doesn't list them (an upload)
+  function setup(config, meshes, detect = null) {
+    const list = config.mechanisms ?? (detect ? detectMechanisms(detect.parts, { front: frontOf(config), groupName: detect.groupName }) : []);
+    mechs = resolveMechanisms(list, meshes.map((m) => m.name));
+    detected = mechs.some((m) => m.detected);
     state = initialState(mechs);
     queue = [];
     mechOf = new Map();
@@ -50,8 +55,8 @@ export function initMechanisms(ctx) {
     rest = chest.isEmpty() ? {} : restOffsets(trays, boxes, chestBox, frontOf(config));
     lift = {};
     trays.forEach((m) => { lift[m.id] = chest.isEmpty() ? 0 : liftHeight(boxes[m.id], chestBox); });
-    if (!mechs.length) setHands(false);
     buildPanel();
+    setHands(mechs.length > 0); // grab the lid and trays straight away
   }
   // the way the model faces: its Front view looks at it from there
   function frontOf(config) {
@@ -216,6 +221,7 @@ export function initMechanisms(ctx) {
         <button class="mp-min" title="Fold away">–</button>
       </div>
       <div class="mp-body">
+        <div class="mp-hint">With ✋ Hands on: drag the lid to swing it, drag a tray up to lift it out (or along to slide it), drag it back to put it in. A click opens or lifts out.${detected ? ' <span class="muted">Found in the model by its part names.</span>' : ''}</div>
         ${mechs.map((m) => `
           <div class="mp-row" data-id="${escapeHtml(m.id)}">
             <div class="mp-line">
@@ -318,8 +324,8 @@ export function initMechanisms(ctx) {
     canvas.style.cursor = busy() ? 'progress' : 'grab';
     let what;
     if (mech.kind === 'hinge') what = st.angle > (mech.range[0] + mech.open) / 2 ? 'click to close · drag to swing' : 'click to open · drag to swing';
-    else if (st.out >= 1) what = 'click to put it back in the chest';
-    else what = `click to lift it out${mech.slide ? ' · drag to slide it' : ''}`;
+    else if (st.out >= 1) what = 'drag it up (or click) to put it back in the chest';
+    else what = `drag it up (or click) to lift it out${mech.slide ? ' · drag along to slide it' : ''}`;
     const why = mech.kind === 'tray' ? trayBlock(mech) : '';
     ctx.tip(e, `<b>${escapeHtml(mech.label)}</b> <span>${escapeHtml(why || what)}</span>`);
     return true;
@@ -337,7 +343,7 @@ export function initMechanisms(ctx) {
     e.stopImmediatePropagation();
     ctx.controls.enabled = false;
     const st = state[h.mech.id];
-    grab = { mech: h.mech, x: e.clientX, y: e.clientY, dragged: false, point: h.hit.point.clone(), angle: st.angle, slide: st.slide, pointerId: e.pointerId };
+    grab = { mech: h.mech, x: e.clientX, y: e.clientY, dragged: false, point: h.hit.point.clone(), angle: st.angle, slide: st.slide, out: st.out, mode: null, pointerId: e.pointerId };
     canvas.style.cursor = 'grabbing';
     try { canvas.setPointerCapture(e.pointerId); } catch { /* the pointer's already gone */ }
   }
@@ -359,15 +365,51 @@ export function initMechanisms(ctx) {
       else angle = grab.angle + (grab.y - e.clientY) * 0.4; // looking along the hinge: drag up to open
       state[mech.id].angle = Math.min(mech.range[1], Math.max(mech.range[0], angle));
       changed();
-    } else if (mech.slide && st.out <= 0) {
-      const dir = new THREE.Vector3(...mech.slide.axis);
-      const s = screenAlong(grab.point, dir);
-      if (s.lengthSq() < 4) return; // looking straight along the runners
-      const d = new THREE.Vector2(e.clientX - grab.x, e.clientY - grab.y).dot(s) / s.lengthSq();
-      const [lo, hi] = slideLimits(mech, mechs, { ...state, [mech.id]: { ...st, slide: grab.slide } }, boxes);
-      state[mech.id].slide = Math.min(hi, Math.max(lo, grab.slide + d));
-      changed();
+    } else dragTray(e, mech, st);
+  }
+  // A tray: dragged up it lifts out of the chest (or, on the floor, back up
+  // towards it); dragged along its runners it slides. Which, is decided by
+  // the way the pointer first goes.
+  function dragTray(e, mech, st) {
+    const d = new THREE.Vector2(e.clientX - grab.x, e.clientY - grab.y);
+    const upPx = screenAlong(grab.point, new THREE.Vector3(...UP));
+    const inChest = grab.out <= 0;
+    const slidePx = mech.slide && inChest ? screenAlong(grab.point, new THREE.Vector3(...mech.slide.axis)) : null;
+    if (!grab.mode) {
+      const along = (v) => (v && v.lengthSq() > 4 ? Math.abs(d.dot(v.clone().normalize())) : 0);
+      grab.mode = slidePx && along(slidePx) > along(upPx) ? 'slide' : 'lift';
+      if (grab.mode === 'lift') {
+        const why = trayBlock(mech);
+        if (why) { ctx.toast(`${mech.label}: ${why}.`); grab.mode = 'none'; return; }
+        const needs = unmetNeeds(mech, mechs, state);
+        if (needs.length) { needs.forEach(({ mech: h, angle }) => swing(h.id, angle)); syncPanel(); } // the lid opens first
+      }
     }
+    if (busy() || grab.mode === 'none') return;
+    if (grab.mode === 'slide') {
+      if (slidePx.lengthSq() < 4) return; // looking straight along the runners
+      const inches = d.dot(slidePx) / slidePx.lengthSq();
+      const [lo, hi] = slideLimits(mech, mechs, { ...state, [mech.id]: { ...st, slide: grab.slide } }, boxes);
+      state[mech.id].slide = Math.min(hi, Math.max(lo, grab.slide + inches));
+      changed();
+      return;
+    }
+    if (upPx.lengthSq() < 4) return; // looking straight down on it
+    const rise = d.dot(upPx) / upPx.lengthSq(); // inches the pointer has gone up
+    const { lens, shares } = path(mech);
+    if (inChest) state[mech.id].out = shares[0] * Math.min(1, Math.max(0, rise / (lens[0] || 1)));
+    else state[mech.id].out = 1 - shares[2] * Math.min(1, Math.max(0, rise / (lens[2] || 1)));
+    changed();
+  }
+  const path = (mech) => trayPath(mech, state[mech.id], rest[mech.id] || [0, 0, 0], lift[mech.id] || 0);
+  // let go of a tray mid-lift: past halfway it carries on, else it drops back
+  function dropTray(mech, fromOut) {
+    const st = state[mech.id], { shares, total } = path(mech);
+    let to;
+    if (fromOut <= 0) to = st.out >= shares[0] * 0.4 ? 1 : 0;
+    else to = 1 - st.out >= shares[2] * 0.4 ? 0 : 1;
+    if (Math.abs(to - st.out) > 1e-6) enqueue(mech.id, 'out', to, Math.abs(to - st.out) * total * TRAY_MS_PER_IN, false);
+    syncPanel();
   }
   function onUp(e) {
     if (!grab || e.pointerId !== grab.pointerId) return;
@@ -377,6 +419,7 @@ export function initMechanisms(ctx) {
     ctx.controls.enabled = true;
     try { canvas.releasePointerCapture(e.pointerId); } catch { /* not captured */ }
     if (!g.dragged) toggle(g.mech);
+    else if (g.mech.kind === 'tray' && g.mode === 'lift') dropTray(g.mech, g.out);
     canvas.style.cursor = 'grab';
   }
   // a click on a moving part in hands-on mode isn't a selection

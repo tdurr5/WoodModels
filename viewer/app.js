@@ -317,7 +317,7 @@ async function init() {
   scene.add(model);
   woodPhotos = await loadWoodPhotos(cfg, files);
   prepareMeshes(materialNames);
-  mechCtl.setup(config, meshes); // the lid, trays and handles that move
+  mechCtl.setup(config, meshes, mechanismParts()); // the lid, trays and handles that move
   setExplodePositions(explode);
   updateModelBox(); // framed with the lid as it stands
   findHoles();
@@ -734,6 +734,18 @@ function prepareMeshes(materialNames) {
 
   explodeUnits();
   applyThreads();
+}
+
+// The parts, for finding a lid and trays in a model whose model.json doesn't
+// list its moving parts (an upload): each with the group it was drawn in.
+function mechanismParts() {
+  const parts = [];
+  rawRows.forEach((r) => (r.obj_names || []).forEach((name, i) => {
+    if (rowByMeshName.get(name)?.status === 'deleted') return;
+    const group = r.paths?.length === r.obj_names.length ? String(r.paths[i]).split('/')[0] : String(r.top_group);
+    parts.push({ name, group, label: `${r.label} ${rowByMeshName.get(name)?.name || ''}`, dims: baseObjectDims[name] });
+  }));
+  return { parts, groupName: (g) => edits.groups?.[g] || config.displayNames?.[g] || g };
 }
 
 // ---------- threads on bolts and rods ----------

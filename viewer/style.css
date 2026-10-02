@@ -730,3 +730,4 @@ body.designing #toast { display: none; }
   #mechPanel button { min-height: 32px; }
 }
 @media print { #mechPanel { display: none !important; } }
+#mechPanel .mp-hint { margin-top: 5px; font-size: 10.5px; line-height: 1.35; color: var(--text-2); }
