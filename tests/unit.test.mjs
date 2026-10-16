@@ -1023,7 +1023,7 @@ test('a bolt through solid wood means the model forgot the hole', () => {
   assert.equal(findMissingHoles([beside], [board], solidBoard).length, 0);
 });
 
-import { parseMeasured, printCorrection, faceFrame, endCutText, faceLoops, profileSides, profileSteps } from '../viewer/template.js';
+import { parseMeasured, printCorrection, faceFrame, endCutText, faceLoops, profileSides, profileSteps, edgeCuts } from '../viewer/template.js';
 
 test('printer correction: what the 6" ruler measured', () => {
   assert.equal(parseMeasured('5 3/4'), 5.75);
@@ -1084,8 +1084,28 @@ test('a flat board is drawn as its exact profile: sides, corners, bevels', () =>
   // seen from +z the right end's back comes out further in, the left end's further out
   near(ends.find((sd) => sd.mid[0] > 0).off, -1.5 * t, 1e-3);
   near(ends.find((sd) => sd.mid[0] < 0).off, 1.5 * t, 1e-3);
+  // square ends: on either edge the cut slopes the bevel itself, out by stock x tan(12)
+  const left = sides.indexOf(ends.find((sd) => sd.mid[0] < 0));
+  for (const c of edgeCuts(sides, left, f.stock)) { near(c.angle, 12, 0.05); near(c.along, 1.5 * t, 1e-3); }
   const steps = profileSteps(sides, f.stock, f.halfL);
   assert.match(steps, /Left end \(the 3-1\/2" side\):<\/b> blade tilted 12°, so the cut comes out on the back face 5\/16" further out/);
   assert.match(steps, /Right end .*further in/);
   assert.match(steps, /bevel 12°, no miter \(square across\)/);
+});
+
+test('an end meeting its edge off square slopes more steeply on that edge', () => {
+  // a face whose left end runs at 70 deg to the bottom edge, its back line 0.3" further out (square to the end)
+  const stock = 1.5, off = 0.3;
+  const c70 = THREE3.MathUtils.degToRad(70);
+  const A = [0, 0], B = [Math.cos(c70) * 3, Math.sin(c70) * 3];
+  const outer = [A, [20, 0], [20, B[1]], B]; // counter-clockwise: bottom, right, top, left end (B to A)
+  const n = [-Math.sin(c70), Math.cos(c70)]; // the left end's outward normal
+  const back = outer.map((p) => (p === A || p === B ? [p[0] + n[0] * off, p[1] + n[1] * off] : p));
+  const sides = profileSides({ near: [outer], far: [back] }, stock);
+  const i = sides.findIndex((sd) => sd.a === B);
+  near(sides[i].bevel, THREE3.MathUtils.radToDeg(Math.atan(off / stock)), 1e-6);
+  const cuts = edgeCuts(sides, i, stock);
+  // along each edge the back line is off / sin(corner) out: 70 deg at A, 110 deg at B
+  for (const c of cuts) near(c.along, off / Math.sin(c70), 1e-6);
+  near(cuts[0].angle, THREE3.MathUtils.radToDeg(Math.atan(off / Math.sin(c70) / stock)), 1e-6);
 });

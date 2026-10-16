@@ -451,36 +451,86 @@ function profileSvg(profile, page, units) {
   return out.join('');
 }
 
-// The bevelled sides seen from the edge, full size: the two faces, the cut
-// between them, its angle off square and how far it walks - to set a bevel
-// gauge or the saw's tilt from, and to check the cut piece against.
+// Where a bevelled side's cut crosses each edge it meets. Sawing the
+// face's shape leaves the edges square to the face, so on an edge the cut
+// runs from the corner of the traced outline to where the back face's line
+// (the dashed one) crosses that edge, carried straight through. `along` is
+// how far along the edge that is - past the corner (towards the waste) when
+// positive - and `angle` the slope on the edge off square: atan(along /
+// stock). Where the end meets the edge at other than 90° this is steeper
+// than the bevel itself (bevel offset / sin of the corner).
+export function edgeCuts(sides, i, stock) {
+  const sd = sides[i];
+  if (!sd.back) return [];
+  const prev = sides[(i + sides.length - 1) % sides.length], next = sides[(i + 1) % sides.length];
+  const [b0, b1] = sd.back, bd = [b1[0] - b0[0], b1[1] - b0[1]];
+  const cross = (x, y) => x[0] * y[1] - x[1] * y[0];
+  // from corner c, along the edge (unit d, pointing off the end): where the back line crosses
+  const at = (c, d, edge) => {
+    const den = cross(d, bd);
+    if (Math.abs(den) < 1e-9) return null;
+    const along = cross([b0[0] - c[0], b0[1] - c[1]], bd) / den;
+    return { edge, along, angle: deg(Math.atan2(Math.abs(along), stock)) };
+  };
+  return [at(sd.a, prev.dir, prev), at(sd.b, [-next.dir[0], -next.dir[1]], next)].filter(Boolean);
+}
+
+// Cut-out strips to trace each bevelled end onto the board's edges: each is
+// exactly the stock's thickness wide, so with its top flush with the face
+// you traced and its tick on the corner of the outline, its slanted line is
+// the saw line on that edge. Full size, with the angle marked to check a
+// bevel gauge against.
 function endDetails(sides, stock, halfL, name, units, k) {
   const fmt = (x) => escapeHtml(formatLength(x, units));
-  const blocks = sides.map((sd, i) => {
-    if (sd.bevel < BEVEL_MIN) return '';
-    const saw = sawFor(sides, i);
-    const W = 3.2, top = 0.45, bot = top + stock, xT = 1.4, xB = xT - sd.off, H = bot + 0.5;
-    const ang = Math.round(sd.bevel);
-    const svg = `<svg width="${W * k}in" height="${H * k}in" viewBox="0 0 ${W} ${H}">
-      <path d="M${xT},${top}H${W - 0.1}V${bot}H${xB}Z" fill="#e9e2d6"/>
-      <path d="M${Math.min(xT, xB) - 0.5},${top}H${W - 0.1}M${Math.min(xT, xB) - 0.5},${bot}H${W - 0.1}" stroke="#000" stroke-width="0.012" stroke-dasharray="0.04 0.04"/>
-      <path d="M${xT},${top}H${W - 0.1}M${xB},${bot}H${W - 0.1}M${xT},${top}L${xB},${bot}" stroke="#000" stroke-width="0.016" fill="none"/>
-      <path d="M${xT},${top}V${bot}" stroke="#3366cc" stroke-width="0.01" stroke-dasharray="0.06 0.04"/>
-      <path d="M${xT},${bot + 0.15}H${xB}M${xT},${bot + 0.08}v0.14M${xB},${bot + 0.08}v0.14" stroke="#c0392b" stroke-width="0.01"/>
-      <text x="${(xT + xB) / 2}" y="${bot + 0.32}" font-size="0.12" text-anchor="middle" fill="#c0392b">${fmt(Math.abs(sd.off))}</text>
-      <text x="${xT + (sd.off > 0 ? 0.08 : -0.08)}" y="${top + stock * 0.45}" font-size="0.13" text-anchor="${sd.off > 0 ? 'start' : 'end'}" fill="#c0392b">${ang}°</text>
-      <text x="${W - 0.15}" y="${top - 0.1}" font-size="0.11" text-anchor="end">face you traced</text>
-      <text x="${W - 0.15}" y="${bot + 0.32}" font-size="0.11" text-anchor="end">back face</text>
-      <text x="${W - 0.15}" y="${(top + bot) / 2}" font-size="0.11" text-anchor="end">${fmt(stock)} stock</text>
-    </svg>`;
-    const [[f1, m1]] = saw.fences;
-    return `<div class="tpl-end"><div><b>${sideName(sd, halfL)}</b> - the ${fmt(sd.len)} side: ${ang}° bevel (miter ${Math.round(m1)}° off the ${fmt(f1.len)} side). The cut through the thickness measures ${fmt(stock / Math.cos(THREE.MathUtils.degToRad(sd.bevel)))}.</div>${svg}</div>`;
-  }).filter(Boolean);
-  if (!blocks.length) return '';
-  return `<div class="tpl-page">
-      <div class="tpl-head"><div><b>${escapeHtml(name)}</b> — end cuts seen from the edge, full size. Blue: square across. Lay a bevel gauge on the black line to set the saw.</div></div>
-      <div class="tpl-ends">${blocks.join('')}</div>
-    </div>`;
+  const strips = [];
+  sides.forEach((sd, i) => {
+    if (sd.bevel < BEVEL_MIN) return;
+    const end = sideName(sd, halfL);
+    for (const c of edgeCuts(sides, i, stock)) {
+      // waste to the left of the tick, the part to the right
+      const L = 3.6, x0 = 1.5, x1 = x0 - c.along, H = stock;
+      const pad = { t: 0.42, b: 0.62, l: 0.1, r: 0.1 };
+      const W = L + pad.l + pad.r, Ht = H + pad.t + pad.b;
+      const X = (x) => (x + pad.l).toFixed(3), Y = (y) => (y + pad.t).toFixed(3);
+      const ang = c.angle.toFixed(1).replace(/\.0$/, '');
+      // the angle arc between square (blue) and the cut, at the face corner
+      const r = H * 0.8, a1 = Math.atan2(x1 - x0, H);
+      const arc = Array.from({ length: 13 }, (_, j) => { const t = a1 * j / 12; return `${X(x0 + Math.sin(t) * r)},${Y(Math.cos(t) * r)}`; });
+      // the angle's label beside the wedge, on whichever side the cut leans to
+      const lean = x1 < x0 ? -1 : 1, tx = (lean < 0 ? Math.min(x0, x1) : Math.max(x0, x1)) + lean * 0.12, ty = H * 0.62;
+      const svg = `<svg width="${W * k}in" height="${Ht * k}in" viewBox="0 0 ${W} ${Ht}">
+        <defs><clipPath id="w${strips.length}"><path d="M${X(0)},${Y(0)}H${X(x0)}L${X(x1)},${Y(H)}H${X(0)}Z"/></clipPath></defs>
+        <path d="M${X(x0)},${Y(0)}H${X(L)}V${Y(H)}H${X(x1)}Z" fill="#e9e2d6"/>
+        <g clip-path="url(#w${strips.length})">${Array.from({ length: 40 }, (_, j) => `<path d="M${X(-H + j * 0.12)},${Y(H)}L${X(j * 0.12)},${Y(0)}" stroke="#bbb" stroke-width="0.008"/>`).join('')}</g>
+        <rect x="${X(0)}" y="${Y(0)}" width="${L}" height="${H}" fill="none" stroke="#000" stroke-width="0.01" stroke-dasharray="0.05 0.03"/>
+        <path d="M${X(x0)},${Y(0)}V${Y(H)}" stroke="#3366cc" stroke-width="0.01" stroke-dasharray="0.06 0.04"/>
+        <path d="M${X(x0)},${Y(0)}L${X(x1)},${Y(H)}" stroke="#000" stroke-width="0.022"/>
+        <path d="M${arc.join('L')}" fill="none" stroke="#c0392b" stroke-width="0.012"/>
+        <text x="${X(tx)}" y="${Y(ty)}" font-size="0.22" font-weight="bold" fill="#c0392b" stroke="#fff" stroke-width="0.04" paint-order="stroke" text-anchor="${lean < 0 ? 'end' : 'start'}" dominant-baseline="middle">${ang}°</text>
+        <path d="M${X(x0)},${Y(-0.2)}V${Y(0.12)}" stroke="#000" stroke-width="0.018"/>
+        <text x="${X(x0)}" y="${Y(-0.26)}" font-size="0.12" text-anchor="middle">▼ on the corner of your traced outline</text>
+        <text x="${X(L - 0.08)}" y="${Y(0.2)}" font-size="0.11" text-anchor="end">face you traced ↑</text>
+        <text x="${X(L - 0.08)}" y="${Y(H / 2)}" font-size="0.16" font-weight="bold" text-anchor="end" dominant-baseline="middle">${escapeHtml(name).toUpperCase()}</text>
+        <text x="${X(0.08)}" y="${Y(0.2)}" font-size="0.13" font-weight="bold" fill="#777">WASTE</text>
+        <text x="${X(L - 0.08)}" y="${Y(H - 0.1)}" font-size="0.11" text-anchor="end">back face ↓</text>
+        <path d="M${X(x0)},${Y(H + 0.14)}H${X(x1)}M${X(x0)},${Y(H + 0.07)}v0.14M${X(x1)},${Y(H + 0.07)}v0.14" stroke="#c0392b" stroke-width="0.01"/>
+        <text x="${X((x0 + x1) / 2)}" y="${Y(H + 0.32)}" font-size="0.12" text-anchor="middle" fill="#c0392b">${fmt(Math.abs(c.along))}</text>
+        <text x="${X(L)}" y="${Y(H + 0.52)}" font-size="0.11" text-anchor="end">✂ cut out on the dashed box - it's exactly ${fmt(stock)} wide</text>
+      </svg>`;
+      strips.push({ h: Ht * k + 0.45, html: `<div class="tpl-end"><div><b>${end}</b> (the ${fmt(sd.len)} end) - on the <b>${fmt(c.edge.len)} edge</b>: ${ang}° off square, comes out ${fmt(Math.abs(c.along))} ${c.along > 0 ? 'further out' : 'further in'} on the back</div>${svg}</div>` });
+    }
+  });
+  if (!strips.length) return '';
+  // as many strips to a page as fit under the header
+  const pages = [];
+  for (const st of strips) {
+    const last = pages[pages.length - 1];
+    if (last && last.h + st.h <= PAGE.h - 0.4) { last.list.push(st.html); last.h += st.h; } else pages.push({ list: [st.html], h: st.h });
+  }
+  return pages.map((pg) => `<div class="tpl-page">
+      <div class="tpl-head"><div><b>${escapeHtml(name)}</b> — end-cut strips, full size. After you've sawn the face shape: cut out each strip on its dashed box, lay it on the edge it names with its top flush with the face you traced and the ▼ tick on the corner of your outline, and trace the black line onto the edge. Saw each end from the line on the face to the lines on both edges. The red angle is the slope on that edge - check it with a bevel gauge.</div></div>
+      <div class="tpl-ends">${pg.list.join('')}</div>
+    </div>`).join('');
 }
 
 // Builds the printable HTML for a part. `dims` is its object_dims.json entry
