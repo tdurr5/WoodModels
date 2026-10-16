@@ -241,11 +241,12 @@ export function faceFrame(geometry, u0, v0, w0) {
   };
   const face = groups(tris.filter((t) => Math.abs(t.n.dot(w0)) > Math.cos(THREE.MathUtils.degToRad(20))))[0];
   if (!face) return null;
-  const w = face.n.clone();
-  if (w.dot(w0) < 0) w.negate();
-  const u = u0.clone().addScaledVector(w, -u0.dot(w)).normalize();
-  const v = w.clone().cross(u);
+  const u = u0.clone().addScaledVector(face.n, -u0.dot(face.n)).normalize();
+  const v = face.n.clone().cross(u);
   if (v.dot(v0) < 0) v.negate();
+  // the face you see: the page's across × up (vectorView's viewer side), so
+  // "the back face" in the saw steps is the one drawn dashed
+  const w = u.clone().cross(v);
   const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
   for (let i = 0; i < pos.count; i++) {
     a.fromBufferAttribute(pos, i);

@@ -1052,6 +1052,13 @@ test('template looks square through a board with bevelled ends', () => {
   near(Math.abs(f.w.dot(ax(0, 0, 1))), 1);
   near(f.halfW, 1.75);
   for (const end of [f.ends.left, f.ends.right]) { near(end.bevel, 12, 0.01); near(end.miter, 0, 0.01); }
+  // seen from +z the back (z = -3/4") comes out further in at the right end, further out at the left
+  near(f.ends.right.back, -1.5 * t, 1e-4);
+  near(f.ends.left.back, 1.5 * t, 1e-4);
+  // turn the page over (width the other way): now looking from -z, so the back face swaps
+  const g2 = faceFrame(g, ax(1, 0, 0.05), ax(0, -1, 0), ax(-0.05, 0, 1));
+  near(g2.w.dot(ax(0, 0, -1)), 1);
+  near(g2.ends.right.back, 1.5 * t, 1e-4);
   assert.equal(endCutText(f.ends.left), '12° bevel');
   assert.equal(endCutText({ miter: 0.2, bevel: 0.3 }), 'square');
 });
