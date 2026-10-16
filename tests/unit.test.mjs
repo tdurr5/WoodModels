@@ -1023,7 +1023,7 @@ test('a bolt through solid wood means the model forgot the hole', () => {
   assert.equal(findMissingHoles([beside], [board], solidBoard).length, 0);
 });
 
-import { parseMeasured, printCorrection, faceFrame, endCutText } from '../viewer/template.js';
+import { parseMeasured, printCorrection, faceFrame, endCutText, faceLoops, profileSides, profileSteps } from '../viewer/template.js';
 
 test('printer correction: what the 6" ruler measured', () => {
   assert.equal(parseMeasured('5 3/4'), 5.75);
@@ -1061,4 +1061,31 @@ test('template looks square through a board with bevelled ends', () => {
   near(g2.ends.right.back, 1.5 * t, 1e-4);
   assert.equal(endCutText(f.ends.left), '12° bevel');
   assert.equal(endCutText({ miter: 0.2, bevel: 0.3 }), 'square');
+});
+
+test('a flat board is drawn as its exact profile: sides, corners, bevels', () => {
+  const THREE = THREE3;
+  // the same 20 x 3-1/2 x 1-1/2 board with 12 deg bevelled ends, tipped over
+  const g = new THREE.BoxGeometry(20, 3.5, 1.5).toNonIndexed();
+  const t = Math.tan(THREE.MathUtils.degToRad(12));
+  g.applyMatrix4(new THREE.Matrix4().set(1, 0, t, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1));
+  const tilt = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(0.3, -0.5, 0.9));
+  g.applyMatrix4(tilt);
+  const ax = (x, y, z) => new THREE.Vector3(x, y, z).applyMatrix4(tilt).normalize();
+  const f = faceFrame(g, ax(1, 0, 0.05), ax(0, 1, 0), ax(-0.05, 0, 1));
+  const loops = faceLoops(g, f);
+  assert.equal(loops.near.length, 1);
+  assert.equal(loops.near[0].length, 4); // a rectangle, however it was triangulated
+  const sides = profileSides(loops, f.stock);
+  const ends = sides.filter((sd) => Math.abs(sd.dir[0]) < 0.5), long = sides.filter((sd) => Math.abs(sd.dir[0]) > 0.5);
+  for (const sd of ends) { near(sd.len, 3.5, 1e-3); near(sd.bevel, 12, 0.05); near(Math.abs(sd.off), 1.5 * t, 1e-3); }
+  for (const sd of long) { near(sd.len, 20, 1e-3); near(sd.bevel, 0, 0.05); }
+  for (const sd of sides) near(sd.corner, 90, 0.05);
+  // seen from +z the right end's back comes out further in, the left end's further out
+  near(ends.find((sd) => sd.mid[0] > 0).off, -1.5 * t, 1e-3);
+  near(ends.find((sd) => sd.mid[0] < 0).off, 1.5 * t, 1e-3);
+  const steps = profileSteps(sides, f.stock, f.halfL);
+  assert.match(steps, /Left end \(the 3-1\/2" side\):<\/b> blade tilted 12°, so the cut comes out on the back face 5\/16" further out/);
+  assert.match(steps, /Right end .*further in/);
+  assert.match(steps, /bevel 12°, no miter \(square across\)/);
 });

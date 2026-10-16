@@ -36,7 +36,6 @@ const SQUARE_SVG = `<svg class="tpl-square" width="1in" height="1in" viewBox="0 
 // the same, k times bigger on paper
 const atScale = (svg, k) => svg.replace(/width="([\d.]+)in" height="([\d.]+)in"/, (_, w, h) => `width="${+w * k}in" height="${+h * k}in"`);
 const OVERLAP = 0.5;       // inches each tile overlaps its neighbours
-const NOTE_H = 0.6;        // room for the how-to-cut note under a template's header
 
 // One view of the part as vector lines, in inches: its silhouette (every
 // triangle projected, filled) and its outline edges (look.js featureEdges -
@@ -44,16 +43,22 @@ const NOTE_H = 0.6;        // room for the how-to-cut note under a template's he
 // page's horizontal axis, `up` its vertical (unit Vector3s through `center`).
 // Vector, not a picture of the model: sharp at any length, so a 46" bench
 // prints lines as fine as a 6" block.
-function vectorView(mesh, center, across, up, halfW, halfH, holes = [], units = 'in', flat = '') {
-  const wIn = halfW * 2 + MARGIN_IN * 2, hIn = halfH * 2 + MARGIN_IN * 2;
+//
+// `profile` (flat boards, from flatProfile) swaps the projected silhouette
+// for the board's face outline worked out exactly: drawn solid and filled,
+// every side's length and every corner's angle marked, and the back face's
+// side dashed only where a bevel brings it through somewhere else.
+function vectorView(mesh, center, across, up, halfW, halfH, holes = [], units = 'in', profile = null) {
+  const M = profile ? profile.margin : MARGIN_IN;
+  const wIn = halfW * 2 + M * 2, hIn = halfH * 2 + M * 2;
   const p = new THREE.Vector3();
   const xy = (x, y, z) => {
     p.set(x, y, z).sub(center);
-    return [(p.dot(across) + halfW + MARGIN_IN).toFixed(4), (halfH - p.dot(up) + MARGIN_IN).toFixed(4)];
+    return [(p.dot(across) + halfW + M).toFixed(4), (halfH - p.dot(up) + M).toFixed(4)];
   };
   const pos = mesh.geometry.attributes.position;
   const fill = [];
-  for (let i = 0; i + 2 < pos.count; i += 3) {
+  for (let i = 0; !profile && i + 2 < pos.count; i += 3) {
     const a = xy(pos.getX(i), pos.getY(i), pos.getZ(i)), b = xy(pos.getX(i + 1), pos.getY(i + 1), pos.getZ(i + 1)), c = xy(pos.getX(i + 2), pos.getY(i + 2), pos.getZ(i + 2));
     fill.push(`M${a}L${b}L${c}Z`);
   }
@@ -73,37 +78,13 @@ function vectorView(mesh, center, across, up, halfW, halfH, holes = [], units = 
   };
   const lines = [], back = [];
   const N = 8;
-  // A flat board is traced from the face you lay it on: its outline is the
-  // line to cut to. The back face's outline is only where a bevelled end or
-  // a leaning edge comes out (dashed), however much of it peeks past the
-  // front, and the short corners joining the two aren't drawn at all.
-  // Seen from its edge, the bevel at each end is a slanted line on each
-  // edge: the edge facing you is solid, the far one (deeper than the middle
-  // of the board) dashed, so the two don't read as two cuts.
-  let near = -Infinity, far = Infinity;
-  if (flat) {
-    for (let i = 0; i < pos.count; i++) {
-      const d = q.set(pos.getX(i), pos.getY(i), pos.getZ(i)).dot(toViewer);
-      near = Math.max(near, d); far = Math.min(far, d);
-    }
-  }
-  const TOL = 0.02;
-  const plane = (x, y, z) => {
-    const d = q.set(x, y, z).dot(toViewer);
-    return Math.abs(d - near) < TOL ? 'near' : Math.abs(d - far) < TOL ? 'far' : '';
-  };
+  // a profile's outline is drawn from the profile; here only what's inside
+  // the board (a bore, a housing) - no edge that touches either face
+  const depth = (x, y, z) => q.set(x, y, z).sub(center).dot(toViewer);
+  const onFace = (x, y, z) => profile && Math.abs(Math.abs(depth(x, y, z)) - profile.stock / 2) < 0.02;
   for (let i = 0; i + 5 < e.length; i += 6) {
     const at = (t) => [e[i] + (e[i + 3] - e[i]) * t, e[i + 1] + (e[i + 4] - e[i + 1]) * t, e[i + 2] + (e[i + 5] - e[i + 2]) * t];
-    if (flat === 'edge') {
-      const m = at(0.5);
-      if (q.set(...m).dot(toViewer) < (near + far) / 2 - TOL) { back.push(`M${xy(...at(0))}L${xy(...at(1))}`); continue; }
-    }
-    if (flat === 'face') {
-      const a = plane(e[i], e[i + 1], e[i + 2]), b = plane(e[i + 3], e[i + 4], e[i + 5]);
-      if (a === 'far' && b === 'far') { back.push(`M${xy(...at(0))}L${xy(...at(1))}`); continue; }
-      if (a && b && a !== b) continue;
-      if (a === 'near' && b === 'near') { lines.push(`M${xy(...at(0))}L${xy(...at(1))}`); continue; }
-    }
+    if (onFace(e[i], e[i + 1], e[i + 2]) || onFace(e[i + 3], e[i + 4], e[i + 5])) continue;
     // split the edge where it goes behind the part: test the middle of each
     // slice, join neighbouring slices that agree
     const h = Array.from({ length: N }, (_, k) => hidden(...at((k + 0.5) / N)));
@@ -116,7 +97,7 @@ function vectorView(mesh, center, across, up, halfW, halfH, holes = [], units = 
   }
   solid.material.dispose();
   // centre line along the length, handy for laying out
-  const cl = `M${(MARGIN_IN * 0.4).toFixed(4)},${(halfH + MARGIN_IN).toFixed(4)}H${(wIn - MARGIN_IN * 0.4).toFixed(4)}`;
+  const cl = `M${(M * 0.4).toFixed(4)},${(halfH + M).toFixed(4)}H${(wIn - M * 0.4).toFixed(4)}`;
   // holes the model didn't draw (holes.js): a circle and crosshair where the
   // bolt goes in when you look along it, else the bore as dashed lines
   const look = across.clone().cross(up);
@@ -133,7 +114,7 @@ function vectorView(mesh, center, across, up, halfW, halfH, holes = [], units = 
     const o = [n[0] / l * r, n[1] / l * r];
     return `<path d="M${cx + o[0]},${cy + o[1]}L${tx + o[0]},${ty + o[1]}M${cx - o[0]},${cy - o[1]}L${tx - o[0]},${ty - o[1]}" stroke="#c0392b" stroke-width="0.012" stroke-dasharray="0.08 0.05"/>${label}`;
   }).join('');
-  const svg = `<path d="${fill.join('')}" fill="#e9e2d6"/>
+  const svg = `${profile ? profileSvg(profile, (uv) => [uv[0] + halfW + M, halfH - uv[1] + M], units) : `<path d="${fill.join('')}" fill="#e9e2d6"/>`}
     <path d="${back.join('')}" fill="none" stroke="#999" stroke-width="0.008" stroke-dasharray="0.06 0.05"/>
     <path d="${lines.join('')}" fill="none" stroke="#000" stroke-width="0.012" stroke-linecap="round"/>
     <path d="${cl}" stroke="#3366cc" stroke-width="0.01" stroke-dasharray="0.25 0.12"/>${marks}`;
@@ -146,8 +127,7 @@ function vectorView(mesh, center, across, up, halfW, halfH, holes = [], units = 
 function tiles(img, title, sub, k = 1, note = '') {
   // drawing inches (the part's) vs paper inches: one drawing inch is k on paper.
   // A note under the header takes its room from the tiles.
-  const roomH = PAGE.h - (note ? NOTE_H : 0);
-  const pageW = PAGE.w / k, pageH = roomH / k, ov = OVERLAP / k;
+  const pageW = PAGE.w / k, pageH = PAGE.h / k, ov = OVERLAP / k;
   const stepX = pageW - ov, stepY = pageH - ov;
   const nx = Math.max(1, Math.ceil((img.wIn - ov) / stepX));
   const ny = Math.max(1, Math.ceil((img.hIn - ov) / stepY));
@@ -188,20 +168,29 @@ function tiles(img, title, sub, k = 1, note = '') {
           </div>` });
     }
   }
+  // The note goes under the first page's header when the tiles leave room
+  // for it, else on a page of its own in front.
+  const lines = note ? note.split('<br>').reduce((n, l) => n + Math.ceil(l.replace(/<[^>]+>/g, '').length / 90), 0) : 0;
+  const noteH = note ? 0.25 + 0.18 * lines : 0;
+  const noteFirst = note && cells[0].th + noteH <= PAGE.h;
   // as many tiles to a page as fit its height
   const pages = [];
   const GAP = 0.25;
   cells.forEach((c) => {
     const last = pages[pages.length - 1];
-    if (last && last.h + GAP + c.th <= roomH) { last.cells.push(c); last.h += GAP + c.th; } else pages.push({ cells: [c], h: c.th });
+    if (last && last.h + GAP + c.th <= PAGE.h - (pages.length === 1 && noteFirst ? noteH : 0)) { last.cells.push(c); last.h += GAP + c.th; } else pages.push({ cells: [c], h: c.th });
   });
   const n = cells.length;
-  return pages.map((pg, i) => `
+  const notePage = note && !noteFirst ? `
+        <div class="tpl-page">
+          <div class="tpl-head"><div><b>${escapeHtml(title)}</b> — how to cut it (the full-size template follows)</div><div class="tpl-note">${note}</div></div>
+        </div>` : '';
+  return notePage + pages.map((pg, i) => `
         <div class="tpl-page">
           <div class="tpl-head">
             <div><b>${escapeHtml(title)}</b> — ${escapeHtml(sub)} · tile${pg.cells.length > 1 ? 's' : ''} <b>${pg.cells.map((c) => c.id).join(', ')}</b> of ${n}${n > 1 ? ` (${ny} row${ny > 1 ? 's' : ''} × ${nx})` : ''}${pg.cells.length > 1 ? ' - cut them apart' : ''}</div>
             <div class="tpl-check">${atScale(SQUARE_SVG, k)}<span class="tpl-checkcol">${atScale(RULER_SVG, k)}<span>${k !== 1 ? `<b>Made ${((k - 1) * 100).toFixed(1)}% bigger for your printer</b> (it printed the 6" ruler short). ` : ''}Print at 100% / "Actual size", not "fit to page". Check with a tape: the square is exactly 1", the ruler exactly 6" - a printer that shrinks the page by 2% is 1/8" short here.${n > 1 ? ' Trim each sheet on its ✂ line, lay that edge on the next sheet\'s dashed line, and check the pink crosses sit exactly on top of each other (hold them up to a light). Then tape.' : ''}</span></span></div>
-            ${note && i === 0 ? `<div class="tpl-note">${note}</div>` : ''}
+            ${noteFirst && i === 0 ? `<div class="tpl-note">${note}</div>` : ''}
           </div>
           <div class="tpl-cells">${pg.cells.map((c) => c.html).join('')}</div>
         </div>`).join('');
@@ -279,28 +268,227 @@ export function endCutText({ miter, bevel }) {
   return [m ? `${m}° miter` : '', b ? `${b}° bevel` : ''].filter(Boolean).join(', ');
 }
 
-// How to saw each end of a flat board, in words, for the face view's page:
-// which saw settings, and where the cut comes out on the back.
-export function endCutSteps(ends, units = 'in') {
-  const out = [];
-  for (const side of ['left', 'right']) {
-    const e = ends[side];
-    if (!e || endCutText(e) === 'square') continue;
-    const m = Math.round(e.miter), b = Math.round(e.bevel);
-    const kind = m && b ? `compound cut - ${m}° miter, ${b}° bevel` : m ? `${m}° miter, blade square` : `${b}° bevel, square across`;
-    const exit = b && Math.abs(e.back) >= 1 / 32
-      ? ` Tilt the blade so the cut comes out on the back face ${formatLength(Math.abs(e.back), units)} ${e.back > 0 ? 'further out' : 'further in'} than the solid line (the dashed line on the back).`
-      : '';
-    out.push(`<b>${side === 'left' ? 'Left' : 'Right'} end:</b> ${kind}.${exit}`);
+// --- Flat boards, worked out as a profile ---------------------------------
+// A board sawn from flat stock is its face outline pushed through the
+// thickness; at most its sides are bevelled. So rather than project the 3D
+// model, take each face's outline exactly (the triangles lying in that
+// plane, their boundary edges chained into loops, straight runs merged),
+// pair every side of the face with the matching side of the back, and the
+// distance between the two is the bevel: atan(offset / stock).
+
+const deg = (r) => THREE.MathUtils.radToDeg(r);
+const loopArea = (l) => l.reduce((s, a, i) => { const b = l[(i + 1) % l.length]; return s + a[0] * b[1] - b[0] * a[1]; }, 0) / 2;
+// drop the points a straight side was drawn through (a hole's corners, SketchUp's splits)
+function mergeStraight(l) {
+  const out = l.slice();
+  for (let i = 0; out.length > 3 && i < out.length;) {
+    const a = out[(i + out.length - 1) % out.length], b = out[i], c = out[(i + 1) % out.length];
+    const ab = Math.hypot(b[0] - a[0], b[1] - a[1]), bc = Math.hypot(c[0] - b[0], c[1] - b[1]);
+    const turn = ab && bc ? ((b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0])) / (ab * bc) : 0;
+    const back = ab && bc ? (b[0] - a[0]) * (c[0] - b[0]) + (b[1] - a[1]) * (c[1] - b[1]) > 0 : true;
+    if (ab < 1e-4 || (Math.abs(turn) < 0.003 && back)) out.splice(i, 1); else i++;
   }
-  return out.length ? `Trace the solid outline on the face of the board. ${out.join(' ')} The miter is measured off square to the blue centre line.` : '';
+  return out;
+}
+
+// The outlines of a flat board's two faces, in the face frame (f from
+// faceFrame: u along the length, v across, w towards the face you see,
+// all from its centre). Loops are counter-clockwise, the outer one first.
+export function faceLoops(geometry, f, tol = 0.02) {
+  const pos = geometry.attributes.position;
+  const p = new THREE.Vector3();
+  const pt = (i) => { p.fromBufferAttribute(pos, i).sub(f.center); return [p.dot(f.u), p.dot(f.v), p.dot(f.w)]; };
+  const key = (q) => `${q[0].toFixed(3)},${q[1].toFixed(3)}`;
+  const loopsAt = (depth) => {
+    const seen = new Set(), count = new Map(), at = new Map();
+    for (let i = 0; i + 2 < pos.count; i += 3) {
+      const t = [pt(i), pt(i + 1), pt(i + 2)];
+      if (t.some((q) => Math.abs(q[2] - depth) > tol)) continue;
+      const ks = t.map(key);
+      const id = [...ks].sort().join('|');
+      if (new Set(ks).size < 3 || seen.has(id)) continue; // a sliver, or the back-to-back copy
+      seen.add(id);
+      t.forEach((q, j) => at.set(ks[j], [q[0], q[1]]));
+      for (let j = 0; j < 3; j++) {
+        const e = [ks[j], ks[(j + 1) % 3]].sort().join('|');
+        count.set(e, (count.get(e) || 0) + 1);
+      }
+    }
+    // an edge only one triangle has is on the outline
+    const nb = new Map();
+    const link = (a, b) => { if (!nb.has(a)) nb.set(a, []); nb.get(a).push(b); };
+    for (const [e, n] of count) if (n === 1) { const [a, b] = e.split('|'); link(a, b); link(b, a); }
+    const loops = [], used = new Set();
+    for (const start of nb.keys()) {
+      if (used.has(start)) continue;
+      const loop = [start];
+      used.add(start);
+      for (let prev = null, cur = start; ;) {
+        const next = nb.get(cur).find((k) => k !== prev && !used.has(k));
+        if (!next) break;
+        loop.push(next); used.add(next); prev = cur; cur = next;
+      }
+      if (loop.length >= 3) loops.push(mergeStraight(loop.map((k) => at.get(k))));
+    }
+    return loops.map((l) => (loopArea(l) < 0 ? l.reverse() : l)).sort((a, b) => loopArea(b) - loopArea(a));
+  };
+  return { near: loopsAt(f.stock / 2), far: loopsAt(-f.stock / 2) };
+}
+
+// Every side of the face's outline: its length, which way is out, the
+// corner angle at its start, and the bevel - the back face's matching side
+// (parallel, nearest) is `off` further out (negative: further in).
+export function profileSides(loops, stock) {
+  const outer = loops.near[0];
+  if (!outer) return [];
+  const back = loops.far[0] || [];
+  const farSides = back.map((a, i) => [a, back[(i + 1) % back.length]]);
+  const sides = outer.map((a, i) => {
+    const b = outer[(i + 1) % outer.length];
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const dir = [(b[0] - a[0]) / len, (b[1] - a[1]) / len], out = [dir[1], -dir[0]];
+    const m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    let best = null;
+    for (const [c, e] of farSides) {
+      const fl = Math.hypot(e[0] - c[0], e[1] - c[1]);
+      if (fl < 1e-6 || Math.abs(dir[0] * (e[1] - c[1]) - dir[1] * (e[0] - c[0])) / fl > 0.03) continue;
+      const fm = [(c[0] + e[0]) / 2 - m[0], (c[1] + e[1]) / 2 - m[1]];
+      const off = fm[0] * out[0] + fm[1] * out[1];
+      // the same side only if it runs alongside this one, no further off than a 50° bevel
+      // (a back face shaped differently - a notch on one face only - has sides that match nothing)
+      const t0 = (c[0] - a[0]) * dir[0] + (c[1] - a[1]) * dir[1], t1 = (e[0] - a[0]) * dir[0] + (e[1] - a[1]) * dir[1];
+      if (Math.min(len, Math.max(t0, t1)) - Math.max(0, Math.min(t0, t1)) < Math.min(len, fl) * 0.5) continue;
+      if (Math.abs(off) > stock * Math.tan(THREE.MathUtils.degToRad(50))) continue;
+      const score = Math.abs(off) + 0.05 * Math.abs(fm[0] * dir[0] + fm[1] * dir[1]);
+      if (!best || score < best.score) best = { score, off, back: [c, e] };
+    }
+    const off = best ? best.off : 0;
+    return { a, b, len, dir, out, mid: m, off, back: best && best.back, bevel: deg(Math.atan2(Math.abs(off), stock)) };
+  });
+  // the inside angle at each side's start, between the side before and this one
+  sides.forEach((sd, i) => {
+    const pr = sides[(i + sides.length - 1) % sides.length].dir;
+    sd.corner = 180 - deg(Math.atan2(pr[0] * sd.dir[1] - pr[1] * sd.dir[0], pr[0] * sd.dir[0] + pr[1] * sd.dir[1]));
+  });
+  return sides;
+}
+
+const BEVEL_MIN = 6; // degrees; under it a side is sawn square (under 3/16" over 1-1/2" stock - a model's lean, not a cut)
+
+// Which end of the length a side is at, for the words: left/right as printed
+function sideName(sd, halfL) {
+  if (Math.abs(sd.dir[0]) < 0.7 && Math.abs(sd.mid[0]) > halfL * 0.6) return sd.mid[0] < 0 ? 'Left end' : 'Right end';
+  return 'Side';
+}
+
+// The miter-saw settings for one bevelled side: the blade's tilt, and the
+// miter with either neighbouring side against the fence (90° less the
+// corner between them).
+function sawFor(sides, i) {
+  const sd = sides[i], prev = sides[(i + sides.length - 1) % sides.length], next = sides[(i + 1) % sides.length];
+  return {
+    bevel: sd.bevel,
+    fences: [[prev, Math.abs(90 - sd.corner)], [next, Math.abs(90 - next.corner)]].sort((x, y) => y[0].len - x[0].len),
+  };
+}
+
+// Plain words for the face view's page: what to trace, and how to saw each bevelled side
+export function profileSteps(sides, stock, halfL, units = 'in') {
+  const r = (x) => Math.round(x);
+  const fmt = (x) => formatLength(x, units);
+  const steps = sides.map((sd, i) => {
+    if (sd.bevel < BEVEL_MIN) return '';
+    const saw = sawFor(sides, i);
+    const [[f1, m1], [f2, m2]] = saw.fences;
+    return `<b>${sideName(sd, halfL)} (the ${fmt(sd.len)} side):</b> blade tilted ${r(sd.bevel)}°, so the cut comes out on the back face ${fmt(Math.abs(sd.off))} further ${sd.off > 0 ? 'out' : 'in'} (the dashed line). `
+      + `On a miter saw: bevel ${r(sd.bevel)}°, ${r(m1) ? `miter ${r(m1)}°` : 'no miter (square across)'} with the ${fmt(f1.len)} side on the fence${r(m2) !== r(m1) ? ` (or ${r(m2) ? `${r(m2)}°` : 'square'} with the ${fmt(f2.len)} side)` : ''}.`;
+  }).filter(Boolean);
+  const lean = Math.max(0, ...sides.filter((sd) => sd.bevel < BEVEL_MIN).map((sd) => sd.bevel));
+  const square = lean >= 1 ? ` The other sides are square to the face (the model leans them up to ${r(lean)}°, ${fmt(Math.tan(THREE.MathUtils.degToRad(lean)) * stock)} over the thickness - not worth sawing).` : ' The other sides are square to the face.';
+  // nothing to say beyond the header's "trace it" for a board with square sides
+  return steps.length ? `Trace the solid outline on the face of the ${fmt(stock)} board, then saw:<br>${steps.join('<br>')}<br>${square.trim()}` : '';
+}
+
+// The profile drawn: filled outline, side lengths outside, corner angles inside, bevel exits dashed
+function profileSvg(profile, page, units) {
+  const { loops, sides } = profile;
+  const P = (uv) => page(uv).map((x) => x.toFixed(4)).join(',');
+  const ring = (l) => `M${l.map(P).join('L')}Z`;
+  const out = [];
+  out.push(`<path d="${loops.near.map(ring).join('')}" fill="#e9e2d6" fill-rule="evenodd"/>`);
+  out.push(`<path d="${sides.filter((sd) => sd.bevel >= BEVEL_MIN && sd.back).map((sd) => `M${P(sd.back[0])}L${P(sd.back[1])}`).join('')}" fill="none" stroke="#555" stroke-width="0.012" stroke-dasharray="0.08 0.05"/>`);
+  out.push(`<path d="${loops.near.map(ring).join('')}" fill="none" stroke="#000" stroke-width="0.014" stroke-linejoin="round"/>`);
+  const text = (uv, rot, body, size = 0.14, fill = '#000') => {
+    const [x, y] = page(uv);
+    return `<text x="${x.toFixed(3)}" y="${y.toFixed(3)}" font-size="${size}" fill="${fill}" text-anchor="middle" dominant-baseline="middle" transform="rotate(${rot.toFixed(1)} ${x.toFixed(3)} ${y.toFixed(3)})">${body}</text>`;
+  };
+  // side lengths, along each side, just inside it - no paper needed round the part
+  for (const sd of sides) {
+    if (sd.len < 0.5) continue;
+    let rot = deg(Math.atan2(-sd.dir[1], sd.dir[0]));
+    if (rot > 90) rot -= 180; else if (rot <= -90) rot += 180;
+    const gap = -0.17;
+    const bev = sd.bevel >= BEVEL_MIN ? ` · ${Math.round(sd.bevel)}° bevel` : '';
+    out.push(text([sd.mid[0] + sd.out[0] * gap, sd.mid[1] + sd.out[1] * gap], rot, `${escapeHtml(formatLength(sd.len, units))}${bev}`));
+  }
+  // corner angles, with a small arc, inside each corner
+  if (sides.length <= 12) {
+    sides.forEach((sd, i) => {
+      const prev = sides[(i + sides.length - 1) % sides.length];
+      // a corner cut into the board (over 180° inside) is marked from outside, where a bevel gauge reads it
+      const reflex = sd.corner > 180, shown = reflex ? 360 - sd.corner : sd.corner;
+      const v = sd.a, a0 = Math.atan2(sd.dir[1], sd.dir[0]), sweep = THREE.MathUtils.degToRad(reflex ? -shown : shown);
+      const r = Math.min(0.3, sd.len / 3, prev.len / 3);
+      const arc = Array.from({ length: 9 }, (_, k) => {
+        const t = a0 + sweep * k / 8;
+        return P([v[0] + Math.cos(t) * r, v[1] + Math.sin(t) * r]);
+      });
+      out.push(`<path d="M${arc.join('L')}" fill="none" stroke="#c0392b" stroke-width="0.01"/>`);
+      const t = a0 + sweep / 2, rl = r + 0.2;
+      out.push(text([v[0] + Math.cos(t) * rl, v[1] + Math.sin(t) * rl], 0, `${Math.round(shown)}°`, 0.12, '#c0392b'));
+    });
+  }
+  return out.join('');
+}
+
+// The bevelled sides seen from the edge, full size: the two faces, the cut
+// between them, its angle off square and how far it walks - to set a bevel
+// gauge or the saw's tilt from, and to check the cut piece against.
+function endDetails(sides, stock, halfL, name, units, k) {
+  const fmt = (x) => escapeHtml(formatLength(x, units));
+  const blocks = sides.map((sd, i) => {
+    if (sd.bevel < BEVEL_MIN) return '';
+    const saw = sawFor(sides, i);
+    const W = 3.2, top = 0.45, bot = top + stock, xT = 1.4, xB = xT - sd.off, H = bot + 0.5;
+    const ang = Math.round(sd.bevel);
+    const svg = `<svg width="${W * k}in" height="${H * k}in" viewBox="0 0 ${W} ${H}">
+      <path d="M${xT},${top}H${W - 0.1}V${bot}H${xB}Z" fill="#e9e2d6"/>
+      <path d="M${Math.min(xT, xB) - 0.5},${top}H${W - 0.1}M${Math.min(xT, xB) - 0.5},${bot}H${W - 0.1}" stroke="#000" stroke-width="0.012" stroke-dasharray="0.04 0.04"/>
+      <path d="M${xT},${top}H${W - 0.1}M${xB},${bot}H${W - 0.1}M${xT},${top}L${xB},${bot}" stroke="#000" stroke-width="0.016" fill="none"/>
+      <path d="M${xT},${top}V${bot}" stroke="#3366cc" stroke-width="0.01" stroke-dasharray="0.06 0.04"/>
+      <path d="M${xT},${bot + 0.15}H${xB}M${xT},${bot + 0.08}v0.14M${xB},${bot + 0.08}v0.14" stroke="#c0392b" stroke-width="0.01"/>
+      <text x="${(xT + xB) / 2}" y="${bot + 0.32}" font-size="0.12" text-anchor="middle" fill="#c0392b">${fmt(Math.abs(sd.off))}</text>
+      <text x="${xT + (sd.off > 0 ? 0.08 : -0.08)}" y="${top + stock * 0.45}" font-size="0.13" text-anchor="${sd.off > 0 ? 'start' : 'end'}" fill="#c0392b">${ang}°</text>
+      <text x="${W - 0.15}" y="${top - 0.1}" font-size="0.11" text-anchor="end">face you traced</text>
+      <text x="${W - 0.15}" y="${bot + 0.32}" font-size="0.11" text-anchor="end">back face</text>
+      <text x="${W - 0.15}" y="${(top + bot) / 2}" font-size="0.11" text-anchor="end">${fmt(stock)} stock</text>
+    </svg>`;
+    const [[f1, m1]] = saw.fences;
+    return `<div class="tpl-end"><div><b>${sideName(sd, halfL)}</b> - the ${fmt(sd.len)} side: ${ang}° bevel (miter ${Math.round(m1)}° off the ${fmt(f1.len)} side). The cut through the thickness measures ${fmt(stock / Math.cos(THREE.MathUtils.degToRad(sd.bevel)))}.</div>${svg}</div>`;
+  }).filter(Boolean);
+  if (!blocks.length) return '';
+  return `<div class="tpl-page">
+      <div class="tpl-head"><div><b>${escapeHtml(name)}</b> — end cuts seen from the edge, full size. Blue: square across. Lay a bevel gauge on the black line to set the saw.</div></div>
+      <div class="tpl-ends">${blocks.join('')}</div>
+    </div>`;
 }
 
 // Builds the printable HTML for a part. `dims` is its object_dims.json entry
 // ({ center, axes: [{direction, length, role}] }).
 // The face view is the shape you trace; the edge view (the part seen from
 // its edge, thickness-wide) only matters for cuts in an edge, so it's
-// printed only when asked for (withEdge).
+// printed only when asked for (withEdge). A flat board is drawn as its
+// exact profile instead, and its edge view is the end-cut details.
 export function buildTemplate(renderer, mesh, dims, name, units, holes = [], k = 1, withEdge = false) {
   const byRole = Object.fromEntries(dims.axes.map((a) => [a.role, a]));
   const L = byRole.Length, W = byRole.Width, T = byRole.Thickness;
@@ -310,21 +498,24 @@ export function buildTemplate(renderer, mesh, dims, name, units, holes = [], k =
   let v = new THREE.Vector3(...W.direction).normalize();
   let w = new THREE.Vector3(...T.direction).normalize();
   let halfL = L.length / 2, halfW = W.length / 2, halfT = T.length / 2;
-  // square the view to the board's own face (faceFrame)
+  // square the view to the board's own face (faceFrame), and take its outline exactly
   const f = faceFrame(mesh.geometry, u, v, w);
   if (f) ({ u, v, w, center, halfL, halfW } = f), halfT = f.stock / 2;
+  const loops = f && faceLoops(mesh.geometry, f);
+  const sides = loops && loops.near.length && loops.far.length ? profileSides(loops, f.stock) : null;
+  // (the frame's extents take in the back face, so a bevel's dashed line is on the paper already)
+  const profile = sides && { loops, sides, stock: f.stock, margin: MARGIN_IN };
   // Parts wider than they are long read better stood the other way on paper,
   // but keep length horizontal: it's how you'd lay the template on a board.
-  const face = vectorView(mesh, center, u, v, halfL, halfW, holes, units, f ? 'face' : '');
-  const edge = withEdge && vectorView(mesh, center, u, w, halfL, halfT, holes, units, f ? 'edge' : '');
+  const face = vectorView(mesh, center, u, v, halfL, halfW, holes, units, profile);
   const size = `${formatLength(L.length, units)} × ${formatLength(W.length, units)} × ${formatLength(T.length, units)}`;
   // what the stock really is, when the cut list's box is bigger than the board
   const stock = f && Math.abs(f.stock - T.length) > 1 / 32 ? ` - from ${formatLength(f.stock, units)} thick stock` : '';
-  // the saw settings for each end, when either isn't square
-  const ends = f && Object.values(f.ends).some((e) => endCutText(e) !== 'square')
-    ? ` · ends: left ${f.ends.left ? endCutText(f.ends.left) : '-'}, right ${f.ends.right ? endCutText(f.ends.right) : '-'}` : '';
-  const bevels = f && Object.values(f.ends).some((e) => Math.round(e.bevel));
-  return tiles(face, name, `face view (looking through the thickness), ${size}${stock}${ends}`, k, f ? endCutSteps(f.ends, units) : '')
-    + (edge ? tiles(edge, name, `EDGE view - the part seen from its edge (only for cuts in the edge), ${size}${stock}`, k,
-      bevels ? 'Top and bottom lines are the two faces of the board. The slanted line at each end is the end\'s bevel through the thickness - <b>solid on the edge facing you</b>, dashed on the far edge (the miter moves it along).' : '') : '');
+  if (profile) {
+    return tiles(face, name, `face, full size, ${size}${stock} - trace the solid outline; side lengths and corner angles are marked to check it with a tape and a bevel gauge`, k, profileSteps(profile.sides, f.stock, halfL, units))
+      + (withEdge ? endDetails(profile.sides, f.stock, halfL, name, units, k) : '');
+  }
+  const edge = withEdge && vectorView(mesh, center, u, w, halfL, halfT, holes, units);
+  return tiles(face, name, `face view (looking through the thickness), ${size}${stock}`, k)
+    + (edge ? tiles(edge, name, `EDGE view - the part seen from its edge (only for cuts in the edge), ${size}${stock}`, k) : '');
 }
