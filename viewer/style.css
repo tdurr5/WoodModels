@@ -359,6 +359,7 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
   .tpl-page { page-break-after: always; }
   .tpl-page:last-child { page-break-after: auto; }
   .tpl-head { font-size: 10px; margin-bottom: 0.1in; line-height: 1.4; }
+  .tpl-note { margin-top: 0.06in; padding: 0.05in 0.08in; border: 1px solid #000; font-size: 11px; }
   .tpl-check { display: flex; align-items: center; gap: 8px; color: #333; }
   .tpl-inch { position: relative; display: inline-block; width: 1in; height: 1in; border: 1px solid #000; box-sizing: border-box; flex: none; }
   .tpl-inch i { position: absolute; bottom: 0; width: 0; height: 0.12in; border-left: 1px solid #000; }

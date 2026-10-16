@@ -36,6 +36,7 @@ const SQUARE_SVG = `<svg class="tpl-square" width="1in" height="1in" viewBox="0 
 // the same, k times bigger on paper
 const atScale = (svg, k) => svg.replace(/width="([\d.]+)in" height="([\d.]+)in"/, (_, w, h) => `width="${+w * k}in" height="${+h * k}in"`);
 const OVERLAP = 0.5;       // inches each tile overlaps its neighbours
+const NOTE_H = 0.6;        // room for the how-to-cut note under a template's header
 
 // One view of the part as vector lines, in inches: its silhouette (every
 // triangle projected, filled) and its outline edges (look.js featureEdges -
@@ -43,7 +44,7 @@ const OVERLAP = 0.5;       // inches each tile overlaps its neighbours
 // page's horizontal axis, `up` its vertical (unit Vector3s through `center`).
 // Vector, not a picture of the model: sharp at any length, so a 46" bench
 // prints lines as fine as a 6" block.
-function vectorView(mesh, center, across, up, halfW, halfH, holes = [], units = 'in', flat = false) {
+function vectorView(mesh, center, across, up, halfW, halfH, holes = [], units = 'in', flat = '') {
   const wIn = halfW * 2 + MARGIN_IN * 2, hIn = halfH * 2 + MARGIN_IN * 2;
   const p = new THREE.Vector3();
   const xy = (x, y, z) => {
@@ -76,6 +77,9 @@ function vectorView(mesh, center, across, up, halfW, halfH, holes = [], units = 
   // line to cut to. The back face's outline is only where a bevelled end or
   // a leaning edge comes out (dashed), however much of it peeks past the
   // front, and the short corners joining the two aren't drawn at all.
+  // Seen from its edge, the bevel at each end is a slanted line on each
+  // edge: the edge facing you is solid, the far one (deeper than the middle
+  // of the board) dashed, so the two don't read as two cuts.
   let near = -Infinity, far = Infinity;
   if (flat) {
     for (let i = 0; i < pos.count; i++) {
@@ -90,7 +94,11 @@ function vectorView(mesh, center, across, up, halfW, halfH, holes = [], units = 
   };
   for (let i = 0; i + 5 < e.length; i += 6) {
     const at = (t) => [e[i] + (e[i + 3] - e[i]) * t, e[i + 1] + (e[i + 4] - e[i + 1]) * t, e[i + 2] + (e[i + 5] - e[i + 2]) * t];
-    if (flat) {
+    if (flat === 'edge') {
+      const m = at(0.5);
+      if (q.set(...m).dot(toViewer) < (near + far) / 2 - TOL) { back.push(`M${xy(...at(0))}L${xy(...at(1))}`); continue; }
+    }
+    if (flat === 'face') {
       const a = plane(e[i], e[i + 1], e[i + 2]), b = plane(e[i + 3], e[i + 4], e[i + 5]);
       if (a === 'far' && b === 'far') { back.push(`M${xy(...at(0))}L${xy(...at(1))}`); continue; }
       if (a && b && a !== b) continue;
@@ -135,9 +143,11 @@ function vectorView(mesh, center, across, up, halfW, halfH, holes = [], units = 
 // Cut a view into letter-size tiles that overlap 1/2" for taping. Short
 // tiles (an edge view) share a page, stacked, so a long thin part doesn't
 // take a sheet per 7" of strip.
-function tiles(img, title, sub, k = 1) {
-  // drawing inches (the part's) vs paper inches: one drawing inch is k on paper
-  const pageW = PAGE.w / k, pageH = PAGE.h / k, ov = OVERLAP / k;
+function tiles(img, title, sub, k = 1, note = '') {
+  // drawing inches (the part's) vs paper inches: one drawing inch is k on paper.
+  // A note under the header takes its room from the tiles.
+  const roomH = PAGE.h - (note ? NOTE_H : 0);
+  const pageW = PAGE.w / k, pageH = roomH / k, ov = OVERLAP / k;
   const stepX = pageW - ov, stepY = pageH - ov;
   const nx = Math.max(1, Math.ceil((img.wIn - ov) / stepX));
   const ny = Math.max(1, Math.ceil((img.hIn - ov) / stepY));
@@ -183,14 +193,15 @@ function tiles(img, title, sub, k = 1) {
   const GAP = 0.25;
   cells.forEach((c) => {
     const last = pages[pages.length - 1];
-    if (last && last.h + GAP + c.th <= PAGE.h) { last.cells.push(c); last.h += GAP + c.th; } else pages.push({ cells: [c], h: c.th });
+    if (last && last.h + GAP + c.th <= roomH) { last.cells.push(c); last.h += GAP + c.th; } else pages.push({ cells: [c], h: c.th });
   });
   const n = cells.length;
-  return pages.map((pg) => `
+  return pages.map((pg, i) => `
         <div class="tpl-page">
           <div class="tpl-head">
             <div><b>${escapeHtml(title)}</b> — ${escapeHtml(sub)} · tile${pg.cells.length > 1 ? 's' : ''} <b>${pg.cells.map((c) => c.id).join(', ')}</b> of ${n}${n > 1 ? ` (${ny} row${ny > 1 ? 's' : ''} × ${nx})` : ''}${pg.cells.length > 1 ? ' - cut them apart' : ''}</div>
             <div class="tpl-check">${atScale(SQUARE_SVG, k)}<span class="tpl-checkcol">${atScale(RULER_SVG, k)}<span>${k !== 1 ? `<b>Made ${((k - 1) * 100).toFixed(1)}% bigger for your printer</b> (it printed the 6" ruler short). ` : ''}Print at 100% / "Actual size", not "fit to page". Check with a tape: the square is exactly 1", the ruler exactly 6" - a printer that shrinks the page by 2% is 1/8" short here.${n > 1 ? ' Trim each sheet on its ✂ line, lay that edge on the next sheet\'s dashed line, and check the pink crosses sit exactly on top of each other (hold them up to a light). Then tape.' : ''}</span></span></div>
+            ${note && i === 0 ? `<div class="tpl-note">${note}</div>` : ''}
           </div>
           <div class="tpl-cells">${pg.cells.map((c) => c.html).join('')}</div>
         </div>`).join('');
@@ -249,7 +260,10 @@ export function faceFrame(geometry, u0, v0, w0) {
     const end = groups(tris.filter((t) => Math.abs(t.n.dot(u)) > 0.5 && Math.sign(t.mid.clone().sub(center).dot(u)) === side))[0];
     if (!end) continue;
     const line = w.clone().cross(end.n); // where the end meets the face
+    const out = end.n.clone().multiplyScalar(Math.sign(end.n.dot(u)) * side); // pointing off the end
     ends[side < 0 ? 'left' : 'right'] = {
+      // how much further out the cut comes through on the back face (negative: further in)
+      back: (hi[2] - lo[2]) * out.dot(w) / Math.abs(out.dot(u)),
       miter: deg(Math.atan2(Math.abs(line.dot(u)), Math.abs(line.dot(v)))),
       bevel: deg(Math.asin(Math.min(1, Math.abs(end.n.dot(w))))),
     };
@@ -262,6 +276,23 @@ export function endCutText({ miter, bevel }) {
   const m = Math.round(miter), b = Math.round(bevel);
   if (!m && !b) return 'square';
   return [m ? `${m}° miter` : '', b ? `${b}° bevel` : ''].filter(Boolean).join(', ');
+}
+
+// How to saw each end of a flat board, in words, for the face view's page:
+// which saw settings, and where the cut comes out on the back.
+export function endCutSteps(ends, units = 'in') {
+  const out = [];
+  for (const side of ['left', 'right']) {
+    const e = ends[side];
+    if (!e || endCutText(e) === 'square') continue;
+    const m = Math.round(e.miter), b = Math.round(e.bevel);
+    const kind = m && b ? `compound cut - ${m}° miter, ${b}° bevel` : m ? `${m}° miter, blade square` : `${b}° bevel, square across`;
+    const exit = b && Math.abs(e.back) >= 1 / 32
+      ? ` Tilt the blade so the cut comes out on the back face ${formatLength(Math.abs(e.back), units)} ${e.back > 0 ? 'further out' : 'further in'} than the solid line (the dashed line on the back).`
+      : '';
+    out.push(`<b>${side === 'left' ? 'Left' : 'Right'} end:</b> ${kind}.${exit}`);
+  }
+  return out.length ? `Trace the solid outline on the face of the board. ${out.join(' ')} The miter is measured off square to the blue centre line.` : '';
 }
 
 // Builds the printable HTML for a part. `dims` is its object_dims.json entry
@@ -283,14 +314,16 @@ export function buildTemplate(renderer, mesh, dims, name, units, holes = [], k =
   if (f) ({ u, v, w, center, halfL, halfW } = f), halfT = f.stock / 2;
   // Parts wider than they are long read better stood the other way on paper,
   // but keep length horizontal: it's how you'd lay the template on a board.
-  const face = vectorView(mesh, center, u, v, halfL, halfW, holes, units, !!f);
-  const edge = withEdge && vectorView(mesh, center, u, w, halfL, halfT, holes, units);
+  const face = vectorView(mesh, center, u, v, halfL, halfW, holes, units, f ? 'face' : '');
+  const edge = withEdge && vectorView(mesh, center, u, w, halfL, halfT, holes, units, f ? 'edge' : '');
   const size = `${formatLength(L.length, units)} × ${formatLength(W.length, units)} × ${formatLength(T.length, units)}`;
   // what the stock really is, when the cut list's box is bigger than the board
   const stock = f && Math.abs(f.stock - T.length) > 1 / 32 ? ` - from ${formatLength(f.stock, units)} thick stock` : '';
   // the saw settings for each end, when either isn't square
   const ends = f && Object.values(f.ends).some((e) => endCutText(e) !== 'square')
     ? ` · ends: left ${f.ends.left ? endCutText(f.ends.left) : '-'}, right ${f.ends.right ? endCutText(f.ends.right) : '-'}` : '';
-  return tiles(face, name, `face view (looking through the thickness), ${size}${stock}${ends}`, k)
-    + (edge ? tiles(edge, name, `EDGE view - the part seen from its edge (only for cuts in the edge), ${size}${stock}`, k) : '');
+  const bevels = f && Object.values(f.ends).some((e) => Math.round(e.bevel));
+  return tiles(face, name, `face view (looking through the thickness), ${size}${stock}${ends}`, k, f ? endCutSteps(f.ends, units) : '')
+    + (edge ? tiles(edge, name, `EDGE view - the part seen from its edge (only for cuts in the edge), ${size}${stock}`, k,
+      bevels ? 'Top and bottom lines are the two faces of the board. The slanted line at each end is the end\'s bevel through the thickness - <b>solid on the edge facing you</b>, dashed on the far edge (the miter moves it along).' : '') : '');
 }
