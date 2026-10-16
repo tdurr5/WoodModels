@@ -43,7 +43,7 @@ const OVERLAP = 0.5;       // inches each tile overlaps its neighbours
 // page's horizontal axis, `up` its vertical (unit Vector3s through `center`).
 // Vector, not a picture of the model: sharp at any length, so a 46" bench
 // prints lines as fine as a 6" block.
-function vectorView(mesh, center, across, up, halfW, halfH, holes = [], units = 'in') {
+function vectorView(mesh, center, across, up, halfW, halfH, holes = [], units = 'in', flat = false) {
   const wIn = halfW * 2 + MARGIN_IN * 2, hIn = halfH * 2 + MARGIN_IN * 2;
   const p = new THREE.Vector3();
   const xy = (x, y, z) => {
@@ -72,8 +72,30 @@ function vectorView(mesh, center, across, up, halfW, halfH, holes = [], units = 
   };
   const lines = [], back = [];
   const N = 8;
+  // A flat board is traced from the face you lay it on: its outline is the
+  // line to cut to. The back face's outline is only where a bevelled end or
+  // a leaning edge comes out (dashed), however much of it peeks past the
+  // front, and the short corners joining the two aren't drawn at all.
+  let near = -Infinity, far = Infinity;
+  if (flat) {
+    for (let i = 0; i < pos.count; i++) {
+      const d = q.set(pos.getX(i), pos.getY(i), pos.getZ(i)).dot(toViewer);
+      near = Math.max(near, d); far = Math.min(far, d);
+    }
+  }
+  const TOL = 0.02;
+  const plane = (x, y, z) => {
+    const d = q.set(x, y, z).dot(toViewer);
+    return Math.abs(d - near) < TOL ? 'near' : Math.abs(d - far) < TOL ? 'far' : '';
+  };
   for (let i = 0; i + 5 < e.length; i += 6) {
     const at = (t) => [e[i] + (e[i + 3] - e[i]) * t, e[i + 1] + (e[i + 4] - e[i + 1]) * t, e[i + 2] + (e[i + 5] - e[i + 2]) * t];
+    if (flat) {
+      const a = plane(e[i], e[i + 1], e[i + 2]), b = plane(e[i + 3], e[i + 4], e[i + 5]);
+      if (a === 'far' && b === 'far') { back.push(`M${xy(...at(0))}L${xy(...at(1))}`); continue; }
+      if (a && b && a !== b) continue;
+      if (a === 'near' && b === 'near') { lines.push(`M${xy(...at(0))}L${xy(...at(1))}`); continue; }
+    }
     // split the edge where it goes behind the part: test the middle of each
     // slice, join neighbouring slices that agree
     const h = Array.from({ length: N }, (_, k) => hidden(...at((k + 0.5) / N)));
@@ -261,7 +283,7 @@ export function buildTemplate(renderer, mesh, dims, name, units, holes = [], k =
   if (f) ({ u, v, w, center, halfL, halfW } = f), halfT = f.stock / 2;
   // Parts wider than they are long read better stood the other way on paper,
   // but keep length horizontal: it's how you'd lay the template on a board.
-  const face = vectorView(mesh, center, u, v, halfL, halfW, holes, units);
+  const face = vectorView(mesh, center, u, v, halfL, halfW, holes, units, !!f);
   const edge = withEdge && vectorView(mesh, center, u, w, halfL, halfT, holes, units);
   const size = `${formatLength(L.length, units)} × ${formatLength(W.length, units)} × ${formatLength(T.length, units)}`;
   // what the stock really is, when the cut list's box is bigger than the board
