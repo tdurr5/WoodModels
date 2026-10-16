@@ -174,6 +174,74 @@ function tiles(img, title, sub, k = 1) {
         </div>`).join('');
 }
 
+// The flat face to look through. The cut list's box is fitted around the
+// whole part, so on a board with bevelled ends (a splayed leg sawn from a
+// 2x4) it leans a few degrees off the board's faces - and a view along it
+// shows the front and back outlines side by side, a 3D drawing instead of
+// a shape to trace. This finds the largest flat face near the box's
+// thickness axis and turns the view square to it: length stays along the
+// board, extents and centre are re-measured in that frame, and `stock` is
+// the true face-to-face thickness. Each end's saw settings come with it:
+// `miter` is the end line's angle off square across the face, `bevel` the
+// blade's tilt off 90° through the thickness. Without such a face (a
+// turned or carved part) the box's own axes are kept.
+export function faceFrame(geometry, u0, v0, w0) {
+  const pos = geometry.attributes.position;
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3();
+  const tris = [];
+  for (let i = 0; i + 2 < pos.count; i += 3) {
+    a.fromBufferAttribute(pos, i); b.fromBufferAttribute(pos, i + 1); c.fromBufferAttribute(pos, i + 2);
+    n.subVectors(b, a).cross(c.clone().sub(a));
+    const area = n.length() / 2;
+    if (area < 1e-8) continue;
+    tris.push({ n: n.clone().normalize(), area, mid: a.clone().add(b).add(c).divideScalar(3) });
+  }
+  // gather triangles into flat faces by normal (either side: SketchUp draws back-to-back copies)
+  const groups = (list) => {
+    const out = [];
+    for (const t of list) {
+      const g = out.find((o) => Math.abs(o.n.dot(t.n)) > 0.9998);
+      if (g) g.area += t.area; else out.push({ n: t.n.clone(), area: t.area, tris: [] });
+      (g || out[out.length - 1]).tris.push(t);
+    }
+    return out.sort((x, y) => y.area - x.area);
+  };
+  const face = groups(tris.filter((t) => Math.abs(t.n.dot(w0)) > Math.cos(THREE.MathUtils.degToRad(20))))[0];
+  if (!face) return null;
+  const w = face.n.clone();
+  if (w.dot(w0) < 0) w.negate();
+  const u = u0.clone().addScaledVector(w, -u0.dot(w)).normalize();
+  const v = w.clone().cross(u);
+  if (v.dot(v0) < 0) v.negate();
+  const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < pos.count; i++) {
+    a.fromBufferAttribute(pos, i);
+    [u, v, w].forEach((ax, k) => { const d = a.dot(ax); lo[k] = Math.min(lo[k], d); hi[k] = Math.max(hi[k], d); });
+  }
+  const center = new THREE.Vector3()
+    .addScaledVector(u, (lo[0] + hi[0]) / 2).addScaledVector(v, (lo[1] + hi[1]) / 2).addScaledVector(w, (lo[2] + hi[2]) / 2);
+  // the end cuts: the biggest flat face at each end of the length
+  const deg = (r) => THREE.MathUtils.radToDeg(r);
+  const ends = {};
+  for (const side of [-1, 1]) {
+    const end = groups(tris.filter((t) => Math.abs(t.n.dot(u)) > 0.5 && Math.sign(t.mid.clone().sub(center).dot(u)) === side))[0];
+    if (!end) continue;
+    const line = w.clone().cross(end.n); // where the end meets the face
+    ends[side < 0 ? 'left' : 'right'] = {
+      miter: deg(Math.atan2(Math.abs(line.dot(u)), Math.abs(line.dot(v)))),
+      bevel: deg(Math.asin(Math.min(1, Math.abs(end.n.dot(w))))),
+    };
+  }
+  return { u, v, w, center, halfL: (hi[0] - lo[0]) / 2, halfW: (hi[1] - lo[1]) / 2, stock: hi[2] - lo[2], ends };
+}
+
+// "45° miter, 12° bevel" - what to set the saw to for one end
+export function endCutText({ miter, bevel }) {
+  const m = Math.round(miter), b = Math.round(bevel);
+  if (!m && !b) return 'square';
+  return [m ? `${m}° miter` : '', b ? `${b}° bevel` : ''].filter(Boolean).join(', ');
+}
+
 // Builds the printable HTML for a part. `dims` is its object_dims.json entry
 // ({ center, axes: [{direction, length, role}] }).
 // The face view is the shape you trace; the edge view (the part seen from
@@ -183,15 +251,24 @@ export function buildTemplate(renderer, mesh, dims, name, units, holes = [], k =
   const byRole = Object.fromEntries(dims.axes.map((a) => [a.role, a]));
   const L = byRole.Length, W = byRole.Width, T = byRole.Thickness;
   if (!L || !W || !T) return '';
-  const center = new THREE.Vector3(...dims.center);
-  const u = new THREE.Vector3(...L.direction).normalize();
-  const v = new THREE.Vector3(...W.direction).normalize();
-  const w = new THREE.Vector3(...T.direction).normalize();
+  let center = new THREE.Vector3(...dims.center);
+  let u = new THREE.Vector3(...L.direction).normalize();
+  let v = new THREE.Vector3(...W.direction).normalize();
+  let w = new THREE.Vector3(...T.direction).normalize();
+  let halfL = L.length / 2, halfW = W.length / 2, halfT = T.length / 2;
+  // square the view to the board's own face (faceFrame)
+  const f = faceFrame(mesh.geometry, u, v, w);
+  if (f) ({ u, v, w, center, halfL, halfW } = f), halfT = f.stock / 2;
   // Parts wider than they are long read better stood the other way on paper,
   // but keep length horizontal: it's how you'd lay the template on a board.
-  const face = vectorView(mesh, center, u, v, L.length / 2, W.length / 2, holes, units);
-  const edge = withEdge && vectorView(mesh, center, u, w, L.length / 2, T.length / 2, holes, units);
+  const face = vectorView(mesh, center, u, v, halfL, halfW, holes, units);
+  const edge = withEdge && vectorView(mesh, center, u, w, halfL, halfT, holes, units);
   const size = `${formatLength(L.length, units)} × ${formatLength(W.length, units)} × ${formatLength(T.length, units)}`;
-  return tiles(face, name, `face view (looking through the thickness), ${size}`, k)
-    + (edge ? tiles(edge, name, `EDGE view - the part seen from its edge (only for cuts in the edge), ${size}`, k) : '');
+  // what the stock really is, when the cut list's box is bigger than the board
+  const stock = f && Math.abs(f.stock - T.length) > 1 / 32 ? ` - from ${formatLength(f.stock, units)} thick stock` : '';
+  // the saw settings for each end, when either isn't square
+  const ends = f && Object.values(f.ends).some((e) => endCutText(e) !== 'square')
+    ? ` · ends: left ${f.ends.left ? endCutText(f.ends.left) : '-'}, right ${f.ends.right ? endCutText(f.ends.right) : '-'}` : '';
+  return tiles(face, name, `face view (looking through the thickness), ${size}${stock}${ends}`, k)
+    + (edge ? tiles(edge, name, `EDGE view - the part seen from its edge (only for cuts in the edge), ${size}${stock}`, k) : '');
 }

@@ -1023,7 +1023,7 @@ test('a bolt through solid wood means the model forgot the hole', () => {
   assert.equal(findMissingHoles([beside], [board], solidBoard).length, 0);
 });
 
-import { parseMeasured, printCorrection } from '../viewer/template.js';
+import { parseMeasured, printCorrection, faceFrame, endCutText } from '../viewer/template.js';
 
 test('printer correction: what the 6" ruler measured', () => {
   assert.equal(parseMeasured('5 3/4'), 5.75);
@@ -1034,4 +1034,24 @@ test('printer correction: what the 6" ruler measured', () => {
   near(printCorrection(5.75), 6 / 5.75);
   assert.equal(printCorrection(0), 1); // nothing measured: as is
   assert.equal(printCorrection(12), 1); // not a 6" ruler
+});
+
+test('template looks square through a board with bevelled ends', () => {
+  const THREE = THREE3;
+  // a 20 x 3-1/2 x 1-1/2 board, ends sawn at a 12 deg bevel (a shear
+  // through the thickness), then tipped every which way like a splayed leg
+  const g = new THREE.BoxGeometry(20, 3.5, 1.5).toNonIndexed();
+  const t = Math.tan(THREE.MathUtils.degToRad(12));
+  g.applyMatrix4(new THREE.Matrix4().set(1, 0, t, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1));
+  const tilt = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(0.3, -0.5, 0.9));
+  g.applyMatrix4(tilt);
+  const ax = (x, y, z) => new THREE.Vector3(x, y, z).applyMatrix4(tilt).normalize();
+  // the cut list's box, a few degrees off the faces
+  const f = faceFrame(g, ax(1, 0, 0.05), ax(0, 1, 0), ax(-0.05, 0, 1));
+  near(f.stock, 1.5);
+  near(Math.abs(f.w.dot(ax(0, 0, 1))), 1);
+  near(f.halfW, 1.75);
+  for (const end of [f.ends.left, f.ends.right]) { near(end.bevel, 12, 0.01); near(end.miter, 0, 0.01); }
+  assert.equal(endCutText(f.ends.left), '12° bevel');
+  assert.equal(endCutText({ miter: 0.2, bevel: 0.3 }), 'square');
 });
