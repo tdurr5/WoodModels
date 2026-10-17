@@ -1,0 +1,903 @@
+[
+  {
+    "label": "Bobbin",
+    "top_group": "Flyer Assembly",
+    "dims": [
+      5.079,
+      3.561,
+      3.561
+    ],
+    "count": 1,
+    "materials": [
+      "Cherry"
+    ],
+    "paths": [
+      "Flyer Assembly/Bobbin"
+    ],
+    "obj_names": [
+      "Flyer_Assembly_Bobbin"
+    ],
+    "material": "Cherry",
+    "dims_str": "5-1/16\" x 3-9/16\" x 3-9/16\""
+  },
+  {
+    "label": "Flyer",
+    "top_group": "Flyer Assembly",
+    "dims": [
+      5.591,
+      5.433,
+      1.063
+    ],
+    "count": 1,
+    "materials": [
+      "Cherry"
+    ],
+    "paths": [
+      "Flyer Assembly/Flyer"
+    ],
+    "obj_names": [
+      "Flyer_Assembly_Flyer"
+    ],
+    "material": "Cherry",
+    "dims_str": "5-9/16\" x 5-7/16\" x 1-1/16\""
+  },
+  {
+    "label": "Flyer Axle",
+    "top_group": "Flyer Assembly",
+    "dims": [
+      7.638,
+      0.236,
+      0.236
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Flyer Assembly/Flyer Axle"
+    ],
+    "obj_names": [
+      "Flyer_Assembly_Flyer_Axle"
+    ],
+    "material": "Steel",
+    "dims_str": "7-5/8\" x 1/4\" x 1/4\""
+  },
+  {
+    "label": "Flyer Bearing",
+    "top_group": "Flyer Assembly",
+    "dims": [
+      1.535,
+      0.63,
+      0.63
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Flyer Assembly/Flyer Bearing"
+    ],
+    "obj_names": [
+      "Flyer_Assembly_Flyer_Bearing"
+    ],
+    "material": "Steel",
+    "dims_str": "1-9/16\" x 5/8\" x 5/8\""
+  },
+  {
+    "label": "Flyer Whorl",
+    "top_group": "Flyer Assembly",
+    "dims": [
+      3.15,
+      3.15,
+      1.262
+    ],
+    "count": 1,
+    "materials": [
+      "Cherry"
+    ],
+    "paths": [
+      "Flyer Assembly/Flyer Whorl"
+    ],
+    "obj_names": [
+      "Flyer_Assembly_Flyer_Whorl"
+    ],
+    "material": "Cherry",
+    "dims_str": "3-1/8\" x 3-1/8\" x 1-1/4\""
+  },
+  {
+    "label": "Hook 1",
+    "top_group": "Flyer Assembly",
+    "dims": [
+      0.815,
+      0.472,
+      0.059
+    ],
+    "count": 12,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Flyer Assembly/Hook 1",
+      "Flyer Assembly/Hook 1",
+      "Flyer Assembly/Hook 1",
+      "Flyer Assembly/Hook 1",
+      "Flyer Assembly/Hook 1",
+      "Flyer Assembly/Hook 1",
+      "Flyer Assembly/Hook 1",
+      "Flyer Assembly/Hook 1",
+      "Flyer Assembly/Hook 1",
+      "Flyer Assembly/Hook 1",
+      "Flyer Assembly/Hook 1",
+      "Flyer Assembly/Hook 1"
+    ],
+    "obj_names": [
+      "Flyer_Assembly_Hook_1",
+      "Flyer_Assembly_Hook_1_1",
+      "Flyer_Assembly_Hook_1_2",
+      "Flyer_Assembly_Hook_1_3",
+      "Flyer_Assembly_Hook_1_4",
+      "Flyer_Assembly_Hook_1_5",
+      "Flyer_Assembly_Hook_1_6",
+      "Flyer_Assembly_Hook_1_7",
+      "Flyer_Assembly_Hook_1_8",
+      "Flyer_Assembly_Hook_1_9",
+      "Flyer_Assembly_Hook_1_10",
+      "Flyer_Assembly_Hook_1_11"
+    ],
+    "material": "Steel",
+    "dims_str": "13/16\" x 1/2\" x 1/16\""
+  },
+  {
+    "label": "Hook 2",
+    "top_group": "Flyer Assembly",
+    "dims": [
+      0.659,
+      0.591,
+      0.059
+    ],
+    "count": 8,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Flyer Assembly/Hook 2",
+      "Flyer Assembly/Hook 2",
+      "Flyer Assembly/Hook 2",
+      "Flyer Assembly/Hook 2",
+      "Flyer Assembly/Hook 2",
+      "Flyer Assembly/Hook 2",
+      "Flyer Assembly/Hook 2",
+      "Flyer Assembly/Hook 2"
+    ],
+    "obj_names": [
+      "Flyer_Assembly_Hook_2",
+      "Flyer_Assembly_Hook_2_1",
+      "Flyer_Assembly_Hook_2_2",
+      "Flyer_Assembly_Hook_2_3",
+      "Flyer_Assembly_Hook_2_4",
+      "Flyer_Assembly_Hook_2_5",
+      "Flyer_Assembly_Hook_2_6",
+      "Flyer_Assembly_Hook_2_7"
+    ],
+    "material": "Steel",
+    "dims_str": "11/16\" x 9/16\" x 1/16\""
+  },
+  {
+    "label": "Rectangle Nut",
+    "top_group": "Flyer Assembly",
+    "dims": [
+      0.472,
+      0.472,
+      0.394
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Flyer Assembly/Rectangle Nut"
+    ],
+    "obj_names": [
+      "Flyer_Assembly_Rectangle_Nut"
+    ],
+    "material": "Steel",
+    "dims_str": "1/2\" x 1/2\" x 3/8\""
+  },
+  {
+    "label": "Axle Pin",
+    "top_group": "Frame Assembly",
+    "dims": [
+      3.15,
+      0.354,
+      0.354
+    ],
+    "count": 2,
+    "materials": [
+      "Walnut"
+    ],
+    "paths": [
+      "Frame Assembly/Axle Pin",
+      "Frame Assembly/Axle Pin"
+    ],
+    "obj_names": [
+      "Frame_Assembly_Axle_Pin",
+      "Frame_Assembly_Axle_Pin_1"
+    ],
+    "material": "Walnut",
+    "dims_str": "3-1/8\" x 3/8\" x 3/8\""
+  },
+  {
+    "label": "Base Plank 1",
+    "top_group": "Frame Assembly",
+    "dims": [
+      16.929,
+      2.047,
+      1.181
+    ],
+    "count": 1,
+    "materials": [
+      "Walnut"
+    ],
+    "paths": [
+      "Frame Assembly/Base Plank 1"
+    ],
+    "obj_names": [
+      "Frame_Assembly_Base_Plank_1"
+    ],
+    "material": "Walnut",
+    "dims_str": "16-15/16\" x 2-1/16\" x 1-3/16\""
+  },
+  {
+    "label": "Base Plank 2",
+    "top_group": "Frame Assembly",
+    "dims": [
+      11.417,
+      2.047,
+      1.181
+    ],
+    "count": 1,
+    "materials": [
+      "Walnut"
+    ],
+    "paths": [
+      "Frame Assembly/Base Plank 2"
+    ],
+    "obj_names": [
+      "Frame_Assembly_Base_Plank_2"
+    ],
+    "material": "Walnut",
+    "dims_str": "11-7/16\" x 2-1/16\" x 1-3/16\""
+  },
+  {
+    "label": "Cord",
+    "top_group": "Frame Assembly",
+    "dims": [
+      1.182,
+      0.876,
+      0.079
+    ],
+    "count": 1,
+    "materials": [
+      "Cord"
+    ],
+    "paths": [
+      "Frame Assembly/Cord"
+    ],
+    "obj_names": [
+      "Frame_Assembly_Cord"
+    ],
+    "material": "Cord",
+    "dims_str": "1-3/16\" x 7/8\" x 1/16\""
+  },
+  {
+    "label": "Disc",
+    "top_group": "Frame Assembly",
+    "dims": [
+      2.362,
+      2.362,
+      0.787
+    ],
+    "count": 2,
+    "materials": [
+      "Cherry"
+    ],
+    "paths": [
+      "Frame Assembly/Disc",
+      "Frame Assembly/Disc"
+    ],
+    "obj_names": [
+      "Frame_Assembly_Disc",
+      "Frame_Assembly_Disc_1"
+    ],
+    "material": "Cherry",
+    "dims_str": "2-3/8\" x 2-3/8\" x 13/16\""
+  },
+  {
+    "label": "Drive Band",
+    "top_group": "Frame Assembly",
+    "dims": [
+      22.72,
+      15.313,
+      1.102
+    ],
+    "count": 1,
+    "materials": [
+      "Cord"
+    ],
+    "paths": [
+      "Frame Assembly/Drive Band"
+    ],
+    "obj_names": [
+      "Frame_Assembly_Drive_Band"
+    ],
+    "material": "Cord",
+    "dims_str": "22-3/4\" x 15-5/16\" x 1-1/8\""
+  },
+  {
+    "label": "Footman",
+    "top_group": "Frame Assembly",
+    "dims": [
+      13.78,
+      1.024,
+      0.394
+    ],
+    "count": 1,
+    "materials": [
+      "Cherry"
+    ],
+    "paths": [
+      "Frame Assembly/Footman"
+    ],
+    "obj_names": [
+      "Frame_Assembly_Footman"
+    ],
+    "material": "Cherry",
+    "dims_str": "13-3/4\" x 1\" x 3/8\""
+  },
+  {
+    "label": "Leg",
+    "top_group": "Frame Assembly",
+    "dims": [
+      7.586,
+      1.058,
+      1.058
+    ],
+    "count": 3,
+    "materials": [
+      "Walnut"
+    ],
+    "paths": [
+      "Frame Assembly/Leg",
+      "Frame Assembly/Leg",
+      "Frame Assembly/Leg"
+    ],
+    "obj_names": [
+      "Frame_Assembly_Leg",
+      "Frame_Assembly_Leg_1",
+      "Frame_Assembly_Leg_2"
+    ],
+    "material": "Walnut",
+    "dims_str": "7-9/16\" x 1-1/16\" x 1-1/16\""
+  },
+  {
+    "label": "Maidens",
+    "top_group": "Frame Assembly",
+    "dims": [
+      9.252,
+      1.422,
+      1.402
+    ],
+    "count": 1,
+    "materials": [
+      "Cherry"
+    ],
+    "paths": [
+      "Frame Assembly/Maidens"
+    ],
+    "obj_names": [
+      "Frame_Assembly_Maidens"
+    ],
+    "material": "Cherry",
+    "dims_str": "9-1/4\" x 1-7/16\" x 1-3/8\""
+  },
+  {
+    "label": "Main Holder",
+    "top_group": "Frame Assembly",
+    "dims": [
+      13.386,
+      1.773,
+      1.773
+    ],
+    "count": 1,
+    "materials": [
+      "Walnut"
+    ],
+    "paths": [
+      "Frame Assembly/Main Holder"
+    ],
+    "obj_names": [
+      "Frame_Assembly_Main_Holder"
+    ],
+    "material": "Walnut",
+    "dims_str": "13-3/8\" x 1-3/4\" x 1-3/4\""
+  },
+  {
+    "label": "Main Pillar",
+    "top_group": "Frame Assembly",
+    "dims": [
+      25.315,
+      2.128,
+      2.128
+    ],
+    "count": 1,
+    "materials": [
+      "Walnut"
+    ],
+    "paths": [
+      "Frame Assembly/Main Pillar"
+    ],
+    "obj_names": [
+      "Frame_Assembly_Main_Pillar"
+    ],
+    "material": "Walnut",
+    "dims_str": "25-5/16\" x 2-1/8\" x 2-1/8\""
+  },
+  {
+    "label": "Movable Bearing",
+    "top_group": "Frame Assembly",
+    "dims": [
+      1.772,
+      1.339,
+      0.787
+    ],
+    "count": 1,
+    "materials": [
+      "Walnut"
+    ],
+    "paths": [
+      "Frame Assembly/Movable Bearing"
+    ],
+    "obj_names": [
+      "Frame_Assembly_Movable_Bearing"
+    ],
+    "material": "Walnut",
+    "dims_str": "1-3/4\" x 1-5/16\" x 13/16\""
+  },
+  {
+    "label": "Nail D1.5 x 15mm",
+    "top_group": "Frame Assembly",
+    "dims": [
+      0.591,
+      0.126,
+      0.126
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Frame Assembly/Nail D1.5 x 15mm"
+    ],
+    "obj_names": [
+      "Frame_Assembly_Nail_D1_5_x_15mm"
+    ],
+    "material": "Steel",
+    "dims_str": "9/16\" x 1/8\" x 1/8\""
+  },
+  {
+    "label": "Nail D2 x 20mm",
+    "top_group": "Frame Assembly",
+    "dims": [
+      0.787,
+      0.205,
+      0.205
+    ],
+    "count": 2,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Frame Assembly/Nail D2 x 20mm",
+      "Frame Assembly/Nail D2 x 20mm"
+    ],
+    "obj_names": [
+      "Frame_Assembly_Nail_D2_x_20mm",
+      "Frame_Assembly_Nail_D2_x_20mm_1"
+    ],
+    "material": "Steel",
+    "dims_str": "13/16\" x 3/16\" x 3/16\""
+  },
+  {
+    "label": "Pin D8 x 44mm",
+    "top_group": "Frame Assembly",
+    "dims": [
+      1.732,
+      0.315,
+      0.315
+    ],
+    "count": 1,
+    "materials": [
+      "Cherry"
+    ],
+    "paths": [
+      "Frame Assembly/Pin D8 x 44mm"
+    ],
+    "obj_names": [
+      "Frame_Assembly_Pin_D8_x_44mm"
+    ],
+    "material": "Cherry",
+    "dims_str": "1-3/4\" x 5/16\" x 5/16\""
+  },
+  {
+    "label": "Secondary Pillar",
+    "top_group": "Frame Assembly",
+    "dims": [
+      19.409,
+      1.957,
+      1.95
+    ],
+    "count": 1,
+    "materials": [
+      "Walnut"
+    ],
+    "paths": [
+      "Frame Assembly/Secondary Pillar"
+    ],
+    "obj_names": [
+      "Frame_Assembly_Secondary_Pillar"
+    ],
+    "material": "Walnut",
+    "dims_str": "19-7/16\" x 1-15/16\" x 1-15/16\""
+  },
+  {
+    "label": "Skin",
+    "top_group": "Frame Assembly",
+    "dims": [
+      2.047,
+      1.717,
+      0.472
+    ],
+    "count": 1,
+    "materials": [
+      "Leather"
+    ],
+    "paths": [
+      "Frame Assembly/Skin"
+    ],
+    "obj_names": [
+      "Frame_Assembly_Skin"
+    ],
+    "material": "Leather",
+    "dims_str": "2-1/16\" x 1-11/16\" x 1/2\""
+  },
+  {
+    "label": "Tension Knob",
+    "top_group": "Frame Assembly",
+    "dims": [
+      6.496,
+      2.283,
+      2.283
+    ],
+    "count": 1,
+    "materials": [
+      "Cherry"
+    ],
+    "paths": [
+      "Frame Assembly/Tension Knob"
+    ],
+    "obj_names": [
+      "Frame_Assembly_Tension_Knob"
+    ],
+    "material": "Cherry",
+    "dims_str": "6-1/2\" x 2-5/16\" x 2-5/16\""
+  },
+  {
+    "label": "Thin Wedge",
+    "top_group": "Frame Assembly",
+    "dims": [
+      1.378,
+      0.669,
+      0.118
+    ],
+    "count": 3,
+    "materials": [
+      "Walnut"
+    ],
+    "paths": [
+      "Frame Assembly/Thin Wedge",
+      "Frame Assembly/Thin Wedge",
+      "Frame Assembly/Thin Wedge"
+    ],
+    "obj_names": [
+      "Frame_Assembly_Thin_Wedge",
+      "Frame_Assembly_Thin_Wedge_1",
+      "Frame_Assembly_Thin_Wedge_2"
+    ],
+    "material": "Walnut",
+    "dims_str": "1-3/8\" x 11/16\" x 1/8\""
+  },
+  {
+    "label": "Treadle Axle",
+    "top_group": "Frame Assembly",
+    "dims": [
+      11.142,
+      1.369,
+      1.369
+    ],
+    "count": 1,
+    "materials": [
+      "Walnut"
+    ],
+    "paths": [
+      "Frame Assembly/Treadle Axle"
+    ],
+    "obj_names": [
+      "Frame_Assembly_Treadle_Axle"
+    ],
+    "material": "Walnut",
+    "dims_str": "11-1/8\" x 1-3/8\" x 1-3/8\""
+  },
+  {
+    "label": "Treadle Bar",
+    "top_group": "Frame Assembly",
+    "dims": [
+      3.543,
+      0.236,
+      0.236
+    ],
+    "count": 2,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Frame Assembly/Treadle Bar",
+      "Frame Assembly/Treadle Bar"
+    ],
+    "obj_names": [
+      "Frame_Assembly_Treadle_Bar",
+      "Frame_Assembly_Treadle_Bar_1"
+    ],
+    "material": "Steel",
+    "dims_str": "3-9/16\" x 1/4\" x 1/4\""
+  },
+  {
+    "label": "Treadle Pedal",
+    "top_group": "Frame Assembly",
+    "dims": [
+      9.646,
+      2.205,
+      0.394
+    ],
+    "count": 1,
+    "materials": [
+      "Cherry"
+    ],
+    "paths": [
+      "Frame Assembly/Treadle Pedal"
+    ],
+    "obj_names": [
+      "Frame_Assembly_Treadle_Pedal"
+    ],
+    "material": "Cherry",
+    "dims_str": "9-5/8\" x 2-3/16\" x 3/8\""
+  },
+  {
+    "label": "Wool Bar",
+    "top_group": "Frame Assembly",
+    "dims": [
+      47.008,
+      1.653,
+      1.653
+    ],
+    "count": 1,
+    "materials": [
+      "Cherry"
+    ],
+    "paths": [
+      "Frame Assembly/Wool Bar"
+    ],
+    "obj_names": [
+      "Frame_Assembly_Wool_Bar"
+    ],
+    "material": "Cherry",
+    "dims_str": "47\" x 1-5/8\" x 1-5/8\""
+  },
+  {
+    "label": "Wool Carrier",
+    "top_group": "Frame Assembly",
+    "dims": [
+      9.843,
+      1.58,
+      1.58
+    ],
+    "count": 1,
+    "materials": [
+      "Walnut"
+    ],
+    "paths": [
+      "Frame Assembly/Wool Carrier"
+    ],
+    "obj_names": [
+      "Frame_Assembly_Wool_Carrier"
+    ],
+    "material": "Walnut",
+    "dims_str": "9-13/16\" x 1-9/16\" x 1-9/16\""
+  },
+  {
+    "label": "Excenter",
+    "top_group": "Wheel Assembly",
+    "dims": [
+      1.772,
+      1.083,
+      0.118
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Wheel Assembly/Excenter"
+    ],
+    "obj_names": [
+      "Wheel_Assembly_Excenter"
+    ],
+    "material": "Steel",
+    "dims_str": "1-3/4\" x 1-1/16\" x 1/8\""
+  },
+  {
+    "label": "Hub",
+    "top_group": "Wheel Assembly",
+    "dims": [
+      3.927,
+      3.031,
+      3.031
+    ],
+    "count": 1,
+    "materials": [
+      "Cherry"
+    ],
+    "paths": [
+      "Wheel Assembly/Hub"
+    ],
+    "obj_names": [
+      "Wheel_Assembly_Hub"
+    ],
+    "material": "Cherry",
+    "dims_str": "3-15/16\" x 3\" x 3\""
+  },
+  {
+    "label": "Pin D6 x 35mm",
+    "top_group": "Wheel Assembly",
+    "dims": [
+      1.378,
+      0.236,
+      0.236
+    ],
+    "count": 6,
+    "materials": [
+      "Cherry"
+    ],
+    "paths": [
+      "Wheel Assembly/Pin D6 x 35mm",
+      "Wheel Assembly/Pin D6 x 35mm",
+      "Wheel Assembly/Pin D6 x 35mm",
+      "Wheel Assembly/Pin D6 x 35mm",
+      "Wheel Assembly/Pin D6 x 35mm",
+      "Wheel Assembly/Pin D6 x 35mm"
+    ],
+    "obj_names": [
+      "Wheel_Assembly_Pin_D6_x_35mm",
+      "Wheel_Assembly_Pin_D6_x_35mm_1",
+      "Wheel_Assembly_Pin_D6_x_35mm_2",
+      "Wheel_Assembly_Pin_D6_x_35mm_3",
+      "Wheel_Assembly_Pin_D6_x_35mm_4",
+      "Wheel_Assembly_Pin_D6_x_35mm_5"
+    ],
+    "material": "Cherry",
+    "dims_str": "1-3/8\" x 1/4\" x 1/4\""
+  },
+  {
+    "label": "Rotation Pin",
+    "top_group": "Wheel Assembly",
+    "dims": [
+      0.866,
+      0.394,
+      0.394
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Wheel Assembly/Rotation Pin"
+    ],
+    "obj_names": [
+      "Wheel_Assembly_Rotation_Pin"
+    ],
+    "material": "Steel",
+    "dims_str": "7/8\" x 3/8\" x 3/8\""
+  },
+  {
+    "label": "Toggle",
+    "top_group": "Wheel Assembly",
+    "dims": [
+      6.299,
+      0.945,
+      0.945
+    ],
+    "count": 6,
+    "materials": [
+      "Cherry"
+    ],
+    "paths": [
+      "Wheel Assembly/Toggle",
+      "Wheel Assembly/Toggle",
+      "Wheel Assembly/Toggle",
+      "Wheel Assembly/Toggle",
+      "Wheel Assembly/Toggle",
+      "Wheel Assembly/Toggle"
+    ],
+    "obj_names": [
+      "Wheel_Assembly_Toggle",
+      "Wheel_Assembly_Toggle_1",
+      "Wheel_Assembly_Toggle_2",
+      "Wheel_Assembly_Toggle_3",
+      "Wheel_Assembly_Toggle_4",
+      "Wheel_Assembly_Toggle_5"
+    ],
+    "material": "Cherry",
+    "dims_str": "6-5/16\" x 15/16\" x 15/16\""
+  },
+  {
+    "label": "Wheel Axle",
+    "top_group": "Wheel Assembly",
+    "dims": [
+      8.465,
+      0.236,
+      0.236
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Wheel Assembly/Wheel Axle"
+    ],
+    "obj_names": [
+      "Wheel_Assembly_Wheel_Axle"
+    ],
+    "material": "Steel",
+    "dims_str": "8-7/16\" x 1/4\" x 1/4\""
+  },
+  {
+    "label": "Wheel Plank",
+    "top_group": "Wheel Assembly",
+    "dims": [
+      8.807,
+      2.678,
+      1.378
+    ],
+    "count": 6,
+    "materials": [
+      "Cherry"
+    ],
+    "paths": [
+      "Wheel Assembly/Wheel Plank",
+      "Wheel Assembly/Wheel Plank",
+      "Wheel Assembly/Wheel Plank",
+      "Wheel Assembly/Wheel Plank",
+      "Wheel Assembly/Wheel Plank",
+      "Wheel Assembly/Wheel Plank"
+    ],
+    "obj_names": [
+      "Wheel_Assembly_Wheel_Plank",
+      "Wheel_Assembly_Wheel_Plank_1",
+      "Wheel_Assembly_Wheel_Plank_2",
+      "Wheel_Assembly_Wheel_Plank_3",
+      "Wheel_Assembly_Wheel_Plank_4",
+      "Wheel_Assembly_Wheel_Plank_5"
+    ],
+    "material": "Cherry",
+    "dims_str": "8-13/16\" x 2-11/16\" x 1-3/8\""
+  }
+]

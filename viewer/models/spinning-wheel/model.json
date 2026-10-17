@@ -1,0 +1,154 @@
+{
+  "title": "Castle Spinning Wheel",
+  "subtitle": "Upright treadle wheel from the craftsmanspace.com plan, built to its drawings (mm)",
+  "axisNames": {
+    "x": "side-to-side",
+    "y": "vertical",
+    "z": "front-to-back"
+  },
+  "views": {
+    "iso": {
+      "label": "3D",
+      "dir": [
+        0.7,
+        0.5,
+        0.7
+      ]
+    },
+    "front": {
+      "label": "Front",
+      "dir": [
+        0,
+        0,
+        1
+      ]
+    },
+    "side": {
+      "label": "Side",
+      "dir": [
+        -1,
+        0,
+        0
+      ]
+    },
+    "top": {
+      "label": "Top",
+      "dir": [
+        0,
+        1,
+        0.0001
+      ]
+    }
+  },
+  "materials": {
+    "Cherry": {
+      "category": "Wood",
+      "color": "#9e422b",
+      "texture": {
+        "base": "#c9975c",
+        "streak": "#a06f3b",
+        "ring": "#8a5a2c",
+        "tile": 5
+      },
+      "species": "cherry",
+      "label": "Cherry (wheel & flyer)"
+    },
+    "Cord": {
+      "category": "Other",
+      "color": "#d9ccad",
+      "label": "Cord"
+    },
+    "Leather": {
+      "category": "Leather",
+      "color": "#8c6138"
+    },
+    "Steel": {
+      "category": "Hardware",
+      "color": "#9ea3ab",
+      "label": "Steel"
+    },
+    "Walnut": {
+      "category": "Wood",
+      "color": "#6b472b",
+      "texture": {
+        "base": "#c9975c",
+        "streak": "#a06f3b",
+        "ring": "#8a5a2c",
+        "tile": 5
+      },
+      "species": "walnut",
+      "label": "Walnut (frame)"
+    }
+  },
+  "categoryOrder": [
+    "Wood",
+    "Hardware",
+    "Leather",
+    "Other"
+  ],
+  "displayNames": {
+    "Hub": "Hub (1.01)",
+    "Toggle": "Toggle (1.02)",
+    "Wheel Plank": "Wheel Plank (1.03)",
+    "Pin D6 x 35mm": "Pin D6 x 35mm (1.04)",
+    "Wheel Axle": "Wheel Axle (1.05)",
+    "Excenter": "Excenter (1.06)",
+    "Rotation Pin": "Rotation Pin (1.07)",
+    "Flyer Bearing": "Flyer Bearing (2.01)",
+    "Flyer": "Flyer (2.02)",
+    "Flyer Axle": "Flyer Axle (2.03)",
+    "Bobbin": "Bobbin (2.04)",
+    "Flyer Whorl": "Flyer Whorl (2.05)",
+    "Rectangle Nut": "Rectangle Nut (2.06)",
+    "Hook 1": "Hook 1 (2.07)",
+    "Hook 2": "Hook 2 (2.08)",
+    "Base Plank 1": "Base Plank 1 (3.01)",
+    "Base Plank 2": "Base Plank 2 (3.02)",
+    "Leg": "Leg (3.03)",
+    "Main Pillar": "Main Pillar (3.04)",
+    "Movable Bearing": "Movable Bearing (3.05)",
+    "Tension Knob": "Tension Knob (3.06)",
+    "Secondary Pillar": "Secondary Pillar (3.07)",
+    "Main Holder": "Main Holder (3.08)",
+    "Disc": "Disc (3.09)",
+    "Maidens": "Maidens (3.10)",
+    "Pin D8 x 44mm": "Pin D8 x 44mm (3.11)",
+    "Wool Carrier": "Wool Carrier (3.12)",
+    "Skin": "Skin (3.13)",
+    "Axle Pin": "Axle Pin (3.14)",
+    "Treadle Axle": "Treadle Axle (3.15)",
+    "Treadle Pedal": "Treadle Pedal (3.16)",
+    "Treadle Bar": "Treadle Bar (3.17)",
+    "Footman": "Footman (3.18)",
+    "Cord": "Cord (3.19)",
+    "Nail D2 x 20mm": "Nail D2 x 20mm (3.20)",
+    "Thin Wedge": "Thin Wedge (3.21)",
+    "Nail D1.5 x 15mm": "Nail D1.5 x 15mm (3.22)",
+    "Drive Band": "Drive Band (3.23)",
+    "Wool Bar": "Wool Bar (3.24)"
+  },
+  "notes": {
+    "Leg": "Foot sawn at 12\u00b0: 154 from the shoulder on the long (outer) side, 149 on the short. Tenon \u00d818 x 39 goes up through the plank's 75\u00b0 hole; wedge it across the grain, then trim flush. Only the two legs the treadle axle runs between get the \u00d86 treadle-bar hole, drilled at assembly.",
+    "Wheel Plank": "Six planks, each 70\u00b0 of the rim (R155 to R195 x 35); the 10\u00b0 at each end laps over the next plank. The plan's view A shows a hooked lap; it is modelled as a bridle (13 tongue in 11 cheeks) with the same overlap. Drill the \u00d86 pin through each lap at assembly. Two drive-band grooves round the outside.",
+    "Hub": "\u00d86.5 axle hole, as section B-B; the axle's 6 mm square middle is driven into it. Six \u00d816 x 20 sockets 34 from the crank-side end.",
+    "Toggle": "\u00d816 x 20 tenons both ends: into the hub and into the rim plank.",
+    "Main Pillar": "\u00d818 through for the holder's tenon; hooked slot for the wheel axle (bottom 233 from the tenon end) with the \u00d88 axle-pin hole 9 above it; 21 x 55 window and \u00d820 bore at the top for the movable bearing and the tension screw.",
+    "Secondary Pillar": "Same axle slot and \u00d88 pin hole as the main pillar. Its \u00d820 top tenon goes up through the holder; the shoulder meets the holder's underside.",
+    "Main Holder": "\u00d818 x 72 tenon goes through the main pillar and is capped by a disc. \u00d820 hole for the secondary pillar, \u00d818 for the maidens 97 further on, \u00d88 across it for the lock pin.",
+    "Maidens": "Head sawn to 12.3 thick at the top, flaring out on R70; R6.5 U slot for the flyer bearing, lined with the skin. Shaft \u00d818 x 140 through the holder, the wool carrier and the second disc, locked by the D8 pin.",
+    "Tension Knob": "Screw 14.3 dia, 3.5 pitch (wood threadbox or lathe); the movable bearing gets the matching 12 mm tapped thread.",
+    "Movable Bearing": "Rides in the main pillar's window on the tension screw; the flyer axle's \u00d84 tip runs in its \u00d86 x 22 hole.",
+    "Flyer": "Arms are ellipses: outer semi-axes 125 x 69, inner 102 x 59. 22 thick at the knob tapering to 15 at the tips. \u00d81 hook holes at the hole table's positions.",
+    "Flyer Axle": "M5 LEFT-hand thread for the whorl's nut.",
+    "Rectangle Nut": "M5 LEFT-hand, seated in the whorl's 12 x 12 x 10 pocket.",
+    "Bobbin": "Must turn freely on the flyer axle.",
+    "Treadle Axle": "\u00d86 x 60 holes in both ends for the treadle bars. The 69\u00b0 dovetail across the top takes the pedal, nailed in with two D2 nails.",
+    "Treadle Pedal": "Edges bevelled 62\u00b0 over the 116 at the dovetail end to fit the treadle axle. The two \u00d85 holes at the nose take the cord.",
+    "Footman": "Hangs from the rotation pin by its keyhole; the cord ties its foot to the pedal.",
+    "Drive Band": "One cord, crossed into a figure 8 and doubled: one loop runs on the whorl, the other on the bobbin.",
+    "Wool Bar": "The plan's drawings show it standing on the floor, leaning back 13\u00b0 against the holder's front end, in front of the wool carrier rather than in the carrier's \u00d816 hole (which only fits the bar's \u00d816 ends). Modelled as drawn.",
+    "Wool Carrier": "Swings on the maidens' shaft: \u00d819 hole on the maidens, \u00d816 hole 155 further out.",
+    "Excenter": "The crank: axle and rotation-pin holes 35 apart (C shape R12.5 / R22.5, 3 thick).",
+    "Axle Pin": "Tapered 9 to 6, driven across the pillar above the wheel axle to keep it in its slot."
+  }
+}
