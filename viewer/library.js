@@ -196,7 +196,7 @@ export function applySetup(cfg, { title, subtitle, categories, front, labels = {
 // ---------- UI ----------
 
 export function initLibrary({ current, onOpen, builtIn, onNewDesign }) {
-  // current: 'local:<id>' | '' (built-in); onOpen(ref) navigates to a model
+  // current: 'local:<id>' | 'models/<name>/' (an included model) | '' (built-in); onOpen(ref) navigates to a model
   const modal = document.getElementById('library');
   const listEl = modal.querySelector('.lib-list');
   const statusEl = modal.querySelector('.lib-status');
@@ -208,6 +208,9 @@ export function initLibrary({ current, onOpen, builtIn, onNewDesign }) {
   async function render() {
     let models = [];
     try { models = await listModels(); } catch (e) { status(e.message, 'error'); }
+    // the models that come with the viewer, in folders next to it (models/index.json)
+    let bundled = [];
+    try { bundled = await fetch('models/index.json').then((r) => (r.ok ? r.json() : [])); } catch { /* none listed */ }
     const thumb = (src) => (src && /^data:image\/jpeg;base64,[\w+/=]+$/.test(src) ? `<img class="lib-thumb" src="${src}" alt="">` : '<span class="lib-thumb"></span>');
     const row = (ref, name, sub, actions, pic) => `
       <div class="lib-item${ref === current ? ' current' : ''}" data-ref="${escapeHtml(ref)}">
@@ -217,6 +220,8 @@ export function initLibrary({ current, onOpen, builtIn, onNewDesign }) {
       </div>`;
     const btn = (act, label, title) => `<button class="card-btn" data-act="${act}" title="${title}">${label}</button>`;
     listEl.innerHTML = row('', escapeHtml(builtIn.title), 'Built-in model', ref0Actions(), builtIn.thumb)
+      + bundled.filter((m) => /^models\/[\w-]+\/$/.test(m.path)).map((m) => row(m.path, escapeHtml(m.title || m.path),
+        `Included model${m.about ? ` · ${escapeHtml(m.about)}` : ''}`, m.path === current ? '' : btn('open', 'Open', 'Open this model'))).join('')
       + (models.length ? models.map((m) => row(`local:${m.id}`, m.name,
         `${m.parts} parts · ${m.source === 'design' ? 'designed' : 'imported'} ${new Date(m.createdAt).toLocaleDateString()} · ${escapeHtml(m.source || '')}`,
         (`local:${m.id}` === current ? '' : btn('open', 'Open', 'Open this model'))

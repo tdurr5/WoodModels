@@ -56,6 +56,8 @@ python3 -m http.server 8743
 
 Then open http://localhost:8743. Everything it needs is in the `viewer/` folder (three.js is vendored under `viewer/vendor/three/`), so it works offline: copy the folder to a shop laptop or tablet and serve it there.
 
+Or run `./start-viewer.sh` from the repo: it asks which model to open (the built-in one or any listed in `viewer/models/index.json`), starts the server if it isn't running and opens the browser. `./start-viewer.sh spinning-wheel` opens a model straight away, and `./start-viewer.sh --stop` stops the server. Its server tells the browser to check for newer files on every load, so an updated viewer or model shows up on a plain reload. The **Models** menu in the viewer lists the same included models.
+
 ### On a phone or tablet in the shop
 
 The viewer is an installable web app that keeps working offline once it has been opened. To get a URL for your phone:

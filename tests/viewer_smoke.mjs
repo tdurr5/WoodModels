@@ -873,7 +873,11 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     await p2.locator('#clLibrary').click();
     check(await p2.locator('#library').isVisible(), 'Models button opens the library');
     await p2.waitForSelector('#library .lib-empty');
-    check((await p2.locator('#library .lib-item').count()) === 1, 'library starts with just the built-in model');
+    // the models included with the viewer (models/index.json) are listed after the built-in one
+    const OWN = '#library .lib-item:not([data-ref^="models/"])';
+    await p2.locator('#library .lib-item', { hasText: 'Castle Spinning Wheel' }).waitFor({ timeout: 5000 }).catch(() => {});
+    check((await p2.locator('#library .lib-item[data-ref^="models/"]').count()) === 2, 'library lists the included models (spinning wheel, tool chest)');
+    check((await p2.locator(OWN).count()) === 1, 'library starts with just the built-in model');
 
     await p2.locator('#libFile').setInputFiles(path.join(tmp, 'chair.skp'));
     await p2.waitForFunction(() => document.querySelector('#library .lib-status').classList.contains('error'));
@@ -933,8 +937,8 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     check((await p2.locator('#sidebar h1').innerText()) === 'Step Stool', 'KMZ uploads work and take the file name');
     const dimsA = await p2.locator('#clList .row .dims').allInnerTexts();
     await p2.locator('#clLibrary').click();
-    await p2.waitForFunction(() => document.querySelectorAll('#library .lib-item').length === 3).catch(() => {});
-    check((await p2.locator('#library .lib-item').count()) === 3, 'library lists built-in + both uploads');
+    await p2.waitForFunction(() => document.querySelectorAll('#library .lib-item:not([data-ref^="models/"])').length === 3).catch(() => {});
+    check((await p2.locator(OWN).count()) === 3, 'library lists built-in + both uploads');
     await p2.locator('#library .lib-item', { hasText: 'Side Table' }).locator('[data-act=open]').click();
     await loaded();
     const dimsB = await p2.locator('#clList .row .dims').allInnerTexts();

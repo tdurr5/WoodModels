@@ -386,7 +386,7 @@ const share = initShare({
 // model starts from a clean scene.
 const library = initLibrary({
   onNewDesign: (blank) => openDesigner({ fresh: true, blank }),
-  current: LOCAL_ID ? `local:${LOCAL_ID}` : '',
+  current: LOCAL_ID ? `local:${LOCAL_ID}` : MODEL_BASE,
   builtIn: {
     get title() { return builtInTitle; },
     get thumb() { try { return localStorage.getItem(THUMB_KEY); } catch { return null; } },
