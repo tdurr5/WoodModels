@@ -32,6 +32,7 @@ import { cutFeatures } from './features.js';
 import { renderReview, reviewPrintHtml } from './designreview.js';
 import { initDesigner } from './designer.js';
 import { glueUpStrips } from './nesting.js';
+import { FORMATS, SKP_CONVERTER } from './export3d.js';
 import { createStage, smoothNormals, orientFaces, materialKind, surfaceMaterial, featureEdges, edgeMaterial, threadPitch, boltThreadLength, addThreads } from './look.js';
 
 const $ = (id) => document.getElementById(id);
@@ -299,7 +300,7 @@ async function init() {
     onSelect: (r) => pickRow(r), onPrint: printSheet, onDiagram: () => diagram.open(),
     onLibrary: () => library.open(), onSetup: LOCAL_ID ? () => library.openSetup(LOCAL_ID) : null,
     onSetStatus: setPartStatus, onRenameGroup: renameGroup, onSelectGroup: selectGroup, onBuild: () => startBuild(),
-    onShare: () => share.open(), onDesign: () => openDesigner(),
+    onShare: () => share.open(), onDesign: () => openDesigner(), onExport3d: (fmt) => export3d(fmt),
   });
   diagram = initDiagramModal({ rows, onSelectRow: (r) => selectRow(r), finishArea: () => (model ? woodSurfaceArea() : 0) });
   // typical prices follow the species picked in Set up (materials are grouped by their label)
@@ -514,6 +515,52 @@ function computeRows() {
   });
   addOverlapNotes(allPartRows);
   addHoleNotes(allPartRows);
+}
+
+// ---------- the model as a 3D file (export3d.js) ----------
+// Every part you're building, as the model drew it (not exploded, lids shut),
+// named as the cut list names it, in its assembly group and material colour.
+function exportParts() {
+  model.updateMatrixWorld(true);
+  const v = new THREE.Vector3();
+  const group = (g) => edits.groups?.[g] || config.displayNames?.[g] || g;
+  return meshes.flatMap((m) => {
+    const r = rowByMeshName.get(m.name);
+    if (!r || r.status) return [];
+    const geo = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
+    const pos = geo.attributes.position;
+    const out = new Float32Array(pos.count * 3);
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(m.parent.matrixWorld);
+      out[i * 3] = v.x; out[i * 3 + 1] = v.y; out[i * 3 + 2] = v.z;
+    }
+    // its own length / width / thickness axes (right-handed), as the cut list measures it
+    const d = baseObjectDims[m.name];
+    let frame = null;
+    if (d?.axes?.length === 3) {
+      const [X, Y] = d.axes.map((a) => new THREE.Vector3(...a.direction).normalize());
+      const Z = new THREE.Vector3().crossVectors(X, Y).normalize();
+      frame = { origin: d.center, axes: [X.toArray(), new THREE.Vector3().crossVectors(Z, X).toArray(), Z.toArray()] };
+    }
+    return [{ name: r.name || r.label, group: group(r.top_group), color: config.materials?.[r.material]?.color, positions: out, frame }];
+  });
+}
+function export3d(fmt) {
+  const f = FORMATS[fmt === 'skp' ? 'dae' : fmt];
+  if (!f || !model) return;
+  const title = config.title || 'Model';
+  const file = new File([f.make(exportParts(), title)], `${title.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '')}.${fmt === 'skp' ? 'dae' : fmt}`, { type: f.type });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(file);
+  a.download = file.name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  if (fmt === 'skp') {
+    window.open(SKP_CONVERTER, '_blank', 'noopener');
+    showToast(`Downloaded ${file.name} - drop it on the converter page that just opened to get your .skp.`, { ms: 9000 });
+  } else {
+    showToast(`Downloaded ${file.name}.`, { ms: 4000 });
+  }
 }
 
 // ---------- holes the model forgot (holes.js) ----------

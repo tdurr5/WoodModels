@@ -31,6 +31,7 @@ A 3D cut-list viewer for woodworking plans - and a designer for your own - start
   - `woodtex.js` - species wood textures (side and end grain) generated in the browser
   - `build.js` - build mode's step order (assembly or cutting)
   - `mechanisms.js`, `mechpanel.js` - moving parts: lids on hinges, trays that slide and lift out (the maths, pure and unit-tested; and the panel and Hands on)
+  - `export3d.js` - the model as a 3D file: COLLADA, glTF, STL, OBJ (pure, round-trip tested through `parse_dae.py`)
   - `share.js` - Share: QR code of the page, sending a model file or the shopping list (QR encoder vendored in `vendor/qrcode/`, MIT)
   - `settings.js` - per-browser preferences (units, allowances, parts ticked off)
   - `model.json` - per-model settings: title, friendly part names, notes, materials, axis names, view presets, moving parts
@@ -79,6 +80,7 @@ On a phone the layout follows how you hold it (model above the list upright, sid
 - **Rough stock**: shows the lumber to mill each part from: the next standard thickness (4/4, 5/4, 8/4, 10/4…) plus length and width allowances you can set. Board feet are shown per part, and totals per species and thickness.
 - **Tick parts off** as you cut them; the progress bar and your ticks are remembered in the browser.
 - **Filter** (`/`), **hide a category** in 3D (e.g. hardware), **Export CSV**, **Print cut sheet** (or Ctrl+P). The printed sheet has checkboxes, rough sizes, your notes, an overview picture, a drilling list, the joinery, the cuts in each part, the shopping list and the cutting diagrams.
+- **Export 3D model** (under Print cut sheet) downloads the model as `.dae` (SketchUp, Blender), `.glb`, `.stl` or `.obj`: one object per part, named as the cut list names it; `.dae` and `.glb` keep the assembly groups and colours, and `.dae` places each part on its own axes like a SketchUp component. Parts set aside or deleted are left out. **Make a .skp** downloads the `.dae` and opens convert3d.org's free DAE-to-SKP converter: drop the file there for a SketchUp file to upload to 3D Warehouse (`.skp` is SketchUp's closed format, so it can't be written in the browser).
 - **Shopping list & cutting diagram** (`C`):
   - Lays the rough parts out on boards of your stock size (length, width, kerf), grouped by species and thickness. Shows how many boards to buy and how much of each is used, and flags when an offcut will do.
   - Cuts follow a real sequence: crosscut into sections, rip into strips, crosscut the parts. Click a piece to find it in 3D.

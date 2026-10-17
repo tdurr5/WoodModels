@@ -191,6 +191,19 @@ export function renderCutList(container, rows, config, h) {
         <button id="clCsv" title="Download the cut list as a spreadsheet (CSV)">Export CSV</button>
         <button id="clPrint" title="Print a shop cut sheet with checkboxes">Print cut sheet</button>
       </div>
+      <details id="clExport3d" class="cl-allow">
+        <summary>Export 3D model</summary>
+        <div class="cl-row">
+          <button data-fmt="dae" title="COLLADA: opens in SketchUp, Blender and most 3D programs - part names, groups and colours">.dae</button>
+          <button data-fmt="glb" title="glTF: web viewers, Blender, Windows 3D Viewer - part names, groups and colours">.glb</button>
+          <button data-fmt="stl" title="STL in millimetres: 3D printing and CAD (one solid, no names or colours)">.stl</button>
+          <button data-fmt="obj" title="OBJ in millimetres: one named object per part">.obj</button>
+        </div>
+        <div class="cl-row">
+          <button data-fmt="skp" title="Downloads the .dae and opens a free online converter (convert3d.org): drop the .dae there to get a .skp">Make a .skp (SketchUp) &#8599;</button>
+        </div>
+        <div class="muted small">Parts set aside or deleted are left out. A .skp is SketchUp's own closed format, so it is made from the .dae by convert3d.org - your file goes to their site when you drop it there.</div>
+      </details>
       <div class="cl-row">
         <button id="clDiagram" title="Lay the parts out on boards: what lumber to buy and how to cut it (C)">Shopping list &amp; cutting diagram</button>
       </div>
@@ -224,6 +237,10 @@ export function renderCutList(container, rows, config, h) {
   });
   container.querySelector('#clCsv').addEventListener('click', () => downloadCSV(allRows, config));
   container.querySelector('#clPrint').addEventListener('click', () => handlers.onPrint && handlers.onPrint());
+  container.querySelector('#clExport3d').addEventListener('click', (e) => {
+    const fmt = e.target.closest('button[data-fmt]')?.dataset.fmt;
+    if (fmt && handlers.onExport3d) handlers.onExport3d(fmt);
+  });
   container.querySelector('#clDiagram').addEventListener('click', () => handlers.onDiagram && handlers.onDiagram());
   container.querySelector('#clLibrary').addEventListener('click', () => handlers.onLibrary && handlers.onLibrary());
   container.querySelector('#clShare').addEventListener('click', () => handlers.onShare && handlers.onShare());
