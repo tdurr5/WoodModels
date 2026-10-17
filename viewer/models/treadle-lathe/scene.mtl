@@ -1,0 +1,12 @@
+newmtl mat-Maple
+Kd 0.800 0.620 0.400
+
+newmtl mat-Steel
+Kd 0.620 0.640 0.670
+
+newmtl mat-Leather
+Kd 0.450 0.280 0.150
+
+newmtl mat-Cherry
+Kd 0.620 0.300 0.180
+

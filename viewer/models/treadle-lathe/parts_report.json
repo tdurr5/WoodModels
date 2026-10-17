@@ -1,0 +1,1018 @@
+[
+  {
+    "label": "Cotter Pin",
+    "top_group": "Flywheel & Treadle",
+    "dims": [
+      0.96,
+      0.12,
+      0.1
+    ],
+    "count": 2,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Flywheel & Treadle/Cotter Pin",
+      "Flywheel & Treadle/Cotter Pin"
+    ],
+    "obj_names": [
+      "Flywheel___Treadle_Cotter_Pin",
+      "Flywheel___Treadle_Cotter_Pin_1"
+    ],
+    "material": "Steel",
+    "dims_str": "15/16\" x 1/8\" x 1/8\""
+  },
+  {
+    "label": "Crank Shaft",
+    "top_group": "Flywheel & Treadle",
+    "dims": [
+      8.812,
+      1.75,
+      0.5
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Flywheel & Treadle/Crank Shaft"
+    ],
+    "obj_names": [
+      "Flywheel___Treadle_Crank_Shaft"
+    ],
+    "material": "Steel",
+    "dims_str": "8-13/16\" x 1-3/4\" x 1/2\""
+  },
+  {
+    "label": "Flat Washer 1/2\"",
+    "top_group": "Flywheel & Treadle",
+    "dims": [
+      1.06,
+      1.06,
+      0.062
+    ],
+    "count": 2,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Flywheel & Treadle/Flat Washer 1/2\"",
+      "Flywheel & Treadle/Flat Washer 1/2\""
+    ],
+    "obj_names": [
+      "Flywheel___Treadle_Flat_Washer_1_2_",
+      "Flywheel___Treadle_Flat_Washer_1_2__1"
+    ],
+    "material": "Steel",
+    "dims_str": "1-1/16\" x 1-1/16\" x 1/16\""
+  },
+  {
+    "label": "Flat Washer 1/4\"",
+    "top_group": "Flywheel & Treadle",
+    "dims": [
+      0.625,
+      0.625,
+      0.062
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Flywheel & Treadle/Flat Washer 1/4\""
+    ],
+    "obj_names": [
+      "Flywheel___Treadle_Flat_Washer_1_4_"
+    ],
+    "material": "Steel",
+    "dims_str": "5/8\" x 5/8\" x 1/16\""
+  },
+  {
+    "label": "Floor Flange",
+    "top_group": "Flywheel & Treadle",
+    "dims": [
+      2.875,
+      2.875,
+      0.65
+    ],
+    "count": 2,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Flywheel & Treadle/Floor Flange",
+      "Flywheel & Treadle/Floor Flange"
+    ],
+    "obj_names": [
+      "Flywheel___Treadle_Floor_Flange",
+      "Flywheel___Treadle_Floor_Flange_1"
+    ],
+    "material": "Steel",
+    "dims_str": "2-7/8\" x 2-7/8\" x 5/8\""
+  },
+  {
+    "label": "Heavy Washer 1/2\"",
+    "top_group": "Flywheel & Treadle",
+    "dims": [
+      1.375,
+      1.375,
+      0.125
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Flywheel & Treadle/Heavy Washer 1/2\""
+    ],
+    "obj_names": [
+      "Flywheel___Treadle_Heavy_Washer_1_2_"
+    ],
+    "material": "Steel",
+    "dims_str": "1-3/8\" x 1-3/8\" x 1/8\""
+  },
+  {
+    "label": "Hex Nut 1/4\"",
+    "top_group": "Flywheel & Treadle",
+    "dims": [
+      0.5,
+      0.433,
+      0.22
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Flywheel & Treadle/Hex Nut 1/4\""
+    ],
+    "obj_names": [
+      "Flywheel___Treadle_Hex_Nut_1_4_"
+    ],
+    "material": "Steel",
+    "dims_str": "1/2\" x 7/16\" x 1/4\""
+  },
+  {
+    "label": "Rim Section",
+    "top_group": "Flywheel & Treadle",
+    "dims": [
+      16.97,
+      4.467,
+      0.75
+    ],
+    "count": 8,
+    "materials": [
+      "Cherry"
+    ],
+    "paths": [
+      "Flywheel & Treadle/Rim Section",
+      "Flywheel & Treadle/Rim Section",
+      "Flywheel & Treadle/Rim Section",
+      "Flywheel & Treadle/Rim Section",
+      "Flywheel & Treadle/Rim Section",
+      "Flywheel & Treadle/Rim Section",
+      "Flywheel & Treadle/Rim Section",
+      "Flywheel & Treadle/Rim Section"
+    ],
+    "obj_names": [
+      "Flywheel___Treadle_Rim_Section",
+      "Flywheel___Treadle_Rim_Section_1",
+      "Flywheel___Treadle_Rim_Section_2",
+      "Flywheel___Treadle_Rim_Section_3",
+      "Flywheel___Treadle_Rim_Section_4",
+      "Flywheel___Treadle_Rim_Section_5",
+      "Flywheel___Treadle_Rim_Section_6",
+      "Flywheel___Treadle_Rim_Section_7"
+    ],
+    "material": "Cherry",
+    "dims_str": "17\" x 4-7/16\" x 3/4\""
+  },
+  {
+    "label": "Treadle",
+    "top_group": "Flywheel & Treadle",
+    "dims": [
+      28.0,
+      1.5,
+      0.75
+    ],
+    "count": 1,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Flywheel & Treadle/Treadle"
+    ],
+    "obj_names": [
+      "Flywheel___Treadle_Treadle"
+    ],
+    "material": "Maple",
+    "dims_str": "28\" x 1-1/2\" x 3/4\""
+  },
+  {
+    "label": "Treadle Connector",
+    "top_group": "Flywheel & Treadle",
+    "dims": [
+      11.0,
+      0.25,
+      0.25
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Flywheel & Treadle/Treadle Connector"
+    ],
+    "obj_names": [
+      "Flywheel___Treadle_Treadle_Connector"
+    ],
+    "material": "Steel",
+    "dims_str": "11\" x 1/4\" x 1/4\""
+  },
+  {
+    "label": "Wheel Board, Long",
+    "top_group": "Flywheel & Treadle",
+    "dims": [
+      23.992,
+      7.25,
+      0.75
+    ],
+    "count": 2,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Flywheel & Treadle/Wheel Board, Long",
+      "Flywheel & Treadle/Wheel Board, Long"
+    ],
+    "obj_names": [
+      "Flywheel___Treadle_Wheel_Board__Long",
+      "Flywheel___Treadle_Wheel_Board__Long_1"
+    ],
+    "material": "Maple",
+    "dims_str": "24\" x 7-1/4\" x 3/4\""
+  },
+  {
+    "label": "Wheel Board, Short",
+    "top_group": "Flywheel & Treadle",
+    "dims": [
+      19.121,
+      4.746,
+      0.75
+    ],
+    "count": 2,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Flywheel & Treadle/Wheel Board, Short",
+      "Flywheel & Treadle/Wheel Board, Short"
+    ],
+    "obj_names": [
+      "Flywheel___Treadle_Wheel_Board__Short",
+      "Flywheel___Treadle_Wheel_Board__Short_1"
+    ],
+    "material": "Maple",
+    "dims_str": "19-1/8\" x 4-3/4\" x 3/4\""
+  },
+  {
+    "label": "Base",
+    "top_group": "Frame",
+    "dims": [
+      40.5,
+      3.5,
+      1.5
+    ],
+    "count": 1,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Frame/Base"
+    ],
+    "obj_names": [
+      "Frame_Base"
+    ],
+    "material": "Maple",
+    "dims_str": "40-1/2\" x 3-1/2\" x 1-1/2\""
+  },
+  {
+    "label": "Headstock End Brace",
+    "top_group": "Frame",
+    "dims": [
+      12.0,
+      9.25,
+      0.75
+    ],
+    "count": 1,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Frame/Headstock End Brace"
+    ],
+    "obj_names": [
+      "Frame_Headstock_End_Brace"
+    ],
+    "material": "Maple",
+    "dims_str": "12\" x 9-1/4\" x 3/4\""
+  },
+  {
+    "label": "Headstock Upright",
+    "top_group": "Frame",
+    "dims": [
+      38.5,
+      2.75,
+      2.75
+    ],
+    "count": 2,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Frame/Headstock Upright",
+      "Frame/Headstock Upright"
+    ],
+    "obj_names": [
+      "Frame_Headstock_Upright",
+      "Frame_Headstock_Upright_1"
+    ],
+    "material": "Maple",
+    "dims_str": "38-1/2\" x 2-3/4\" x 2-3/4\""
+  },
+  {
+    "label": "Stabilizer",
+    "top_group": "Frame",
+    "dims": [
+      24.0,
+      3.5,
+      1.5
+    ],
+    "count": 1,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Frame/Stabilizer"
+    ],
+    "obj_names": [
+      "Frame_Stabilizer"
+    ],
+    "material": "Maple",
+    "dims_str": "24\" x 3-1/2\" x 1-1/2\""
+  },
+  {
+    "label": "Tail Upright",
+    "top_group": "Frame",
+    "dims": [
+      27.5,
+      2.75,
+      2.75
+    ],
+    "count": 1,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Frame/Tail Upright"
+    ],
+    "obj_names": [
+      "Frame_Tail_Upright"
+    ],
+    "material": "Maple",
+    "dims_str": "27-1/2\" x 2-3/4\" x 2-3/4\""
+  },
+  {
+    "label": "Way",
+    "top_group": "Frame",
+    "dims": [
+      42.0,
+      3.5,
+      1.5
+    ],
+    "count": 2,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Frame/Way",
+      "Frame/Way"
+    ],
+    "obj_names": [
+      "Frame_Way",
+      "Frame_Way_1"
+    ],
+    "material": "Maple",
+    "dims_str": "42\" x 3-1/2\" x 1-1/2\""
+  },
+  {
+    "label": "Ball Bearing",
+    "top_group": "Headstock",
+    "dims": [
+      1.125,
+      1.125,
+      0.312
+    ],
+    "count": 4,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Headstock/Ball Bearing",
+      "Headstock/Ball Bearing",
+      "Headstock/Ball Bearing",
+      "Headstock/Ball Bearing"
+    ],
+    "obj_names": [
+      "Headstock_Ball_Bearing",
+      "Headstock_Ball_Bearing_1",
+      "Headstock_Ball_Bearing_2",
+      "Headstock_Ball_Bearing_3"
+    ],
+    "material": "Steel",
+    "dims_str": "1-1/8\" x 1-1/8\" x 5/16\""
+  },
+  {
+    "label": "Drive Center",
+    "top_group": "Headstock",
+    "dims": [
+      1.7,
+      0.875,
+      0.875
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Headstock/Drive Center"
+    ],
+    "obj_names": [
+      "Headstock_Drive_Center"
+    ],
+    "material": "Steel",
+    "dims_str": "1-11/16\" x 7/8\" x 7/8\""
+  },
+  {
+    "label": "Idler Axle",
+    "top_group": "Headstock",
+    "dims": [
+      2.25,
+      0.188,
+      0.188
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Headstock/Idler Axle"
+    ],
+    "obj_names": [
+      "Headstock_Idler_Axle"
+    ],
+    "material": "Steel",
+    "dims_str": "2-1/4\" x 3/16\" x 3/16\""
+  },
+  {
+    "label": "Idler Pulley",
+    "top_group": "Headstock",
+    "dims": [
+      2.875,
+      2.875,
+      0.75
+    ],
+    "count": 1,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Headstock/Idler Pulley"
+    ],
+    "obj_names": [
+      "Headstock_Idler_Pulley"
+    ],
+    "material": "Maple",
+    "dims_str": "2-7/8\" x 2-7/8\" x 3/4\""
+  },
+  {
+    "label": "Leather Belt",
+    "top_group": "Headstock",
+    "dims": [
+      37.481,
+      24.159,
+      0.238
+    ],
+    "count": 1,
+    "materials": [
+      "Leather"
+    ],
+    "paths": [
+      "Headstock/Leather Belt"
+    ],
+    "obj_names": [
+      "Headstock_Leather_Belt"
+    ],
+    "material": "Leather",
+    "dims_str": "37-1/2\" x 24-3/16\" x 1/4\""
+  },
+  {
+    "label": "Pan-Head Screw",
+    "top_group": "Headstock",
+    "dims": [
+      0.86,
+      0.31,
+      0.31
+    ],
+    "count": 8,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Headstock/Pan-Head Screw",
+      "Headstock/Pan-Head Screw",
+      "Headstock/Pan-Head Screw",
+      "Headstock/Pan-Head Screw",
+      "Headstock/Pan-Head Screw",
+      "Headstock/Pan-Head Screw",
+      "Headstock/Pan-Head Screw",
+      "Headstock/Pan-Head Screw"
+    ],
+    "obj_names": [
+      "Headstock_Pan_Head_Screw",
+      "Headstock_Pan_Head_Screw_1",
+      "Headstock_Pan_Head_Screw_2",
+      "Headstock_Pan_Head_Screw_3",
+      "Headstock_Pan_Head_Screw_4",
+      "Headstock_Pan_Head_Screw_5",
+      "Headstock_Pan_Head_Screw_6",
+      "Headstock_Pan_Head_Screw_7"
+    ],
+    "material": "Steel",
+    "dims_str": "7/8\" x 5/16\" x 5/16\""
+  },
+  {
+    "label": "Pivot Dowel",
+    "top_group": "Headstock",
+    "dims": [
+      7.75,
+      0.25,
+      0.25
+    ],
+    "count": 1,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Headstock/Pivot Dowel"
+    ],
+    "obj_names": [
+      "Headstock_Pivot_Dowel"
+    ],
+    "material": "Maple",
+    "dims_str": "7-3/4\" x 1/4\" x 1/4\""
+  },
+  {
+    "label": "Pivot Handle",
+    "top_group": "Headstock",
+    "dims": [
+      1.0,
+      0.5,
+      0.5
+    ],
+    "count": 1,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Headstock/Pivot Handle"
+    ],
+    "obj_names": [
+      "Headstock_Pivot_Handle"
+    ],
+    "material": "Maple",
+    "dims_str": "1\" x 1/2\" x 1/2\""
+  },
+  {
+    "label": "Retaining Washer",
+    "top_group": "Headstock",
+    "dims": [
+      0.9,
+      0.9,
+      0.062
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Headstock/Retaining Washer"
+    ],
+    "obj_names": [
+      "Headstock_Retaining_Washer"
+    ],
+    "material": "Steel",
+    "dims_str": "7/8\" x 7/8\" x 1/16\""
+  },
+  {
+    "label": "Spindle Pulley",
+    "top_group": "Headstock",
+    "dims": [
+      3.0,
+      3.0,
+      1.25
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Headstock/Spindle Pulley"
+    ],
+    "obj_names": [
+      "Headstock_Spindle_Pulley"
+    ],
+    "material": "Steel",
+    "dims_str": "3\" x 3\" x 1-1/4\""
+  },
+  {
+    "label": "Spindle Shaft",
+    "top_group": "Headstock",
+    "dims": [
+      8.0,
+      0.5,
+      0.5
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Headstock/Spindle Shaft"
+    ],
+    "obj_names": [
+      "Headstock_Spindle_Shaft"
+    ],
+    "material": "Steel",
+    "dims_str": "8\" x 1/2\" x 1/2\""
+  },
+  {
+    "label": "Tensioner Frame",
+    "top_group": "Headstock",
+    "dims": [
+      6.466,
+      2.25,
+      1.2
+    ],
+    "count": 1,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Headstock/Tensioner Frame"
+    ],
+    "obj_names": [
+      "Headstock_Tensioner_Frame"
+    ],
+    "material": "Maple",
+    "dims_str": "6-7/16\" x 2-1/4\" x 1-3/16\""
+  },
+  {
+    "label": "Cup Center",
+    "top_group": "Tailstock",
+    "dims": [
+      2.82,
+      1.0,
+      1.0
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Tailstock/Cup Center"
+    ],
+    "obj_names": [
+      "Tailstock_Cup_Center"
+    ],
+    "material": "Steel",
+    "dims_str": "2-13/16\" x 1\" x 1\""
+  },
+  {
+    "label": "Tailstock",
+    "top_group": "Tailstock",
+    "dims": [
+      18.0,
+      3.5,
+      1.5
+    ],
+    "count": 1,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Tailstock/Tailstock"
+    ],
+    "obj_names": [
+      "Tailstock_Tailstock"
+    ],
+    "material": "Maple",
+    "dims_str": "18\" x 3-1/2\" x 1-1/2\""
+  },
+  {
+    "label": "Tailstock Block",
+    "top_group": "Tailstock",
+    "dims": [
+      6.0,
+      2.75,
+      2.75
+    ],
+    "count": 1,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Tailstock/Tailstock Block"
+    ],
+    "obj_names": [
+      "Tailstock_Tailstock_Block"
+    ],
+    "material": "Maple",
+    "dims_str": "6\" x 2-3/4\" x 2-3/4\""
+  },
+  {
+    "label": "Tailstock Brace",
+    "top_group": "Tailstock",
+    "dims": [
+      6.0,
+      2.5,
+      0.75
+    ],
+    "count": 2,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Tailstock/Tailstock Brace",
+      "Tailstock/Tailstock Brace"
+    ],
+    "obj_names": [
+      "Tailstock_Tailstock_Brace",
+      "Tailstock_Tailstock_Brace_1"
+    ],
+    "material": "Maple",
+    "dims_str": "6\" x 2-1/2\" x 3/4\""
+  },
+  {
+    "label": "Tailstock Wedge",
+    "top_group": "Tailstock",
+    "dims": [
+      7.0,
+      2.25,
+      0.5
+    ],
+    "count": 1,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Tailstock/Tailstock Wedge"
+    ],
+    "obj_names": [
+      "Tailstock_Tailstock_Wedge"
+    ],
+    "material": "Maple",
+    "dims_str": "7\" x 2-1/4\" x 1/2\""
+  },
+  {
+    "label": "Wedge Stop Dowel",
+    "top_group": "Tailstock",
+    "dims": [
+      1.25,
+      0.25,
+      0.25
+    ],
+    "count": 1,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Tailstock/Wedge Stop Dowel"
+    ],
+    "obj_names": [
+      "Tailstock_Wedge_Stop_Dowel"
+    ],
+    "material": "Maple",
+    "dims_str": "1-1/4\" x 1/4\" x 1/4\""
+  },
+  {
+    "label": "Carriage Bolt 3/8 x 6\"",
+    "top_group": "Tool Rest",
+    "dims": [
+      6.2,
+      0.88,
+      0.88
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Tool Rest/Carriage Bolt 3/8 x 6\""
+    ],
+    "obj_names": [
+      "Tool_Rest_Carriage_Bolt_3_8_x_6_"
+    ],
+    "material": "Steel",
+    "dims_str": "6-3/16\" x 7/8\" x 7/8\""
+  },
+  {
+    "label": "Clamp Piece",
+    "top_group": "Tool Rest",
+    "dims": [
+      6.0,
+      3.5,
+      0.75
+    ],
+    "count": 1,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Tool Rest/Clamp Piece"
+    ],
+    "obj_names": [
+      "Tool_Rest_Clamp_Piece"
+    ],
+    "material": "Maple",
+    "dims_str": "6\" x 3-1/2\" x 3/4\""
+  },
+  {
+    "label": "Flat Washer 3/8\"",
+    "top_group": "Tool Rest",
+    "dims": [
+      0.875,
+      0.875,
+      0.062
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Tool Rest/Flat Washer 3/8\""
+    ],
+    "obj_names": [
+      "Tool_Rest_Flat_Washer_3_8_"
+    ],
+    "material": "Steel",
+    "dims_str": "7/8\" x 7/8\" x 1/16\""
+  },
+  {
+    "label": "Lag Screw 5/16 x 3\"",
+    "top_group": "Tool Rest",
+    "dims": [
+      3.21,
+      0.577,
+      0.5
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Tool Rest/Lag Screw 5/16 x 3\""
+    ],
+    "obj_names": [
+      "Tool_Rest_Lag_Screw_5_16_x_3_"
+    ],
+    "material": "Steel",
+    "dims_str": "3-3/16\" x 9/16\" x 1/2\""
+  },
+  {
+    "label": "Square Nut 3/8\"",
+    "top_group": "Tool Rest",
+    "dims": [
+      0.625,
+      0.625,
+      0.32
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Tool Rest/Square Nut 3/8\""
+    ],
+    "obj_names": [
+      "Tool_Rest_Square_Nut_3_8_"
+    ],
+    "material": "Steel",
+    "dims_str": "5/8\" x 5/8\" x 5/16\""
+  },
+  {
+    "label": "Tool Rest Base",
+    "top_group": "Tool Rest",
+    "dims": [
+      12.0,
+      3.5,
+      0.75
+    ],
+    "count": 1,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Tool Rest/Tool Rest Base"
+    ],
+    "obj_names": [
+      "Tool_Rest_Tool_Rest_Base"
+    ],
+    "material": "Maple",
+    "dims_str": "12\" x 3-1/2\" x 3/4\""
+  },
+  {
+    "label": "Tool Rest Post",
+    "top_group": "Tool Rest",
+    "dims": [
+      5.0,
+      2.75,
+      2.75
+    ],
+    "count": 1,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Tool Rest/Tool Rest Post"
+    ],
+    "obj_names": [
+      "Tool_Rest_Tool_Rest_Post"
+    ],
+    "material": "Maple",
+    "dims_str": "5\" x 2-3/4\" x 2-3/4\""
+  },
+  {
+    "label": "Tool Rest Spacer",
+    "top_group": "Tool Rest",
+    "dims": [
+      3.0,
+      2.75,
+      2.75
+    ],
+    "count": 1,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Tool Rest/Tool Rest Spacer"
+    ],
+    "obj_names": [
+      "Tool_Rest_Tool_Rest_Spacer"
+    ],
+    "material": "Maple",
+    "dims_str": "3\" x 2-3/4\" x 2-3/4\""
+  },
+  {
+    "label": "Tool Rest Top",
+    "top_group": "Tool Rest",
+    "dims": [
+      8.0,
+      3.5,
+      1.5
+    ],
+    "count": 1,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Tool Rest/Tool Rest Top"
+    ],
+    "obj_names": [
+      "Tool_Rest_Tool_Rest_Top"
+    ],
+    "material": "Maple",
+    "dims_str": "8\" x 3-1/2\" x 1-1/2\""
+  },
+  {
+    "label": "Wing Nut",
+    "top_group": "Tool Rest",
+    "dims": [
+      4.0,
+      1.0,
+      1.0
+    ],
+    "count": 1,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Tool Rest/Wing Nut"
+    ],
+    "obj_names": [
+      "Tool_Rest_Wing_Nut"
+    ],
+    "material": "Maple",
+    "dims_str": "4\" x 1\" x 1\""
+  }
+]

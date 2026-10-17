@@ -1,0 +1,2981 @@
+{
+  "Frame_Base": {
+    "center": [
+      20.25,
+      0.75,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 40.5,
+        "role": "Length",
+        "label": "40-1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 3.5,
+        "role": "Width",
+        "label": "3-1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 1.5,
+        "role": "Thickness",
+        "label": "1-1/2\""
+      }
+    ]
+  },
+  "Frame_Stabilizer": {
+    "center": [
+      1.75,
+      0.75,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 24.0,
+        "role": "Length",
+        "label": "24\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 3.5,
+        "role": "Width",
+        "label": "3-1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 1.5,
+        "role": "Thickness",
+        "label": "1-1/2\""
+      }
+    ]
+  },
+  "Frame_Headstock_End_Brace": {
+    "center": [
+      0.375,
+      7.5,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 12.0,
+        "role": "Length",
+        "label": "12\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 9.25,
+        "role": "Width",
+        "label": "9-1/4\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Frame_Headstock_Upright": {
+    "center": [
+      2.125,
+      20.75,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 38.5,
+        "role": "Length",
+        "label": "38-1/2\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 2.75,
+        "role": "Width",
+        "label": "2-3/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 2.75,
+        "role": "Thickness",
+        "label": "2-3/4\""
+      }
+    ]
+  },
+  "Frame_Headstock_Upright_1": {
+    "center": [
+      8.625,
+      20.75,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 38.5,
+        "role": "Length",
+        "label": "38-1/2\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 2.75,
+        "role": "Width",
+        "label": "2-3/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 2.75,
+        "role": "Thickness",
+        "label": "2-3/4\""
+      }
+    ]
+  },
+  "Frame_Tail_Upright": {
+    "center": [
+      39.125,
+      15.25,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 27.5,
+        "role": "Length",
+        "label": "27-1/2\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 2.75,
+        "role": "Width",
+        "label": "2-3/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 2.75,
+        "role": "Thickness",
+        "label": "2-3/4\""
+      }
+    ]
+  },
+  "Frame_Way": {
+    "center": [
+      21.0,
+      28.25,
+      2.125
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 42.0,
+        "role": "Length",
+        "label": "42\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 3.5,
+        "role": "Width",
+        "label": "3-1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 1.5,
+        "role": "Thickness",
+        "label": "1-1/2\""
+      }
+    ]
+  },
+  "Frame_Way_1": {
+    "center": [
+      21.0,
+      28.25,
+      -2.125
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 42.0,
+        "role": "Length",
+        "label": "42\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 3.5,
+        "role": "Width",
+        "label": "3-1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 1.5,
+        "role": "Thickness",
+        "label": "1-1/2\""
+      }
+    ]
+  },
+  "Headstock_Spindle_Shaft": {
+    "center": [
+      7.1875,
+      38.0,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 8.0,
+        "role": "Length",
+        "label": "8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.5,
+        "role": "Width",
+        "label": "1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.5,
+        "role": "Thickness",
+        "label": "1/2\""
+      }
+    ]
+  },
+  "Headstock_Ball_Bearing": {
+    "center": [
+      3.3438,
+      38.0,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 1.125,
+        "role": "Length",
+        "label": "1-1/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          -1.0,
+          -0.0
+        ],
+        "length": 1.125,
+        "role": "Width",
+        "label": "1-1/8\""
+      },
+      {
+        "direction": [
+          -1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.3125,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Headstock_Pan_Head_Screw": {
+    "center": [
+      3.18,
+      37.3175,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          -1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.86,
+        "role": "Length",
+        "label": "7/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.31,
+        "role": "Width",
+        "label": "5/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          -1.0,
+          -0.0
+        ],
+        "length": 0.31,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Headstock_Pan_Head_Screw_1": {
+    "center": [
+      3.18,
+      38.6825,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          -1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.86,
+        "role": "Length",
+        "label": "7/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.31,
+        "role": "Width",
+        "label": "5/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          -1.0,
+          -0.0
+        ],
+        "length": 0.31,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Headstock_Ball_Bearing_1": {
+    "center": [
+      3.3438,
+      14.0,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 1.125,
+        "role": "Length",
+        "label": "1-1/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          -1.0,
+          -0.0
+        ],
+        "length": 1.125,
+        "role": "Width",
+        "label": "1-1/8\""
+      },
+      {
+        "direction": [
+          -1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.3125,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Headstock_Pan_Head_Screw_2": {
+    "center": [
+      3.18,
+      13.3175,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          -1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.86,
+        "role": "Length",
+        "label": "7/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.31,
+        "role": "Width",
+        "label": "5/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          -1.0,
+          -0.0
+        ],
+        "length": 0.31,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Headstock_Pan_Head_Screw_3": {
+    "center": [
+      3.18,
+      14.6825,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          -1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.86,
+        "role": "Length",
+        "label": "7/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.31,
+        "role": "Width",
+        "label": "5/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          -1.0,
+          -0.0
+        ],
+        "length": 0.31,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Headstock_Ball_Bearing_2": {
+    "center": [
+      7.4062,
+      14.0,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 1.125,
+        "role": "Length",
+        "label": "1-1/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 1.125,
+        "role": "Width",
+        "label": "1-1/8\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.3125,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Headstock_Pan_Head_Screw_4": {
+    "center": [
+      7.57,
+      13.3175,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.86,
+        "role": "Length",
+        "label": "7/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.31,
+        "role": "Width",
+        "label": "5/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.31,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Headstock_Pan_Head_Screw_5": {
+    "center": [
+      7.57,
+      14.6825,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.86,
+        "role": "Length",
+        "label": "7/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.31,
+        "role": "Width",
+        "label": "5/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.31,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Headstock_Ball_Bearing_3": {
+    "center": [
+      9.8438,
+      38.0,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 1.125,
+        "role": "Length",
+        "label": "1-1/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          -1.0,
+          -0.0
+        ],
+        "length": 1.125,
+        "role": "Width",
+        "label": "1-1/8\""
+      },
+      {
+        "direction": [
+          -1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.3125,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Headstock_Pan_Head_Screw_6": {
+    "center": [
+      9.68,
+      37.3175,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          -1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.86,
+        "role": "Length",
+        "label": "7/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.31,
+        "role": "Width",
+        "label": "5/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          -1.0,
+          -0.0
+        ],
+        "length": 0.31,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Headstock_Pan_Head_Screw_7": {
+    "center": [
+      9.68,
+      38.6825,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          -1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.86,
+        "role": "Length",
+        "label": "7/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.31,
+        "role": "Width",
+        "label": "5/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          -1.0,
+          -0.0
+        ],
+        "length": 0.31,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Headstock_Retaining_Washer": {
+    "center": [
+      10.0312,
+      38.0,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.9,
+        "role": "Length",
+        "label": "7/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.9,
+        "role": "Width",
+        "label": "7/8\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.0625,
+        "role": "Thickness",
+        "label": "1/16\""
+      }
+    ]
+  },
+  "Headstock_Spindle_Pulley": {
+    "center": [
+      5.625,
+      38.0,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 3.0,
+        "role": "Length",
+        "label": "3\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 3.0,
+        "role": "Width",
+        "label": "3\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 1.25,
+        "role": "Thickness",
+        "label": "1-1/4\""
+      }
+    ]
+  },
+  "Headstock_Drive_Center": {
+    "center": [
+      10.9125,
+      38.0,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 1.7,
+        "role": "Length",
+        "label": "1-11/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.875,
+        "role": "Width",
+        "label": "7/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.875,
+        "role": "Thickness",
+        "label": "7/8\""
+      }
+    ]
+  },
+  "Headstock_Leather_Belt": {
+    "center": [
+      5.375,
+      20.6589,
+      0.0032
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 37.4811,
+        "role": "Length",
+        "label": "37-1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 24.1594,
+        "role": "Width",
+        "label": "24-3/16\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.2378,
+        "role": "Thickness",
+        "label": "1/4\""
+      }
+    ]
+  },
+  "Headstock_Tensioner_Frame": {
+    "center": [
+      5.375,
+      32.792,
+      1.8107
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          -0.407508,
+          0.913202
+        ],
+        "length": 6.4657,
+        "role": "Length",
+        "label": "6-7/16\"",
+        "angle": {
+          "reference": "+Z",
+          "total_deg": 24.0,
+          "components": [
+            {
+              "label": "x",
+              "deg": 0.0
+            },
+            {
+              "label": "vertical",
+              "deg": -24.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 2.25,
+        "role": "Width",
+        "label": "2-1/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          -0.913202,
+          -0.407508
+        ],
+        "length": 1.2,
+        "role": "Thickness",
+        "label": "1-3/16\"",
+        "angle": {
+          "reference": "-Y (vertical)",
+          "total_deg": 24.0,
+          "components": [
+            {
+              "label": "x",
+              "deg": 0.0
+            },
+            {
+              "label": "z",
+              "deg": -24.0
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "Headstock_Idler_Pulley": {
+    "center": [
+      5.375,
+      31.984,
+      3.6214
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 2.875,
+        "role": "Length",
+        "label": "2-7/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 2.875,
+        "role": "Width",
+        "label": "2-7/8\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Headstock_Idler_Axle": {
+    "center": [
+      5.375,
+      31.984,
+      3.6214
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 2.25,
+        "role": "Length",
+        "label": "2-1/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          -0.407508,
+          0.913202
+        ],
+        "length": 0.188,
+        "role": "Width",
+        "label": "3/16\"",
+        "angle": {
+          "reference": "+Z",
+          "total_deg": 24.0,
+          "components": [
+            {
+              "label": "x",
+              "deg": 0.0
+            },
+            {
+              "label": "vertical",
+              "deg": -24.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.0,
+          -0.913202,
+          -0.407508
+        ],
+        "length": 0.188,
+        "role": "Thickness",
+        "label": "3/16\"",
+        "angle": {
+          "reference": "-Y (vertical)",
+          "total_deg": 24.0,
+          "components": [
+            {
+              "label": "x",
+              "deg": 0.0
+            },
+            {
+              "label": "z",
+              "deg": -24.0
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "Headstock_Pivot_Dowel": {
+    "center": [
+      6.875,
+      33.6,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 7.75,
+        "role": "Length",
+        "label": "7-3/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.25,
+        "role": "Width",
+        "label": "1/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.25,
+        "role": "Thickness",
+        "label": "1/4\""
+      }
+    ]
+  },
+  "Headstock_Pivot_Handle": {
+    "center": [
+      10.75,
+      33.6,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Length",
+        "label": "1\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.5,
+        "role": "Width",
+        "label": "1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.5,
+        "role": "Thickness",
+        "label": "1/2\""
+      }
+    ]
+  },
+  "Flywheel___Treadle_Wheel_Board__Short": {
+    "center": [
+      5.375,
+      14.0,
+      -9.6229
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 19.1206,
+        "role": "Length",
+        "label": "19-1/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 4.7459,
+        "role": "Width",
+        "label": "4-3/4\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Flywheel___Treadle_Wheel_Board__Long": {
+    "center": [
+      5.375,
+      14.0,
+      -3.625
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 23.9918,
+        "role": "Length",
+        "label": "24\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 7.25,
+        "role": "Width",
+        "label": "7-1/4\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Flywheel___Treadle_Wheel_Board__Long_1": {
+    "center": [
+      5.375,
+      14.0,
+      3.625
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 23.9918,
+        "role": "Length",
+        "label": "24\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 7.25,
+        "role": "Width",
+        "label": "7-1/4\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Flywheel___Treadle_Wheel_Board__Short_1": {
+    "center": [
+      5.375,
+      14.0,
+      9.6229
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 19.1206,
+        "role": "Length",
+        "label": "19-1/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 4.7459,
+        "role": "Width",
+        "label": "4-3/4\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Flywheel___Treadle_Rim_Section": {
+    "center": [
+      6.125,
+      13.9913,
+      9.7664
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.999977,
+          0.006789
+        ],
+        "length": 16.9702,
+        "role": "Length",
+        "label": "17\""
+      },
+      {
+        "direction": [
+          -0.0,
+          -0.006789,
+          0.999977
+        ],
+        "length": 4.4671,
+        "role": "Width",
+        "label": "4-7/16\""
+      },
+      {
+        "direction": [
+          1.0,
+          -0.0,
+          0.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Flywheel___Treadle_Rim_Section_1": {
+    "center": [
+      6.125,
+      4.2336,
+      -0.0087
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          -0.006789,
+          0.999977
+        ],
+        "length": 16.9702,
+        "role": "Length",
+        "label": "17\""
+      },
+      {
+        "direction": [
+          -0.0,
+          -0.999977,
+          -0.006789
+        ],
+        "length": 4.4671,
+        "role": "Width",
+        "label": "4-7/16\""
+      },
+      {
+        "direction": [
+          1.0,
+          -0.0,
+          -0.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Flywheel___Treadle_Rim_Section_2": {
+    "center": [
+      6.125,
+      14.0087,
+      -9.7664
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          -0.999977,
+          -0.006789
+        ],
+        "length": 16.9702,
+        "role": "Length",
+        "label": "17\""
+      },
+      {
+        "direction": [
+          -0.0,
+          0.006789,
+          -0.999977
+        ],
+        "length": 4.4671,
+        "role": "Width",
+        "label": "4-7/16\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Flywheel___Treadle_Rim_Section_3": {
+    "center": [
+      6.125,
+      23.7663,
+      0.0087
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.006789,
+          -0.999977
+        ],
+        "length": 16.9702,
+        "role": "Length",
+        "label": "17\""
+      },
+      {
+        "direction": [
+          -0.0,
+          0.999977,
+          0.006789
+        ],
+        "length": 4.4671,
+        "role": "Width",
+        "label": "4-7/16\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Flywheel___Treadle_Rim_Section_4": {
+    "center": [
+      4.625,
+      7.1003,
+      6.912
+    ],
+    "axes": [
+      {
+        "direction": [
+          -0.0,
+          -0.711891,
+          -0.70229
+        ],
+        "length": 16.9702,
+        "role": "Length",
+        "label": "17\"",
+        "angle": {
+          "reference": "-Y (vertical)",
+          "total_deg": 44.6,
+          "components": [
+            {
+              "label": "x",
+              "deg": -0.0
+            },
+            {
+              "label": "z",
+              "deg": -44.6
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.0,
+          -0.70229,
+          0.711891
+        ],
+        "length": 4.4671,
+        "role": "Width",
+        "label": "4-7/16\"",
+        "angle": {
+          "reference": "+Z",
+          "total_deg": 44.6,
+          "components": [
+            {
+              "label": "x",
+              "deg": 0.0
+            },
+            {
+              "label": "vertical",
+              "deg": -44.6
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          -1.0,
+          -0.0,
+          0.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Flywheel___Treadle_Rim_Section_5": {
+    "center": [
+      4.625,
+      20.912,
+      6.8997
+    ],
+    "axes": [
+      {
+        "direction": [
+          -0.0,
+          -0.70229,
+          0.711891
+        ],
+        "length": 16.9702,
+        "role": "Length",
+        "label": "17\"",
+        "angle": {
+          "reference": "+Z",
+          "total_deg": 44.6,
+          "components": [
+            {
+              "label": "x",
+              "deg": -0.0
+            },
+            {
+              "label": "vertical",
+              "deg": -44.6
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.0,
+          0.711891,
+          0.70229
+        ],
+        "length": 4.4671,
+        "role": "Width",
+        "label": "4-7/16\"",
+        "angle": {
+          "reference": "+Y (vertical)",
+          "total_deg": 44.6,
+          "components": [
+            {
+              "label": "x",
+              "deg": 0.0
+            },
+            {
+              "label": "z",
+              "deg": 44.6
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          -1.0,
+          0.0,
+          0.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Flywheel___Treadle_Rim_Section_6": {
+    "center": [
+      4.625,
+      20.8997,
+      -6.912
+    ],
+    "axes": [
+      {
+        "direction": [
+          -0.0,
+          0.711891,
+          0.70229
+        ],
+        "length": 16.9702,
+        "role": "Length",
+        "label": "17\"",
+        "angle": {
+          "reference": "+Y (vertical)",
+          "total_deg": 44.6,
+          "components": [
+            {
+              "label": "x",
+              "deg": -0.0
+            },
+            {
+              "label": "z",
+              "deg": 44.6
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.0,
+          0.70229,
+          -0.711891
+        ],
+        "length": 4.4671,
+        "role": "Width",
+        "label": "4-7/16\"",
+        "angle": {
+          "reference": "-Z",
+          "total_deg": 44.6,
+          "components": [
+            {
+              "label": "x",
+              "deg": 0.0
+            },
+            {
+              "label": "vertical",
+              "deg": 44.6
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          -1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Flywheel___Treadle_Rim_Section_7": {
+    "center": [
+      4.625,
+      7.088,
+      -6.8997
+    ],
+    "axes": [
+      {
+        "direction": [
+          -0.0,
+          0.70229,
+          -0.711891
+        ],
+        "length": 16.9702,
+        "role": "Length",
+        "label": "17\"",
+        "angle": {
+          "reference": "-Z",
+          "total_deg": 44.6,
+          "components": [
+            {
+              "label": "x",
+              "deg": -0.0
+            },
+            {
+              "label": "vertical",
+              "deg": 44.6
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.0,
+          -0.711891,
+          -0.70229
+        ],
+        "length": 4.4671,
+        "role": "Width",
+        "label": "4-7/16\"",
+        "angle": {
+          "reference": "-Y (vertical)",
+          "total_deg": 44.6,
+          "components": [
+            {
+              "label": "x",
+              "deg": 0.0
+            },
+            {
+              "label": "z",
+              "deg": -44.6
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          -1.0,
+          -0.0,
+          -0.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Flywheel___Treadle_Floor_Flange": {
+    "center": [
+      4.675,
+      14.0,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 2.875,
+        "role": "Length",
+        "label": "2-7/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          -1.0,
+          -0.0
+        ],
+        "length": 2.875,
+        "role": "Width",
+        "label": "2-7/8\""
+      },
+      {
+        "direction": [
+          -1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.65,
+        "role": "Thickness",
+        "label": "5/8\""
+      }
+    ]
+  },
+  "Flywheel___Treadle_Floor_Flange_1": {
+    "center": [
+      6.075,
+      14.0,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 2.875,
+        "role": "Length",
+        "label": "2-7/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 2.875,
+        "role": "Width",
+        "label": "2-7/8\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.65,
+        "role": "Thickness",
+        "label": "5/8\""
+      }
+    ]
+  },
+  "Flywheel___Treadle_Crank_Shaft": {
+    "center": [
+      7.5938,
+      14.0,
+      0.625
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 8.8125,
+        "role": "Length",
+        "label": "8-13/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 1.75,
+        "role": "Width",
+        "label": "1-3/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.5,
+        "role": "Thickness",
+        "label": "1/2\""
+      }
+    ]
+  },
+  "Flywheel___Treadle_Cotter_Pin": {
+    "center": [
+      11.18,
+      14.08,
+      1.25
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.96,
+        "role": "Length",
+        "label": "15/16\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.12,
+        "role": "Width",
+        "label": "1/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.1,
+        "role": "Thickness",
+        "label": "1/8\""
+      }
+    ]
+  },
+  "Flywheel___Treadle_Cotter_Pin_1": {
+    "center": [
+      11.6,
+      14.08,
+      1.25
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.96,
+        "role": "Length",
+        "label": "15/16\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.12,
+        "role": "Width",
+        "label": "1/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.1,
+        "role": "Thickness",
+        "label": "1/8\""
+      }
+    ]
+  },
+  "Flywheel___Treadle_Flat_Washer_1_2_": {
+    "center": [
+      11.2812,
+      14.0,
+      1.25
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 1.06,
+        "role": "Length",
+        "label": "1-1/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 1.06,
+        "role": "Width",
+        "label": "1-1/16\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.0625,
+        "role": "Thickness",
+        "label": "1/16\""
+      }
+    ]
+  },
+  "Flywheel___Treadle_Flat_Washer_1_2__1": {
+    "center": [
+      11.4688,
+      14.0,
+      1.25
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 1.06,
+        "role": "Length",
+        "label": "1-1/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 1.06,
+        "role": "Width",
+        "label": "1-1/16\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.0625,
+        "role": "Thickness",
+        "label": "1/16\""
+      }
+    ]
+  },
+  "Flywheel___Treadle_Heavy_Washer_1_2_": {
+    "center": [
+      11.375,
+      14.0,
+      1.25
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 1.375,
+        "role": "Length",
+        "label": "1-3/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 1.375,
+        "role": "Width",
+        "label": "1-3/8\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.125,
+        "role": "Thickness",
+        "label": "1/8\""
+      }
+    ]
+  },
+  "Flywheel___Treadle_Treadle_Connector": {
+    "center": [
+      11.375,
+      7.8125,
+      1.25
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 11.0,
+        "role": "Length",
+        "label": "11\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.25,
+        "role": "Width",
+        "label": "1/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.25,
+        "role": "Thickness",
+        "label": "1/4\""
+      }
+    ]
+  },
+  "Flywheel___Treadle_Hex_Nut_1_4_": {
+    "center": [
+      11.375,
+      2.4725,
+      1.25
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.5,
+        "role": "Length",
+        "label": "1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.433,
+        "role": "Width",
+        "label": "7/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.22,
+        "role": "Thickness",
+        "label": "1/4\""
+      }
+    ]
+  },
+  "Flywheel___Treadle_Flat_Washer_1_4_": {
+    "center": [
+      11.375,
+      2.6138,
+      1.25
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.625,
+        "role": "Length",
+        "label": "5/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.625,
+        "role": "Width",
+        "label": "5/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.0625,
+        "role": "Thickness",
+        "label": "1/16\""
+      }
+    ]
+  },
+  "Flywheel___Treadle_Treadle": {
+    "center": [
+      22.6098,
+      1.7654,
+      7.7364
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.861733,
+          -0.099444,
+          0.497522
+        ],
+        "length": 28.0,
+        "role": "Length",
+        "label": "28\"",
+        "angle": {
+          "reference": "+X",
+          "total_deg": 30.5,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": -6.6
+            },
+            {
+              "label": "z",
+              "deg": 30.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.5,
+          0.0,
+          -0.866025
+        ],
+        "length": 1.5,
+        "role": "Width",
+        "label": "1-1/2\"",
+        "angle": {
+          "reference": "-Z",
+          "total_deg": 30.0,
+          "components": [
+            {
+              "label": "x",
+              "deg": 30.0
+            },
+            {
+              "label": "vertical",
+              "deg": 0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.086121,
+          0.995043,
+          0.049722
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\"",
+        "angle": {
+          "reference": "+Y (vertical)",
+          "total_deg": 5.7,
+          "components": [
+            {
+              "label": "x",
+              "deg": 4.9
+            },
+            {
+              "label": "z",
+              "deg": 2.9
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "Tailstock_Tailstock_Block": {
+    "center": [
+      27.875,
+      31.375,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 6.0,
+        "role": "Length",
+        "label": "6\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 2.75,
+        "role": "Width",
+        "label": "2-3/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 2.75,
+        "role": "Thickness",
+        "label": "2-3/4\""
+      }
+    ]
+  },
+  "Tailstock_Tailstock": {
+    "center": [
+      28.625,
+      30.75,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 18.0,
+        "role": "Length",
+        "label": "18\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 3.5,
+        "role": "Width",
+        "label": "3-1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 1.5,
+        "role": "Thickness",
+        "label": "1-1/2\""
+      }
+    ]
+  },
+  "Tailstock_Tailstock_Brace": {
+    "center": [
+      28.625,
+      35.75,
+      1.125
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 6.0,
+        "role": "Length",
+        "label": "6\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 2.5,
+        "role": "Width",
+        "label": "2-1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Tailstock_Tailstock_Brace_1": {
+    "center": [
+      28.625,
+      35.75,
+      -1.125
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 6.0,
+        "role": "Length",
+        "label": "6\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 2.5,
+        "role": "Width",
+        "label": "2-1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Tailstock_Tailstock_Wedge": {
+    "center": [
+      28.625,
+      25.375,
+      -0.25
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 7.0,
+        "role": "Length",
+        "label": "7\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 2.25,
+        "role": "Width",
+        "label": "2-1/4\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.5,
+        "role": "Thickness",
+        "label": "1/2\""
+      }
+    ]
+  },
+  "Tailstock_Wedge_Stop_Dowel": {
+    "center": [
+      28.625,
+      25.6964,
+      -2.75
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 1.25,
+        "role": "Length",
+        "label": "1-1/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.25,
+        "role": "Width",
+        "label": "1/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.25,
+        "role": "Thickness",
+        "label": "1/4\""
+      }
+    ]
+  },
+  "Tailstock_Cup_Center": {
+    "center": [
+      27.465,
+      38.0,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          -1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 2.82,
+        "role": "Length",
+        "label": "2-13/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 1.0,
+        "role": "Width",
+        "label": "1\""
+      },
+      {
+        "direction": [
+          0.0,
+          -1.0,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Thickness",
+        "label": "1\""
+      }
+    ]
+  },
+  "Tool_Rest_Tool_Rest_Base": {
+    "center": [
+      19.0,
+      30.375,
+      -1.5
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 12.0,
+        "role": "Length",
+        "label": "12\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 3.5,
+        "role": "Width",
+        "label": "3-1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Tool_Rest_Tool_Rest_Post": {
+    "center": [
+      19.0,
+      33.25,
+      3.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 5.0,
+        "role": "Length",
+        "label": "5\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 2.75,
+        "role": "Width",
+        "label": "2-3/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 2.75,
+        "role": "Thickness",
+        "label": "2-3/4\""
+      }
+    ]
+  },
+  "Tool_Rest_Tool_Rest_Top": {
+    "center": [
+      19.0,
+      37.5,
+      3.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 8.0,
+        "role": "Length",
+        "label": "8\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 3.5,
+        "role": "Width",
+        "label": "3-1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 1.5,
+        "role": "Thickness",
+        "label": "1-1/2\""
+      }
+    ]
+  },
+  "Tool_Rest_Tool_Rest_Spacer": {
+    "center": [
+      19.0,
+      28.625,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 3.0,
+        "role": "Length",
+        "label": "3\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 2.75,
+        "role": "Width",
+        "label": "2-3/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 2.75,
+        "role": "Thickness",
+        "label": "2-3/4\""
+      }
+    ]
+  },
+  "Tool_Rest_Clamp_Piece": {
+    "center": [
+      19.0,
+      26.125,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 6.0,
+        "role": "Length",
+        "label": "6\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 3.5,
+        "role": "Width",
+        "label": "3-1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Tool_Rest_Wing_Nut": {
+    "center": [
+      19.0,
+      25.1875,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 4.0,
+        "role": "Length",
+        "label": "4\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Width",
+        "label": "1\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Thickness",
+        "label": "1\""
+      }
+    ]
+  },
+  "Tool_Rest_Square_Nut_3_8_": {
+    "center": [
+      19.0,
+      24.8525,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.625,
+        "role": "Length",
+        "label": "5/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.625,
+        "role": "Width",
+        "label": "5/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.32,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Tool_Rest_Flat_Washer_3_8_": {
+    "center": [
+      19.0,
+      25.7188,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.875,
+        "role": "Length",
+        "label": "7/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.875,
+        "role": "Width",
+        "label": "7/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.0625,
+        "role": "Thickness",
+        "label": "1/16\""
+      }
+    ]
+  },
+  "Tool_Rest_Carriage_Bolt_3_8_x_6_": {
+    "center": [
+      19.0,
+      27.85,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          -1.0,
+          -0.0
+        ],
+        "length": 6.2,
+        "role": "Length",
+        "label": "6-3/16\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.88,
+        "role": "Width",
+        "label": "7/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.88,
+        "role": "Thickness",
+        "label": "7/8\""
+      }
+    ]
+  },
+  "Tool_Rest_Lag_Screw_5_16_x_3_": {
+    "center": [
+      19.0,
+      31.645,
+      3.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 3.21,
+        "role": "Length",
+        "label": "3-3/16\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.5774,
+        "role": "Width",
+        "label": "9/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.5,
+        "role": "Thickness",
+        "label": "1/2\""
+      }
+    ]
+  }
+}

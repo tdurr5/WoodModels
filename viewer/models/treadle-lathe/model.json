@@ -1,0 +1,155 @@
+{
+  "title": "Treadle Lathe",
+  "subtitle": "Steve Schmeck's foot-powered lathe (Make Your Own Treadle Lathe, 2005), built to its materials list and measured drawing (inches)",
+  "axisNames": {
+    "x": "along the bed",
+    "y": "vertical",
+    "z": "front-to-back"
+  },
+  "views": {
+    "iso": {
+      "label": "3D",
+      "dir": [
+        0.7,
+        0.5,
+        0.7
+      ]
+    },
+    "front": {
+      "label": "Front",
+      "dir": [
+        0,
+        0,
+        1
+      ]
+    },
+    "side": {
+      "label": "Side",
+      "dir": [
+        -1,
+        0,
+        0
+      ]
+    },
+    "top": {
+      "label": "Top",
+      "dir": [
+        0,
+        1,
+        0.0001
+      ]
+    }
+  },
+  "materials": {
+    "Cherry": {
+      "category": "Wood",
+      "color": "#9e4c2e",
+      "texture": {
+        "base": "#c9975c",
+        "streak": "#a06f3b",
+        "ring": "#8a5a2c",
+        "tile": 5
+      },
+      "species": "cherry",
+      "label": "Cherry (flywheel rims)"
+    },
+    "Leather": {
+      "category": "Leather",
+      "color": "#734726",
+      "label": "Leather"
+    },
+    "Maple": {
+      "category": "Wood",
+      "color": "#cc9e66",
+      "texture": {
+        "base": "#c9975c",
+        "streak": "#a06f3b",
+        "ring": "#8a5a2c",
+        "tile": 5
+      },
+      "species": "maple",
+      "label": "Maple (frame, flywheel centre, dowels)"
+    },
+    "Steel": {
+      "category": "Hardware",
+      "color": "#9ea3ab",
+      "label": "Steel"
+    }
+  },
+  "categoryOrder": [
+    "Wood",
+    "Hardware",
+    "Leather",
+    "Other"
+  ],
+  "displayNames": {},
+  "notes": {
+    "Headstock Upright": "Lay all three 3x3s side by side with the base across their bottom ends and mark 30\" up from the base's bottom (the ways' top), then 8\" above that for the spindle's centre; carry the lines round with a square. Bearing pockets 1-1/8 x 5/16 deep: the spindle's on the tail-side face of each, the flywheel's on the wheel side, 12-1/2\" above the base. 3/4\" clearance holes through the centre upright, 1/4\" for the tensioner's pivot dowel. The 3-3/4\" gap between them is chosen to fit the wheel and pulley; the plan doesn't give it.",
+    "Tail Upright": "27-1/2\" per the materials list, so its top stops 1\" below the ways' top.",
+    "Way": "The plan doesn't say how the ways are fixed to the uprights: bolts or lag screws through each. They sandwich the uprights, 2-3/4\" apart.",
+    "Base": "Half-lapped with the stabilizer where they cross under the headstock (the plan doesn't say how they join).",
+    "Stabilizer": "Half-lapped with the base under the headstock.",
+    "Headstock End Brace": "Tapers from 9-1/4\" on the stabilizer to the upright's 2-3/4\" at the top, as the end view shows.",
+    "Spindle Shaft": "1/2\" cold-rolled rod. The book would use 5/8\" if building again: more flywheel effect, and 5/8\" drive centers and chucks are easier to find.",
+    "Ball Bearing": "1/2\" ID sealed bearing (R8: 1-1/8 OD x 5/16). Bore the pocket as deep as the bearing is thick; two pan-head screws 180 deg apart, just outside the pocket, hold it in.",
+    "Spindle Pulley": "3\" adjustable V pulley, or one to fit your belt. With the 24\" flywheel that's 8:1.",
+    "Leather Belt": "Two Singer treadle sewing-machine belts (1/4\" round leather) cut and joined to fit. Sew the joint with artificial sinew: the Singer staple breaks and runs rough over the pulley.",
+    "Tensioner Frame": "U-shaped, pivoting on a 1/4\" dowel; a light coil spring (not modelled) holds the idler against the belt, just enough to stop it slipping. The book suggests adjustable weights might be neater.",
+    "Idler Pulley": "Lathe-turned; runs on two small ball bearings (or a bronze bushing) on its axle.",
+    "Pivot Dowel": "Blind in the left upright, through the centre one; the 1/2\" dowel handle on its end makes it easy to pull out.",
+    "Drive Center": "In the book's photos but not its parts list: a spur center for a 1/2\" shaft. A 1/2\" geared drill chuck swaps in for sanding.",
+    "Retaining Washer": "Keeps the spindle from sliding through the bearings.",
+    "Wheel Board, Long": "Cut an 8' 1x8 into two 26\" and two 22\" pieces; clamp them side by side, long ones in the middle, and draw an X to find the centre (on their joint). Draw a 10\" guide circle for the rims, drill a 1/16\" hole through the centre to carry it to the other face. Finished 24\" round, with a V groove routed round the edge once the wheel is mounted.",
+    "Wheel Board, Short": "The outer two of the four 1x8 boards; see Wheel Board, Long.",
+    "Rim Section": "Template: arcs of 12\" and 10\" radius, ends square to the centre, small arcs where the inner arc meets each end. Cut 3/8\" oversize on the outside; four come from each of two cherry 1x6 x 6'. Nail (or brass flat-head screw) four to each face, joints crossing the boards' joints as near square as you can and staggered face to face. Cut round to 24\" on a bandsaw circle jig (pivot 12\" from the blade).",
+    "Floor Flange": "3/8\" stair-rail floor flanges, bored out to the 1/2\" shaft and screwed to each face of the wheel. Cross-drill the right-hand one and the shaft for a cotter pin (not modelled).",
+    "Crank Shaft": "The book's is the crank from an old Singer treadle with 1/2\" rod brazed on. Or bend one from 11\" of 1/2\" rod with a 1-1/4\" throw; on the crank pin: cotter pin, flat washer, heavy washer, flat washer, cotter pin.",
+    "Heavy Washer 1/2\"": "The treadle connector is brazed or welded to its edge.",
+    "Treadle Connector": "1/4\" rod (the book's came off the Singer) through a loose hole in the treadle, nut and washer underneath. Keep it all loose so the treadle can swing to a comfortable spot.",
+    "Treadle": "Its far end rests on the floor; the near end hangs on the connector.",
+    "Tailstock": "18\" 2x4, top rounded. 1\" hole for the cup center at the spindle's height (slide the tailstock up to the shaft to mark it); or a 9/16\" hole filed to a #2 Morse taper for a live center. A 1/2\" wide mortise through it just under the ways takes the wedge, its bottom sloped to match.",
+    "Tailstock Block": "6\" of 3x3 across the ways, rabbeted for the upright, doweled and glued. Modelled with the rabbet on the tail side.",
+    "Tailstock Brace": "1x3 x 6 each side of the upright above the block: the book's suggested improvement, for rigidity.",
+    "Tailstock Wedge": "7 x 2-1/4 x 1/2 hardwood tapering to 1-1/2\". Slide the tailstock up to the work, a little further, and tap the wedge in: how hard you hit it sets the grip.",
+    "Wedge Stop Dowel": "An inch from the narrow end, so the wedge can't fall out while you adjust.",
+    "Cup Center": "A fixed cup center (the book's came off a Shopsmith) in a 1\" hole. Or a 1/2 x 8 lag screw bent 90 deg for a handle, burned into a 7/16\" pilot and ground to a blunt cone; wax it.",
+    "Tool Rest Base": "1x4 x 12 across the ways. Slot: drill a hole 3\" in from each end and saw between them, as wide as the carriage bolt's square neck. The lag screw's head is recessed in its underside.",
+    "Tool Rest Post": "Turns on the lag screw: along the ways for spindle work, across them for faceplate work. No height adjustment.",
+    "Tool Rest Top": "2x4 x 8 (could be longer: the first was 14\" for turning flute tubes). Tops are interchangeable.",
+    "Tool Rest Spacer": "Rides between the ways.",
+    "Clamp Piece": "Under the ways; the carriage bolt pulls it up against them.",
+    "Wing Nut": "1 x 1 x 4 hardwood with a mortise chiselled in its bottom for the square nut, shaped for finger room.",
+    "Lag Screw 5/16 x 3\"": "The post's pivot."
+  },
+  "mechanisms": [
+    {
+      "id": "tool-rest",
+      "label": "Tool rest",
+      "kind": "hinge",
+      "parts": [
+        "Tool_Rest_Tool_Rest_Post",
+        "Tool_Rest_Tool_Rest_Top",
+        "Tool_Rest_Lag_Screw_5_16_x_3_"
+      ],
+      "pivot": [
+        19.0,
+        30.0,
+        3.0
+      ],
+      "axis": [
+        0,
+        1,
+        0
+      ],
+      "range": [
+        0,
+        90
+      ],
+      "open": 90,
+      "start": 0,
+      "openLabel": "Swing across",
+      "closeLabel": "Swing along",
+      "closedText": "along the ways"
+    }
+  ]
+}
