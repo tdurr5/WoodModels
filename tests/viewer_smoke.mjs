@@ -14,6 +14,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { chromium, devices } from 'playwright';
+import { parseSkp } from 'openskp';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const VIEWER = path.join(ROOT, 'viewer');
@@ -431,6 +432,14 @@ try {
   check(csv.split('\r\n')[0].startsWith('Ref,Category,Group,Part,Qty,Thickness,Width,Length'), 'CSV export has a header row');
   check(/,Wood,Legs,Leg Rear,2,/.test(csv) && csv.includes('Wood,Legs,Leg Rear,2,"1-5/8""","3-7/16""","20-7/8"""'), 'CSV export contains the rear legs (inch marks quoted)');
   fs.writeFileSync(path.join(OUT, 'cut-list.csv'), csv);
+
+  // .skp, written in the browser: read it back
+  await page.evaluate(() => { document.querySelector('button[data-fmt="skp"]').closest('details').open = true; });
+  const [skpDl] = await Promise.all([page.waitForEvent('download', { timeout: 30000 }), page.click('button[data-fmt="skp"]')]);
+  const skp = parseSkp(fs.readFileSync(await skpDl.path()));
+  const defNames = [...skp.definitions.values()].map((d) => d.name);
+  check(skpDl.suggestedFilename().endsWith('.skp') && defNames.includes('Bench') && skp.root.instances.length > 0,
+    `.skp export opens: ${skp.definitions.size} definitions, ${skp.root.instances.length} assemblies`);
 
   await page.locator('#explodeRange').fill('1');
   await page.selectOption('#sectionAxis', 'x');

@@ -32,7 +32,7 @@ import { cutFeatures } from './features.js';
 import { renderReview, reviewPrintHtml } from './designreview.js';
 import { initDesigner } from './designer.js';
 import { glueUpStrips } from './nesting.js';
-import { FORMATS, SKP_CONVERTER } from './export3d.js';
+import { FORMATS } from './export3d.js';
 import { createStage, smoothNormals, orientFaces, materialKind, surfaceMaterial, featureEdges, edgeMaterial, threadPitch, boltThreadLength, addThreads } from './look.js';
 
 const $ = (id) => document.getElementById(id);
@@ -542,25 +542,36 @@ function exportParts() {
       const Z = new THREE.Vector3().crossVectors(X, Y).normalize();
       frame = { origin: d.center, axes: [X.toArray(), new THREE.Vector3().crossVectors(Z, X).toArray(), Z.toArray()] };
     }
-    return [{ name: r.name || r.label, group: group(r.top_group), color: config.materials?.[r.material]?.color, positions: out, frame }];
+    return [{ name: r.name || r.label, group: group(r.top_group), material: config.materials?.[r.material]?.label || r.material,
+      color: config.materials?.[r.material]?.color, positions: out, frame }];
   });
 }
-function export3d(fmt) {
-  const f = FORMATS[fmt === 'skp' ? 'dae' : fmt];
-  if (!f || !model) return;
+async function export3d(fmt) {
+  if (!model || (fmt !== 'skp' && !FORMATS[fmt])) return;
   const title = config.title || 'Model';
-  const file = new File([f.make(exportParts(), title)], `${title.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '')}.${fmt === 'skp' ? 'dae' : fmt}`, { type: f.type });
+  const base = title.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'model';
+  let file;
+  if (fmt === 'skp') {
+    // written here in the browser (openskp, vendored, loaded only when asked for)
+    showToast('Writing the SketchUp file...', { ms: 3000 });
+    try {
+      const [{ toSKP }, { create }] = await Promise.all([import('./skp.js'), import('openskp')]);
+      file = new File([toSKP(exportParts(), title, create)], `${base}.skp`, { type: 'application/vnd.sketchup.skp' });
+    } catch (err) {
+      console.error(err);
+      showToast(`Couldn't write the .skp: ${err.message}. The .dae opens in SketchUp too (File > Import).`, { ms: 9000 });
+      return;
+    }
+  } else {
+    const f = FORMATS[fmt];
+    file = new File([f.make(exportParts(), title)], `${base}.${fmt}`, { type: f.type });
+  }
   const a = document.createElement('a');
   a.href = URL.createObjectURL(file);
   a.download = file.name;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  if (fmt === 'skp') {
-    window.open(SKP_CONVERTER, '_blank', 'noopener');
-    showToast(`Downloaded ${file.name} - drop it on the converter page that just opened to get your .skp.`, { ms: 9000 });
-  } else {
-    showToast(`Downloaded ${file.name}.`, { ms: 4000 });
-  }
+  showToast(`Downloaded ${file.name}.`, { ms: 4000 });
 }
 
 // ---------- holes the model forgot (holes.js) ----------

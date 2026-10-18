@@ -200,9 +200,9 @@ export function renderCutList(container, rows, config, h) {
           <button data-fmt="obj" title="OBJ in millimetres: one named object per part">.obj</button>
         </div>
         <div class="cl-row">
-          <button data-fmt="skp" title="Downloads the .dae and opens a free online converter (convert3d.org): drop the .dae there to get a .skp">Make a .skp (SketchUp) &#8599;</button>
+          <button data-fmt="skp" title="A SketchUp file, written here in the browser: each part a named component on its own axes, each assembly a group">.skp (SketchUp)</button>
         </div>
-        <div class="muted small">Parts set aside or deleted are left out. A .skp is SketchUp's own closed format, so it is made from the .dae by convert3d.org - your file goes to their site when you drop it there.</div>
+        <div class="muted small">Parts set aside or deleted are left out. The .skp is written on this computer - nothing is uploaded.</div>
       </details>
       <div class="cl-row">
         <button id="clDiagram" title="Lay the parts out on boards: what lumber to buy and how to cut it (C)">Shopping list &amp; cutting diagram</button>

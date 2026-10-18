@@ -1,5 +1,5 @@
 // The model on screen as a 3D file to take into other programs: COLLADA
-// (.dae - SketchUp, and the step to a .skp), binary glTF (.glb), STL and OBJ.
+// (.dae - SketchUp, Blender), binary glTF (.glb), STL and OBJ. (.skp is skp.js.)
 // Pure: no three.js, no DOM. Each part comes in as
 //   { name, group, color: '#rrggbb', positions: Float32Array, frame? }
 // with positions a flat triangle list in the viewer's own space (inches, Y up),
@@ -173,7 +173,3 @@ export const FORMATS = {
   stl: { label: '.stl', type: 'model/stl', make: toSTL },
   obj: { label: '.obj', type: 'text/plain', make: toOBJ },
 };
-
-// a converter that writes SketchUp files from .dae (they're a closed format
-// only SketchUp's own SDK can write)
-export const SKP_CONVERTER = 'https://convert3d.org/dae-to-skp';
