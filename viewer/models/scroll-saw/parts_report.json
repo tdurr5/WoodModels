@@ -1,0 +1,1554 @@
+[
+  {
+    "label": "Bearing Block",
+    "top_group": "Drive Head",
+    "dims": [
+      3.75,
+      2.5,
+      1.0
+    ],
+    "count": 1,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Drive Head/Bearing Block"
+    ],
+    "obj_names": [
+      "Drive_Head_Bearing_Block"
+    ],
+    "material": "Maple",
+    "dims_str": "3-3/4\" x 2-1/2\" x 1\""
+  },
+  {
+    "label": "Blade Chuck",
+    "top_group": "Drive Head",
+    "dims": [
+      0.8,
+      0.693,
+      0.625
+    ],
+    "count": 2,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Drive Head/Blade Chuck",
+      "Tension Unit/Blade Chuck"
+    ],
+    "obj_names": [
+      "Drive_Head_Blade_Chuck",
+      "Tension_Unit_Blade_Chuck"
+    ],
+    "material": "Steel",
+    "dims_str": "13/16\" x 11/16\" x 5/8\""
+  },
+  {
+    "label": "Bushing Bracket",
+    "top_group": "Drive Head",
+    "dims": [
+      3.0,
+      1.095,
+      1.0
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Drive Head/Bushing Bracket"
+    ],
+    "obj_names": [
+      "Drive_Head_Bushing_Bracket"
+    ],
+    "material": "Steel",
+    "dims_str": "3\" x 1-1/8\" x 1\""
+  },
+  {
+    "label": "Can Lid",
+    "top_group": "Drive Head",
+    "dims": [
+      4.25,
+      4.25,
+      0.06
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Drive Head/Can Lid"
+    ],
+    "obj_names": [
+      "Drive_Head_Can_Lid"
+    ],
+    "material": "Steel",
+    "dims_str": "4-1/4\" x 4-1/4\" x 1/16\""
+  },
+  {
+    "label": "Carriage Bolt 1/4 x 3-1/4\"",
+    "top_group": "Drive Head",
+    "dims": [
+      3.4,
+      0.55,
+      0.55
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Drive Head/Carriage Bolt 1/4 x 3-1/4\""
+    ],
+    "obj_names": [
+      "Drive_Head_Carriage_Bolt_1_4_x_3_1_4_"
+    ],
+    "material": "Steel",
+    "dims_str": "3-3/8\" x 9/16\" x 9/16\""
+  },
+  {
+    "label": "Channel",
+    "top_group": "Drive Head",
+    "dims": [
+      3.0,
+      0.75,
+      0.35
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Drive Head/Channel"
+    ],
+    "obj_names": [
+      "Drive_Head_Channel"
+    ],
+    "material": "Steel",
+    "dims_str": "3\" x 3/4\" x 3/8\""
+  },
+  {
+    "label": "Cleat",
+    "top_group": "Drive Head",
+    "dims": [
+      4.5,
+      0.75,
+      0.75
+    ],
+    "count": 2,
+    "materials": [
+      "Fir"
+    ],
+    "paths": [
+      "Drive Head/Cleat",
+      "Drive Head/Cleat"
+    ],
+    "obj_names": [
+      "Drive_Head_Cleat",
+      "Drive_Head_Cleat_1"
+    ],
+    "material": "Fir",
+    "dims_str": "4-1/2\" x 3/4\" x 3/4\""
+  },
+  {
+    "label": "Collar",
+    "top_group": "Drive Head",
+    "dims": [
+      1.0,
+      1.0,
+      0.3
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Drive Head/Collar"
+    ],
+    "obj_names": [
+      "Drive_Head_Collar"
+    ],
+    "material": "Steel",
+    "dims_str": "1\" x 1\" x 5/16\""
+  },
+  {
+    "label": "Counterweight",
+    "top_group": "Drive Head",
+    "dims": [
+      0.44,
+      0.44,
+      0.312
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Drive Head/Counterweight"
+    ],
+    "obj_names": [
+      "Drive_Head_Counterweight"
+    ],
+    "material": "Steel",
+    "dims_str": "7/16\" x 7/16\" x 5/16\""
+  },
+  {
+    "label": "Crank Disk",
+    "top_group": "Drive Head",
+    "dims": [
+      1.25,
+      1.229,
+      0.375
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Drive Head/Crank Disk"
+    ],
+    "obj_names": [
+      "Drive_Head_Crank_Disk"
+    ],
+    "material": "Steel",
+    "dims_str": "1-1/4\" x 1-1/4\" x 3/8\""
+  },
+  {
+    "label": "Crank Pin",
+    "top_group": "Drive Head",
+    "dims": [
+      0.688,
+      0.375,
+      0.375
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Drive Head/Crank Pin"
+    ],
+    "obj_names": [
+      "Drive_Head_Crank_Pin"
+    ],
+    "material": "Steel",
+    "dims_str": "11/16\" x 3/8\" x 3/8\""
+  },
+  {
+    "label": "Crank Pulley 4\"",
+    "top_group": "Drive Head",
+    "dims": [
+      4.0,
+      4.0,
+      0.8
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Drive Head/Crank Pulley 4\""
+    ],
+    "obj_names": [
+      "Drive_Head_Crank_Pulley_4_"
+    ],
+    "material": "Steel",
+    "dims_str": "4\" x 4\" x 13/16\""
+  },
+  {
+    "label": "Crankshaft",
+    "top_group": "Drive Head",
+    "dims": [
+      3.7,
+      0.5,
+      0.5
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Drive Head/Crankshaft"
+    ],
+    "obj_names": [
+      "Drive_Head_Crankshaft"
+    ],
+    "material": "Steel",
+    "dims_str": "3-11/16\" x 1/2\" x 1/2\""
+  },
+  {
+    "label": "Drive Base",
+    "top_group": "Drive Head",
+    "dims": [
+      6.25,
+      4.5,
+      0.75
+    ],
+    "count": 1,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Drive Head/Drive Base"
+    ],
+    "obj_names": [
+      "Drive_Head_Drive_Base"
+    ],
+    "material": "Maple",
+    "dims_str": "6-1/4\" x 4-1/2\" x 3/4\""
+  },
+  {
+    "label": "Drive Shaft",
+    "top_group": "Drive Head",
+    "dims": [
+      6.5,
+      0.5,
+      0.5
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Drive Head/Drive Shaft"
+    ],
+    "obj_names": [
+      "Drive_Head_Drive_Shaft"
+    ],
+    "material": "Steel",
+    "dims_str": "6-1/2\" x 1/2\" x 1/2\""
+  },
+  {
+    "label": "Felt Washer",
+    "top_group": "Drive Head",
+    "dims": [
+      1.2,
+      1.2,
+      0.125
+    ],
+    "count": 1,
+    "materials": [
+      "Felt"
+    ],
+    "paths": [
+      "Drive Head/Felt Washer"
+    ],
+    "obj_names": [
+      "Drive_Head_Felt_Washer"
+    ],
+    "material": "Felt",
+    "dims_str": "1-3/16\" x 1-3/16\" x 1/8\""
+  },
+  {
+    "label": "Felt Washer",
+    "top_group": "Drive Head",
+    "dims": [
+      1.0,
+      1.0,
+      0.125
+    ],
+    "count": 2,
+    "materials": [
+      "Felt"
+    ],
+    "paths": [
+      "Drive Head/Felt Washer",
+      "Tension Unit/Felt Washer"
+    ],
+    "obj_names": [
+      "Drive_Head_Felt_Washer_1",
+      "Tension_Unit_Felt_Washer"
+    ],
+    "material": "Felt",
+    "dims_str": "1\" x 1\" x 1/8\""
+  },
+  {
+    "label": "Frame Block",
+    "top_group": "Drive Head",
+    "dims": [
+      4.5,
+      1.5,
+      1.125
+    ],
+    "count": 1,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Drive Head/Frame Block"
+    ],
+    "obj_names": [
+      "Drive_Head_Frame_Block"
+    ],
+    "material": "Maple",
+    "dims_str": "4-1/2\" x 1-1/2\" x 1-1/8\""
+  },
+  {
+    "label": "Paint Can (1 qt)",
+    "top_group": "Drive Head",
+    "dims": [
+      4.94,
+      4.25,
+      4.25
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Drive Head/Paint Can (1 qt)"
+    ],
+    "obj_names": [
+      "Drive_Head_Paint_Can__1_qt_"
+    ],
+    "material": "Steel",
+    "dims_str": "4-15/16\" x 4-1/4\" x 4-1/4\""
+  },
+  {
+    "label": "Round-Head Screw",
+    "top_group": "Drive Head",
+    "dims": [
+      1.0,
+      0.4,
+      0.4
+    ],
+    "count": 2,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Drive Head/Round-Head Screw",
+      "Drive Head/Round-Head Screw"
+    ],
+    "obj_names": [
+      "Drive_Head_Round_Head_Screw",
+      "Drive_Head_Round_Head_Screw_1"
+    ],
+    "material": "Steel",
+    "dims_str": "1\" x 3/8\" x 3/8\""
+  },
+  {
+    "label": "Setscrew",
+    "top_group": "Drive Head",
+    "dims": [
+      0.535,
+      0.19,
+      0.19
+    ],
+    "count": 2,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Drive Head/Setscrew",
+      "Tension Unit/Setscrew"
+    ],
+    "obj_names": [
+      "Drive_Head_Setscrew",
+      "Tension_Unit_Setscrew"
+    ],
+    "material": "Steel",
+    "dims_str": "9/16\" x 3/16\" x 3/16\""
+  },
+  {
+    "label": "Slide Bar",
+    "top_group": "Drive Head",
+    "dims": [
+      1.06,
+      0.625,
+      0.287
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Drive Head/Slide Bar"
+    ],
+    "obj_names": [
+      "Drive_Head_Slide_Bar"
+    ],
+    "material": "Steel",
+    "dims_str": "1-1/16\" x 5/8\" x 5/16\""
+  },
+  {
+    "label": "Spindle-Body Bushing",
+    "top_group": "Drive Head",
+    "dims": [
+      1.125,
+      0.688,
+      0.688
+    ],
+    "count": 1,
+    "materials": [
+      "Bronze"
+    ],
+    "paths": [
+      "Drive Head/Spindle-Body Bushing"
+    ],
+    "obj_names": [
+      "Drive_Head_Spindle_Body_Bushing"
+    ],
+    "material": "Bronze",
+    "dims_str": "1-1/8\" x 11/16\" x 11/16\""
+  },
+  {
+    "label": "Spindle-Body Bushing",
+    "top_group": "Drive Head",
+    "dims": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "count": 2,
+    "materials": [
+      "Bronze"
+    ],
+    "paths": [
+      "Drive Head/Spindle-Body Bushing",
+      "Drive Head/Spindle-Body Bushing"
+    ],
+    "obj_names": [
+      "Drive_Head_Spindle_Body_Bushing_1",
+      "Drive_Head_Spindle_Body_Bushing_2"
+    ],
+    "material": "Bronze",
+    "dims_str": "1\" x 1\" x 1\""
+  },
+  {
+    "label": "Arm Core",
+    "top_group": "Frame",
+    "dims": [
+      16.234,
+      3.5,
+      1.5
+    ],
+    "count": 1,
+    "materials": [
+      "Fir"
+    ],
+    "paths": [
+      "Frame/Arm Core"
+    ],
+    "obj_names": [
+      "Frame_Arm_Core"
+    ],
+    "material": "Fir",
+    "dims_str": "16-1/4\" x 3-1/2\" x 1-1/2\""
+  },
+  {
+    "label": "Arm Filler Block",
+    "top_group": "Frame",
+    "dims": [
+      4.0,
+      1.5,
+      1.35
+    ],
+    "count": 1,
+    "materials": [
+      "Fir"
+    ],
+    "paths": [
+      "Frame/Arm Filler Block"
+    ],
+    "obj_names": [
+      "Frame_Arm_Filler_Block"
+    ],
+    "material": "Fir",
+    "dims_str": "4\" x 1-1/2\" x 1-3/8\""
+  },
+  {
+    "label": "Front Leg",
+    "top_group": "Frame",
+    "dims": [
+      32.392,
+      3.701,
+      1.5
+    ],
+    "count": 1,
+    "materials": [
+      "Fir"
+    ],
+    "paths": [
+      "Frame/Front Leg"
+    ],
+    "obj_names": [
+      "Frame_Front_Leg"
+    ],
+    "material": "Fir",
+    "dims_str": "32-3/8\" x 3-11/16\" x 1-1/2\""
+  },
+  {
+    "label": "Rear Post",
+    "top_group": "Frame",
+    "dims": [
+      48.543,
+      4.157,
+      1.648
+    ],
+    "count": 1,
+    "materials": [
+      "Fir"
+    ],
+    "paths": [
+      "Frame/Rear Post"
+    ],
+    "obj_names": [
+      "Frame_Rear_Post"
+    ],
+    "material": "Fir",
+    "dims_str": "48-9/16\" x 4-3/16\" x 1-5/8\""
+  },
+  {
+    "label": "Side",
+    "top_group": "Frame",
+    "dims": [
+      41.0,
+      36.0,
+      0.75
+    ],
+    "count": 2,
+    "materials": [
+      "Plywood"
+    ],
+    "paths": [
+      "Frame/Side",
+      "Frame/Side"
+    ],
+    "obj_names": [
+      "Frame_Side",
+      "Frame_Side_1"
+    ],
+    "material": "Plywood",
+    "dims_str": "41\" x 36\" x 3/4\""
+  },
+  {
+    "label": "Bicycle Pedal",
+    "top_group": "Pedal Drive",
+    "dims": [
+      3.4,
+      2.75,
+      1.0
+    ],
+    "count": 2,
+    "materials": [
+      "Rubber"
+    ],
+    "paths": [
+      "Pedal Drive/Bicycle Pedal",
+      "Pedal Drive/Bicycle Pedal"
+    ],
+    "obj_names": [
+      "Pedal_Drive_Bicycle_Pedal",
+      "Pedal_Drive_Bicycle_Pedal_1"
+    ],
+    "material": "Rubber",
+    "dims_str": "3-3/8\" x 2-3/4\" x 1\""
+  },
+  {
+    "label": "Drive Pulley 18\"",
+    "top_group": "Pedal Drive",
+    "dims": [
+      18.0,
+      18.0,
+      0.75
+    ],
+    "count": 1,
+    "materials": [
+      "Plywood"
+    ],
+    "paths": [
+      "Pedal Drive/Drive Pulley 18\""
+    ],
+    "obj_names": [
+      "Pedal_Drive_Drive_Pulley_18_"
+    ],
+    "material": "Plywood",
+    "dims_str": "18\" x 18\" x 3/4\""
+  },
+  {
+    "label": "Floor Flange 1/2\"",
+    "top_group": "Pedal Drive",
+    "dims": [
+      3.0,
+      3.0,
+      0.8
+    ],
+    "count": 2,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Pedal Drive/Floor Flange 1/2\"",
+      "Pedal Drive/Floor Flange 1/2\""
+    ],
+    "obj_names": [
+      "Pedal_Drive_Floor_Flange_1_2_",
+      "Pedal_Drive_Floor_Flange_1_2__1"
+    ],
+    "material": "Steel",
+    "dims_str": "3\" x 3\" x 13/16\""
+  },
+  {
+    "label": "Pedal Spindle",
+    "top_group": "Pedal Drive",
+    "dims": [
+      4.0,
+      0.5,
+      0.5
+    ],
+    "count": 2,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Pedal Drive/Pedal Spindle",
+      "Pedal Drive/Pedal Spindle"
+    ],
+    "obj_names": [
+      "Pedal_Drive_Pedal_Spindle",
+      "Pedal_Drive_Pedal_Spindle_1"
+    ],
+    "material": "Steel",
+    "dims_str": "4\" x 1/2\" x 1/2\""
+  },
+  {
+    "label": "Pipe Crank",
+    "top_group": "Pedal Drive",
+    "dims": [
+      4.42,
+      1.046,
+      0.84
+    ],
+    "count": 2,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Pedal Drive/Pipe Crank",
+      "Pedal Drive/Pipe Crank"
+    ],
+    "obj_names": [
+      "Pedal_Drive_Pipe_Crank",
+      "Pedal_Drive_Pipe_Crank_1"
+    ],
+    "material": "Steel",
+    "dims_str": "4-7/16\" x 1-1/16\" x 13/16\""
+  },
+  {
+    "label": "Pipe Shaft 1/2\"",
+    "top_group": "Pedal Drive",
+    "dims": [
+      7.4,
+      0.84,
+      0.84
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Pedal Drive/Pipe Shaft 1/2\""
+    ],
+    "obj_names": [
+      "Pedal_Drive_Pipe_Shaft_1_2_"
+    ],
+    "material": "Steel",
+    "dims_str": "7-3/8\" x 13/16\" x 13/16\""
+  },
+  {
+    "label": "Shaft Bushing",
+    "top_group": "Pedal Drive",
+    "dims": [
+      1.25,
+      1.25,
+      0.75
+    ],
+    "count": 1,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Pedal Drive/Shaft Bushing"
+    ],
+    "obj_names": [
+      "Pedal_Drive_Shaft_Bushing"
+    ],
+    "material": "Maple",
+    "dims_str": "1-1/4\" x 1-1/4\" x 3/4\""
+  },
+  {
+    "label": "Shaft Bushing",
+    "top_group": "Pedal Drive",
+    "dims": [
+      1.5,
+      1.25,
+      1.25
+    ],
+    "count": 1,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Pedal Drive/Shaft Bushing"
+    ],
+    "obj_names": [
+      "Pedal_Drive_Shaft_Bushing_1"
+    ],
+    "material": "Maple",
+    "dims_str": "1-1/2\" x 1-1/4\" x 1-1/4\""
+  },
+  {
+    "label": "V-Belt",
+    "top_group": "Pedal Drive",
+    "dims": [
+      25.804,
+      18.075,
+      0.4
+    ],
+    "count": 1,
+    "materials": [
+      "Rubber"
+    ],
+    "paths": [
+      "Pedal Drive/V-Belt"
+    ],
+    "obj_names": [
+      "Pedal_Drive_V_Belt"
+    ],
+    "material": "Rubber",
+    "dims_str": "25-13/16\" x 18-1/16\" x 3/8\""
+  },
+  {
+    "label": "Crossbar",
+    "top_group": "Stand",
+    "dims": [
+      18.5,
+      3.5,
+      1.5
+    ],
+    "count": 1,
+    "materials": [
+      "Fir"
+    ],
+    "paths": [
+      "Stand/Crossbar"
+    ],
+    "obj_names": [
+      "Stand_Crossbar"
+    ],
+    "material": "Fir",
+    "dims_str": "18-1/2\" x 3-1/2\" x 1-1/2\""
+  },
+  {
+    "label": "Machine Bolt 3/8 x 4\"",
+    "top_group": "Stand",
+    "dims": [
+      4.23,
+      0.64,
+      0.554
+    ],
+    "count": 3,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Stand/Machine Bolt 3/8 x 4\"",
+      "Stand/Machine Bolt 3/8 x 4\"",
+      "Stand/Machine Bolt 3/8 x 4\""
+    ],
+    "obj_names": [
+      "Stand_Machine_Bolt_3_8_x_4_",
+      "Stand_Machine_Bolt_3_8_x_4__1",
+      "Stand_Machine_Bolt_3_8_x_4__2"
+    ],
+    "material": "Steel",
+    "dims_str": "4-1/4\" x 5/8\" x 9/16\""
+  },
+  {
+    "label": "Rear Leg",
+    "top_group": "Stand",
+    "dims": [
+      33.327,
+      3.588,
+      1.67
+    ],
+    "count": 1,
+    "materials": [
+      "Fir"
+    ],
+    "paths": [
+      "Stand/Rear Leg"
+    ],
+    "obj_names": [
+      "Stand_Rear_Leg"
+    ],
+    "material": "Fir",
+    "dims_str": "33-5/16\" x 3-9/16\" x 1-11/16\""
+  },
+  {
+    "label": "Rear Leg",
+    "top_group": "Stand",
+    "dims": [
+      33.327,
+      3.533,
+      1.56
+    ],
+    "count": 1,
+    "materials": [
+      "Fir"
+    ],
+    "paths": [
+      "Stand/Rear Leg"
+    ],
+    "obj_names": [
+      "Stand_Rear_Leg_1"
+    ],
+    "material": "Fir",
+    "dims_str": "33-5/16\" x 3-9/16\" x 1-9/16\""
+  },
+  {
+    "label": "Seat",
+    "top_group": "Stand",
+    "dims": [
+      14.0,
+      11.0,
+      0.75
+    ],
+    "count": 1,
+    "materials": [
+      "Pine"
+    ],
+    "paths": [
+      "Stand/Seat"
+    ],
+    "obj_names": [
+      "Stand_Seat"
+    ],
+    "material": "Pine",
+    "dims_str": "14\" x 11\" x 3/4\""
+  },
+  {
+    "label": "Seat Member",
+    "top_group": "Stand",
+    "dims": [
+      58.005,
+      4.011,
+      2.087
+    ],
+    "count": 1,
+    "materials": [
+      "Fir"
+    ],
+    "paths": [
+      "Stand/Seat Member"
+    ],
+    "obj_names": [
+      "Stand_Seat_Member"
+    ],
+    "material": "Fir",
+    "dims_str": "58\" x 4\" x 2-1/16\""
+  },
+  {
+    "label": "Flat Washer 1/4\"",
+    "top_group": "Table",
+    "dims": [
+      0.625,
+      0.625,
+      0.06
+    ],
+    "count": 2,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Table/Flat Washer 1/4\"",
+      "Table/Flat Washer 1/4\""
+    ],
+    "obj_names": [
+      "Table_Flat_Washer_1_4_",
+      "Table_Flat_Washer_1_4__1"
+    ],
+    "material": "Steel",
+    "dims_str": "5/8\" x 5/8\" x 1/16\""
+  },
+  {
+    "label": "Table",
+    "top_group": "Table",
+    "dims": [
+      12.0,
+      12.0,
+      0.75
+    ],
+    "count": 1,
+    "materials": [
+      "Plywood"
+    ],
+    "paths": [
+      "Table/Table"
+    ],
+    "obj_names": [
+      "Table_Table"
+    ],
+    "material": "Plywood",
+    "dims_str": "12\" x 12\" x 3/4\""
+  },
+  {
+    "label": "Table Cleat",
+    "top_group": "Table",
+    "dims": [
+      5.0,
+      0.75,
+      0.75
+    ],
+    "count": 2,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Table/Table Cleat",
+      "Table/Table Cleat"
+    ],
+    "obj_names": [
+      "Table_Table_Cleat",
+      "Table_Table_Cleat_1"
+    ],
+    "material": "Maple",
+    "dims_str": "5\" x 3/4\" x 3/4\""
+  },
+  {
+    "label": "Table Insert",
+    "top_group": "Table",
+    "dims": [
+      2.0,
+      2.0,
+      0.062
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Table/Table Insert"
+    ],
+    "obj_names": [
+      "Table_Table_Insert"
+    ],
+    "material": "Steel",
+    "dims_str": "2\" x 2\" x 1/16\""
+  },
+  {
+    "label": "Trunnion",
+    "top_group": "Table",
+    "dims": [
+      5.809,
+      2.25,
+      0.75
+    ],
+    "count": 2,
+    "materials": [
+      "Plywood"
+    ],
+    "paths": [
+      "Table/Trunnion",
+      "Table/Trunnion"
+    ],
+    "obj_names": [
+      "Table_Trunnion",
+      "Table_Trunnion_1"
+    ],
+    "material": "Plywood",
+    "dims_str": "5-13/16\" x 2-1/4\" x 3/4\""
+  },
+  {
+    "label": "Trunnion Bolt 1/4 x 1-1/2\"",
+    "top_group": "Table",
+    "dims": [
+      1.5,
+      0.44,
+      0.44
+    ],
+    "count": 2,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Table/Trunnion Bolt 1/4 x 1-1/2\"",
+      "Table/Trunnion Bolt 1/4 x 1-1/2\""
+    ],
+    "obj_names": [
+      "Table_Trunnion_Bolt_1_4_x_1_1_2_",
+      "Table_Trunnion_Bolt_1_4_x_1_1_2__1"
+    ],
+    "material": "Steel",
+    "dims_str": "1-1/2\" x 7/16\" x 7/16\""
+  },
+  {
+    "label": "Trunnion Guide",
+    "top_group": "Table",
+    "dims": [
+      3.0,
+      1.098,
+      0.125
+    ],
+    "count": 2,
+    "materials": [
+      "Hardboard"
+    ],
+    "paths": [
+      "Table/Trunnion Guide",
+      "Table/Trunnion Guide"
+    ],
+    "obj_names": [
+      "Table_Trunnion_Guide",
+      "Table_Trunnion_Guide_1"
+    ],
+    "material": "Hardboard",
+    "dims_str": "3\" x 1-1/8\" x 1/8\""
+  },
+  {
+    "label": "Wing Nut 1/4\"",
+    "top_group": "Table",
+    "dims": [
+      1.3,
+      0.5,
+      0.32
+    ],
+    "count": 2,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Table/Wing Nut 1/4\"",
+      "Table/Wing Nut 1/4\""
+    ],
+    "obj_names": [
+      "Table_Wing_Nut_1_4_",
+      "Table_Wing_Nut_1_4__1"
+    ],
+    "material": "Steel",
+    "dims_str": "1-5/16\" x 1/2\" x 5/16\""
+  },
+  {
+    "label": "Blade Guide Bolt",
+    "top_group": "Tension Unit",
+    "dims": [
+      1.975,
+      0.6,
+      0.6
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Tension Unit/Blade Guide Bolt"
+    ],
+    "obj_names": [
+      "Tension_Unit_Blade_Guide_Bolt"
+    ],
+    "material": "Steel",
+    "dims_str": "2\" x 5/8\" x 5/8\""
+  },
+  {
+    "label": "Bushing Plate",
+    "top_group": "Tension Unit",
+    "dims": [
+      2.5,
+      1.5,
+      0.125
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Tension Unit/Bushing Plate"
+    ],
+    "obj_names": [
+      "Tension_Unit_Bushing_Plate"
+    ],
+    "material": "Steel",
+    "dims_str": "2-1/2\" x 1-1/2\" x 1/8\""
+  },
+  {
+    "label": "Carriage Bolt 1/4 x 4\"",
+    "top_group": "Tension Unit",
+    "dims": [
+      3.75,
+      0.55,
+      0.55
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Tension Unit/Carriage Bolt 1/4 x 4\""
+    ],
+    "obj_names": [
+      "Tension_Unit_Carriage_Bolt_1_4_x_4_"
+    ],
+    "material": "Steel",
+    "dims_str": "3-3/4\" x 9/16\" x 9/16\""
+  },
+  {
+    "label": "Cross Pin",
+    "top_group": "Tension Unit",
+    "dims": [
+      1.0,
+      0.125,
+      0.125
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Tension Unit/Cross Pin"
+    ],
+    "obj_names": [
+      "Tension_Unit_Cross_Pin"
+    ],
+    "material": "Steel",
+    "dims_str": "1\" x 1/8\" x 1/8\""
+  },
+  {
+    "label": "Handwheel",
+    "top_group": "Tension Unit",
+    "dims": [
+      2.5,
+      2.5,
+      0.75
+    ],
+    "count": 1,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Tension Unit/Handwheel"
+    ],
+    "obj_names": [
+      "Tension_Unit_Handwheel"
+    ],
+    "material": "Maple",
+    "dims_str": "2-1/2\" x 2-1/2\" x 3/4\""
+  },
+  {
+    "label": "Hex Nut 1/4\"",
+    "top_group": "Tension Unit",
+    "dims": [
+      0.5,
+      0.433,
+      0.215
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Tension Unit/Hex Nut 1/4\""
+    ],
+    "obj_names": [
+      "Tension_Unit_Hex_Nut_1_4_"
+    ],
+    "material": "Steel",
+    "dims_str": "1/2\" x 7/16\" x 3/16\""
+  },
+  {
+    "label": "Hold-Down Disk",
+    "top_group": "Tension Unit",
+    "dims": [
+      1.5,
+      1.5,
+      0.062
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Tension Unit/Hold-Down Disk"
+    ],
+    "obj_names": [
+      "Tension_Unit_Hold_Down_Disk"
+    ],
+    "material": "Steel",
+    "dims_str": "1-1/2\" x 1-1/2\" x 1/16\""
+  },
+  {
+    "label": "Hold-Down Stick",
+    "top_group": "Tension Unit",
+    "dims": [
+      8.0,
+      0.75,
+      0.75
+    ],
+    "count": 1,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Tension Unit/Hold-Down Stick"
+    ],
+    "obj_names": [
+      "Tension_Unit_Hold_Down_Stick"
+    ],
+    "material": "Maple",
+    "dims_str": "8\" x 3/4\" x 3/4\""
+  },
+  {
+    "label": "Hold-Down Tine",
+    "top_group": "Tension Unit",
+    "dims": [
+      2.185,
+      0.455,
+      0.08
+    ],
+    "count": 2,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Tension Unit/Hold-Down Tine",
+      "Tension Unit/Hold-Down Tine"
+    ],
+    "obj_names": [
+      "Tension_Unit_Hold_Down_Tine",
+      "Tension_Unit_Hold_Down_Tine_1"
+    ],
+    "material": "Steel",
+    "dims_str": "2-3/16\" x 7/16\" x 1/16\""
+  },
+  {
+    "label": "Scroll-Saw Blade",
+    "top_group": "Tension Unit",
+    "dims": [
+      5.15,
+      0.25,
+      0.02
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Tension Unit/Scroll-Saw Blade"
+    ],
+    "obj_names": [
+      "Tension_Unit_Scroll_Saw_Blade"
+    ],
+    "material": "Steel",
+    "dims_str": "5-1/8\" x 1/4\" x 0\""
+  },
+  {
+    "label": "Slotted Tube",
+    "top_group": "Tension Unit",
+    "dims": [
+      2.625,
+      1.0,
+      1.0
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Tension Unit/Slotted Tube"
+    ],
+    "obj_names": [
+      "Tension_Unit_Slotted_Tube"
+    ],
+    "material": "Steel",
+    "dims_str": "2-5/8\" x 1\" x 1\""
+  },
+  {
+    "label": "Spindle-Body Bushing",
+    "top_group": "Tension Unit",
+    "dims": [
+      1.25,
+      1.0,
+      1.0
+    ],
+    "count": 1,
+    "materials": [
+      "Bronze"
+    ],
+    "paths": [
+      "Tension Unit/Spindle-Body Bushing"
+    ],
+    "obj_names": [
+      "Tension_Unit_Spindle_Body_Bushing"
+    ],
+    "material": "Bronze",
+    "dims_str": "1-1/4\" x 1\" x 1\""
+  },
+  {
+    "label": "Spindle-Body Bushing",
+    "top_group": "Tension Unit",
+    "dims": [
+      1.25,
+      0.688,
+      0.688
+    ],
+    "count": 1,
+    "materials": [
+      "Bronze"
+    ],
+    "paths": [
+      "Tension Unit/Spindle-Body Bushing"
+    ],
+    "obj_names": [
+      "Tension_Unit_Spindle_Body_Bushing_1"
+    ],
+    "material": "Bronze",
+    "dims_str": "1-1/4\" x 11/16\" x 11/16\""
+  },
+  {
+    "label": "Spring",
+    "top_group": "Tension Unit",
+    "dims": [
+      2.037,
+      0.77,
+      0.77
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Tension Unit/Spring"
+    ],
+    "obj_names": [
+      "Tension_Unit_Spring"
+    ],
+    "material": "Steel",
+    "dims_str": "2-1/16\" x 3/4\" x 3/4\""
+  },
+  {
+    "label": "Square Nut 1/4\"",
+    "top_group": "Tension Unit",
+    "dims": [
+      0.4,
+      0.4,
+      0.21
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Tension Unit/Square Nut 1/4\""
+    ],
+    "obj_names": [
+      "Tension_Unit_Square_Nut_1_4_"
+    ],
+    "material": "Steel",
+    "dims_str": "3/8\" x 3/8\" x 3/16\""
+  },
+  {
+    "label": "Tension Housing",
+    "top_group": "Tension Unit",
+    "dims": [
+      7.0,
+      3.0,
+      1.5
+    ],
+    "count": 1,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Tension Unit/Tension Housing"
+    ],
+    "obj_names": [
+      "Tension_Unit_Tension_Housing"
+    ],
+    "material": "Maple",
+    "dims_str": "7\" x 3\" x 1-1/2\""
+  },
+  {
+    "label": "Tension Shaft",
+    "top_group": "Tension Unit",
+    "dims": [
+      9.375,
+      0.5,
+      0.5
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Tension Unit/Tension Shaft"
+    ],
+    "obj_names": [
+      "Tension_Unit_Tension_Shaft"
+    ],
+    "material": "Steel",
+    "dims_str": "9-3/8\" x 1/2\" x 1/2\""
+  },
+  {
+    "label": "Thumb Nut",
+    "top_group": "Tension Unit",
+    "dims": [
+      1.4,
+      0.84,
+      0.3
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Tension Unit/Thumb Nut"
+    ],
+    "obj_names": [
+      "Tension_Unit_Thumb_Nut"
+    ],
+    "material": "Steel",
+    "dims_str": "1-3/8\" x 13/16\" x 5/16\""
+  },
+  {
+    "label": "Thumb Screw 1/4\"",
+    "top_group": "Tension Unit",
+    "dims": [
+      1.975,
+      0.25,
+      0.25
+    ],
+    "count": 1,
+    "materials": [
+      "Steel"
+    ],
+    "paths": [
+      "Tension Unit/Thumb Screw 1/4\""
+    ],
+    "obj_names": [
+      "Tension_Unit_Thumb_Screw_1_4_"
+    ],
+    "material": "Steel",
+    "dims_str": "2\" x 1/4\" x 1/4\""
+  },
+  {
+    "label": "Wood Sleeve",
+    "top_group": "Tension Unit",
+    "dims": [
+      1.25,
+      1.0,
+      1.0
+    ],
+    "count": 1,
+    "materials": [
+      "Maple"
+    ],
+    "paths": [
+      "Tension Unit/Wood Sleeve"
+    ],
+    "obj_names": [
+      "Tension_Unit_Wood_Sleeve"
+    ],
+    "material": "Maple",
+    "dims_str": "1-1/4\" x 1\" x 1\""
+  }
+]

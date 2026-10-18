@@ -124,14 +124,6 @@ part(HEAD, 'Drive Center', dc, STEEL, frame((DC0, 0, SPINDLE_Z), (1, 0, 0)))
 R_PUL, R_WHEEL, R_IDLER = 1.275, 11.958, 1.31   # belt centre on the pulley's V, in the wheel's V groove, in the idler's groove
 
 
-def tangent(A, ra, B, rb):
-    """Outer tangent from circle A to circle B for a loop run counter-clockwise (y right, z up)."""
-    d = (B - A).normalized()
-    s = (ra - rb) / (B - A).length
-    n = s * d + math.sqrt(1 - s * s) * Vector((d.y, -d.x))
-    return A + ra * n, B + rb * n
-
-
 P_C, W_C = Vector((0, SPINDLE_Z)), Vector((0, FLY_Z))
 # the idler pushes the front run out 0.6" a little above the ways
 a, b = tangent(P_C, R_PUL, W_C, R_WHEEL)
@@ -140,15 +132,7 @@ n_out = (a - P_C).normalized()
 I_C = q - (R_IDLER - 0.6) * n_out
 loop = [(P_C, R_PUL), (I_C, R_IDLER), (W_C, R_WHEEL)]
 runs = [tangent(*loop[i], *loop[(i + 1) % 3]) for i in range(3)]
-belt = []
-for i, (c, r) in enumerate(loop):
-    t_in, t_out = runs[i - 1][1], runs[i][0]
-    a0 = math.atan2(t_in.y - c.y, t_in.x - c.x)
-    a1 = math.atan2(t_out.y - c.y, t_out.x - c.x)
-    sweep = (a1 - a0) % (2 * math.pi)
-    assert sweep < math.pi * 1.9, 'belt does not wrap circle %d' % i
-    k = max(2, int(sweep / math.radians(4)))
-    belt += [(MID, c.x + r * math.cos(a0 + sweep * j / k), c.y + r * math.sin(a0 + sweep * j / k)) for j in range(k + 1)]
+belt = [(MID, y, z) for y, z in belt_path(loop)]
 idler_wrap = math.degrees((math.atan2(*reversed(runs[1][0] - I_C)) - math.atan2(*reversed(runs[0][1] - I_C))) % (2 * math.pi))
 part(HEAD, 'Leather Belt', tube('belt', belt, 0.125, 10, closed=True), LEATHER, T())
 
@@ -199,21 +183,6 @@ for side in (-1, 1):     # 3/8 floor flanges bored out to the 1/2 shaft, plate a
     cut(fl, xf(cyl('b', 0.25, -0.1, 0.8, 24), R(3.75, 'Z')), *[xf(cyl('h', 0.09, -0.1, 0.3, 12), T(1.1 * math.cos(a), 1.1 * math.sin(a), 0))
                                             for a in (0.82, 2.39, 3.96, 5.53)])
     part(WHEEL, 'Floor Flange', fl, STEEL, frame((MID + side * 0.375, 0, FLY_Z), (side, 0, 0)))
-
-
-def fillet(path, r, n=8):
-    """A polyline with each corner rounded to radius r (a bent rod)."""
-    P = [Vector(p) for p in path]
-    out = [P[0]]
-    for A, B, C in zip(P, P[1:], P[2:]):
-        u1, u2 = (A - B).normalized(), (C - B).normalized()
-        th = u1.angle(u2)
-        t = r / math.tan(th / 2)
-        ctr = B + (u1 + u2).normalized() * (r / math.sin(th / 2))
-        v1, v2 = B + u1 * t - ctr, B + u2 * t - ctr
-        sweep = math.pi - th
-        out += [ctr + (v1 * math.sin((1 - i / n) * sweep) + v2 * math.sin(i / n * sweep)) / math.sin(sweep) for i in range(n + 1)]
-    return out + [P[-1]]
 
 
 # crank: 1/2" rod from the left bearing, out through the centre upright, 1-1/4" throw toward the turner
@@ -332,42 +301,7 @@ part(REST, 'Lag Screw 5/16 x 3"', lag, STEEL, T(POST.x, POST.y, WAY_TOP + 0.04))
 COLORS = {MAPLE: (0.80, 0.62, 0.40), CHERRY: (0.62, 0.30, 0.18), STEEL: (0.62, 0.64, 0.67), LEATHER: (0.45, 0.28, 0.15)}
 
 if os.environ.get('LATHE_OVERLAPS'):
-    # points of one part buried more than 0.02" inside another (parts that only touch, or a rod in its hole, pass)
-    import bmesh
-    from mathutils.bvhtree import BVHTree
-
-    def solid(ob):
-        bm = bmesh.new()
-        bm.from_mesh(ob.data)
-        tris = bmesh.ops.triangulate(bm, faces=bm.faces[:])['faces']   # before moving it: triangulate projects on the face normals
-        bm.transform(ob.matrix_world)
-        pts = [v.co.copy() for v in bm.verts] + [f.calc_center_median() for f in tris]
-        tree = BVHTree.FromBMesh(bm)
-        bm.free()
-        return tree, pts
-
-    RAYS = [Vector(d).normalized() for d in ((0.3127, 0.7891, 0.5287), (-0.8123, 0.2461, 0.5289), (0.1709, -0.4517, -0.8757))]
-
-    def inside(tree, pt):
-        votes = 0
-        for d in RAYS:    # parity along three skew rays, majority wins (a ray can graze an edge)
-            hits, o = 0, pt
-            while True:
-                loc = tree.ray_cast(o, d)[0]
-                if loc is None:
-                    break
-                hits, o = hits + 1, loc + d * 1e-5
-            votes += hits % 2
-        return votes >= 2
-
-    solids = [(n, *solid(ob)) for _, n, ob, _ in PARTS]
-    for i, (n1, t1, p1) in enumerate(solids):
-        for n2, t2, p2 in solids[i + 1:]:
-            if not t1.overlap(t2):
-                continue
-            deep = [d for t, pts in ((t2, p1), (t1, p2)) for q in pts if inside(t, q) for d in [t.find_nearest(q)[3]] if d > 0.02]
-            if deep:
-                print(f'overlap: {n1} / {n2}: {len(deep)} points, deepest {max(deep):.3f}"')
+    report_overlaps()
 
 write_dae(OUT, COLORS, 'build_treadle_lathe.py', 'Treadle Lathe', unit=('inch', 0.0254))
 print(f'WROTE {OUT}: {len(PARTS)} parts')

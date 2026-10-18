@@ -876,7 +876,7 @@ with zipfile.ZipFile(${JSON.stringify(kmz)}, 'w', zipfile.ZIP_DEFLATED) as z:
     // the models included with the viewer (models/index.json) are listed after the built-in one
     const OWN = '#library .lib-item:not([data-ref^="models/"])';
     await p2.locator('#library .lib-item', { hasText: 'Castle Spinning Wheel' }).waitFor({ timeout: 5000 }).catch(() => {});
-    check((await p2.locator('#library .lib-item[data-ref^="models/"]').count()) === 3, 'library lists the included models (spinning wheel, treadle lathe, tool chest)');
+    check((await p2.locator('#library .lib-item[data-ref^="models/"]').count()) === 4, 'library lists the included models (spinning wheel, treadle lathe, scroll saw, tool chest)');
     check((await p2.locator(OWN).count()) === 1, 'library starts with just the built-in model');
 
     await p2.locator('#libFile').setInputFiles(path.join(tmp, 'chair.skp'));

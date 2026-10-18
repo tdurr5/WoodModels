@@ -1,5 +1,6 @@
 [
   { "path": "models/spinning-wheel/", "title": "Castle Spinning Wheel", "about": "Upright treadle wheel, built to the craftsmanspace.com plan" },
   { "path": "models/treadle-lathe/", "title": "Treadle Lathe", "about": "Foot-powered lathe, built to Steve Schmeck's book" },
+  { "path": "models/scroll-saw/", "title": "Foot-Powered Scroll Saw", "about": "Pedal scroll saw from Popular Mechanics, built to its figures" },
   { "path": "models/heirloom-chest/", "title": "Heirloom Tool Chest", "about": "Lid on hinges, trays that slide and lift out" }
 ]

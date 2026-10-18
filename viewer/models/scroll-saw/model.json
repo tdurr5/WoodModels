@@ -1,0 +1,123 @@
+{
+  "title": "Foot-Powered Scroll Saw",
+  "subtitle": "Wayne C. Leckey's pedal scroll saw (Popular Mechanics), built to the article's figures (inches)",
+  "axisNames": {
+    "x": "front-to-back",
+    "y": "vertical",
+    "z": "side-to-side"
+  },
+  "views": {
+    "iso": {
+      "label": "3D",
+      "dir": [
+        0.7,
+        0.5,
+        0.7
+      ]
+    },
+    "front": {
+      "label": "Front",
+      "dir": [
+        0,
+        0,
+        1
+      ]
+    },
+    "side": {
+      "label": "Side",
+      "dir": [
+        -1,
+        0,
+        0
+      ]
+    },
+    "top": {
+      "label": "Top",
+      "dir": [
+        0,
+        1,
+        0.0001
+      ]
+    }
+  },
+  "materials": {
+    "Bronze": {
+      "category": "Hardware",
+      "color": "#b88c4c"
+    },
+    "Felt": {
+      "category": "Other",
+      "color": "#8c8573"
+    },
+    "Fir": {
+      "category": "Wood",
+      "color": "#d1a870",
+      "texture": {
+        "base": "#c9975c",
+        "streak": "#a06f3b",
+        "ring": "#8a5a2c",
+        "tile": 5
+      },
+      "species": "fir"
+    },
+    "Hardboard": {
+      "category": "Wood",
+      "color": "#593d26",
+      "texture": {
+        "base": "#c9975c",
+        "streak": "#a06f3b",
+        "ring": "#8a5a2c",
+        "tile": 5
+      }
+    },
+    "Maple": {
+      "category": "Wood",
+      "color": "#cc9e66",
+      "texture": {
+        "base": "#c9975c",
+        "streak": "#a06f3b",
+        "ring": "#8a5a2c",
+        "tile": 5
+      },
+      "species": "maple"
+    },
+    "Pine": {
+      "category": "Wood",
+      "color": "#d9b27a",
+      "texture": {
+        "base": "#c9975c",
+        "streak": "#a06f3b",
+        "ring": "#8a5a2c",
+        "tile": 5
+      },
+      "species": "pine"
+    },
+    "Plywood": {
+      "category": "Wood",
+      "color": "#dbbd8c",
+      "texture": {
+        "base": "#c9975c",
+        "streak": "#a06f3b",
+        "ring": "#8a5a2c",
+        "tile": 5
+      },
+      "species": "birch"
+    },
+    "Rubber": {
+      "category": "Other",
+      "color": "#1a1a1a"
+    },
+    "Steel": {
+      "category": "Hardware",
+      "color": "#9ea3ab"
+    }
+  },
+  "categoryOrder": [
+    "Wood",
+    "Hardware",
+    "Leather",
+    "Other"
+  ],
+  "displayNames": {},
+  "notes": {}
+}

@@ -1,0 +1,27 @@
+newmtl mat-Plywood
+Kd 0.860 0.740 0.550
+
+newmtl mat-Fir
+Kd 0.820 0.660 0.440
+
+newmtl mat-Pine
+Kd 0.850 0.700 0.480
+
+newmtl mat-Steel
+Kd 0.620 0.640 0.670
+
+newmtl mat-Maple
+Kd 0.800 0.620 0.400
+
+newmtl mat-Felt
+Kd 0.550 0.520 0.450
+
+newmtl mat-Bronze
+Kd 0.720 0.550 0.300
+
+newmtl mat-Hardboard
+Kd 0.350 0.240 0.150
+
+newmtl mat-Rubber
+Kd 0.100 0.100 0.100
+

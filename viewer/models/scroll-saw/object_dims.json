@@ -1,0 +1,3884 @@
+{
+  "Frame_Side": {
+    "center": [
+      5.65,
+      28.5,
+      1.125
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 41.0,
+        "role": "Length",
+        "label": "41\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 36.0,
+        "role": "Width",
+        "label": "36\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Frame_Side_1": {
+    "center": [
+      5.65,
+      28.5,
+      -1.125
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 41.0,
+        "role": "Length",
+        "label": "41\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 36.0,
+        "role": "Width",
+        "label": "36\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Frame_Rear_Post": {
+    "center": [
+      24.4121,
+      23.25,
+      0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          -0.236005,
+          0.971748,
+          -0.002726
+        ],
+        "length": 48.5426,
+        "role": "Length",
+        "label": "48-9/16\"",
+        "angle": {
+          "reference": "+Y (vertical)",
+          "total_deg": 13.7,
+          "components": [
+            {
+              "label": "x",
+              "deg": -13.7
+            },
+            {
+              "label": "z",
+              "deg": -0.2
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.971734,
+          0.236017,
+          0.00546
+        ],
+        "length": 4.1574,
+        "role": "Width",
+        "label": "4-3/16\"",
+        "angle": {
+          "reference": "+X",
+          "total_deg": 13.7,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": 13.7
+            },
+            {
+              "label": "z",
+              "deg": 0.3
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.005949,
+          -0.00136,
+          -0.999981
+        ],
+        "length": 1.6477,
+        "role": "Thickness",
+        "label": "1-5/8\""
+      }
+    ]
+  },
+  "Frame_Arm_Core": {
+    "center": [
+      9.9919,
+      44.75,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 16.2339,
+        "role": "Length",
+        "label": "16-1/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 3.5,
+        "role": "Width",
+        "label": "3-1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 1.5,
+        "role": "Thickness",
+        "label": "1-1/2\""
+      }
+    ]
+  },
+  "Frame_Arm_Filler_Block": {
+    "center": [
+      -2.175,
+      44.5,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 4.0,
+        "role": "Length",
+        "label": "4\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 1.5,
+        "role": "Width",
+        "label": "1-1/2\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 1.35,
+        "role": "Thickness",
+        "label": "1-3/8\""
+      }
+    ]
+  },
+  "Frame_Front_Leg": {
+    "center": [
+      -11.2898,
+      13.5,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.472588,
+          0.881283,
+          -0.0
+        ],
+        "length": 32.3925,
+        "role": "Length",
+        "label": "32-3/8\"",
+        "angle": {
+          "reference": "+Y (vertical)",
+          "total_deg": 28.2,
+          "components": [
+            {
+              "label": "x",
+              "deg": 28.2
+            },
+            {
+              "label": "z",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          -0.881283,
+          0.472588,
+          0.0
+        ],
+        "length": 3.7006,
+        "role": "Width",
+        "label": "3-11/16\"",
+        "angle": {
+          "reference": "-X",
+          "total_deg": 28.2,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": 28.2
+            },
+            {
+              "label": "z",
+              "deg": 0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.0,
+          -0.0,
+          1.0
+        ],
+        "length": 1.5,
+        "role": "Thickness",
+        "label": "1-1/2\""
+      }
+    ]
+  },
+  "Stand_Seat_Member": {
+    "center": [
+      5.7468,
+      14.125,
+      -2.25
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.846507,
+          -0.532378,
+          0.000162
+        ],
+        "length": 58.005,
+        "role": "Length",
+        "label": "58\"",
+        "angle": {
+          "reference": "+X",
+          "total_deg": 32.2,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": -32.2
+            },
+            {
+              "label": "z",
+              "deg": 0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.525436,
+          0.835519,
+          0.160701
+        ],
+        "length": 4.0108,
+        "role": "Width",
+        "label": "4\"",
+        "angle": {
+          "reference": "+Y (vertical)",
+          "total_deg": 33.3,
+          "components": [
+            {
+              "label": "x",
+              "deg": 32.2
+            },
+            {
+              "label": "z",
+              "deg": 10.9
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          -0.085689,
+          -0.13595,
+          0.987003
+        ],
+        "length": 2.0866,
+        "role": "Thickness",
+        "label": "2-1/16\"",
+        "angle": {
+          "reference": "+Z",
+          "total_deg": 9.2,
+          "components": [
+            {
+              "label": "x",
+              "deg": -5.0
+            },
+            {
+              "label": "vertical",
+              "deg": -7.8
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "Stand_Seat": {
+    "center": [
+      -18.3789,
+      28.625,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 14.0,
+        "role": "Length",
+        "label": "14\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 11.0,
+        "role": "Width",
+        "label": "11\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Stand_Rear_Leg": {
+    "center": [
+      26.2456,
+      15.2189,
+      6.1958
+    ],
+    "axes": [
+      {
+        "direction": [
+          -0.217077,
+          0.946803,
+          -0.237576
+        ],
+        "length": 33.3266,
+        "role": "Length",
+        "label": "33-5/16\"",
+        "angle": {
+          "reference": "+Y (vertical)",
+          "total_deg": 18.8,
+          "components": [
+            {
+              "label": "x",
+              "deg": -12.9
+            },
+            {
+              "label": "z",
+              "deg": -14.1
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.976073,
+          0.213676,
+          -0.040297
+        ],
+        "length": 3.5882,
+        "role": "Width",
+        "label": "3-9/16\"",
+        "angle": {
+          "reference": "+X",
+          "total_deg": 12.6,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": 12.3
+            },
+            {
+              "label": "z",
+              "deg": -2.4
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.012611,
+          -0.240639,
+          -0.970533
+        ],
+        "length": 1.6701,
+        "role": "Thickness",
+        "label": "1-11/16\"",
+        "angle": {
+          "reference": "-Z",
+          "total_deg": 13.9,
+          "components": [
+            {
+              "label": "x",
+              "deg": 0.7
+            },
+            {
+              "label": "vertical",
+              "deg": -13.9
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "Stand_Rear_Leg_1": {
+    "center": [
+      26.2456,
+      15.219,
+      -6.1962
+    ],
+    "axes": [
+      {
+        "direction": [
+          -0.216994,
+          0.946645,
+          0.23828
+        ],
+        "length": 33.3275,
+        "role": "Length",
+        "label": "33-5/16\"",
+        "angle": {
+          "reference": "+Y (vertical)",
+          "total_deg": 18.8,
+          "components": [
+            {
+              "label": "x",
+              "deg": -12.9
+            },
+            {
+              "label": "z",
+              "deg": 14.1
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.974889,
+          0.22267,
+          0.003174
+        ],
+        "length": 3.5333,
+        "role": "Width",
+        "label": "3-9/16\"",
+        "angle": {
+          "reference": "+X",
+          "total_deg": 12.9,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": 12.9
+            },
+            {
+              "label": "z",
+              "deg": 0.2
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          -0.050053,
+          0.232985,
+          -0.971191
+        ],
+        "length": 1.5598,
+        "role": "Thickness",
+        "label": "1-9/16\"",
+        "angle": {
+          "reference": "-Z",
+          "total_deg": 13.8,
+          "components": [
+            {
+              "label": "x",
+              "deg": -3.0
+            },
+            {
+              "label": "vertical",
+              "deg": 13.5
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "Stand_Crossbar": {
+    "center": [
+      30.6475,
+      7.1669,
+      0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 18.5,
+        "role": "Length",
+        "label": "18-1/2\""
+      },
+      {
+        "direction": [
+          -0.222488,
+          0.974935,
+          -0.0
+        ],
+        "length": 3.5,
+        "role": "Width",
+        "label": "3-1/2\"",
+        "angle": {
+          "reference": "+Y (vertical)",
+          "total_deg": 12.9,
+          "components": [
+            {
+              "label": "x",
+              "deg": -12.9
+            },
+            {
+              "label": "z",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          -0.974935,
+          -0.222488,
+          0.0
+        ],
+        "length": 1.5002,
+        "role": "Thickness",
+        "label": "1-1/2\"",
+        "angle": {
+          "reference": "-X",
+          "total_deg": 12.9,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": -12.9
+            },
+            {
+              "label": "z",
+              "deg": 0.0
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "Stand_Machine_Bolt_3_8_x_4_": {
+    "center": [
+      22.9854,
+      29.5,
+      1.59
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 4.23,
+        "role": "Length",
+        "label": "4-1/4\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.64,
+        "role": "Width",
+        "label": "5/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          -1.0,
+          -0.0
+        ],
+        "length": 0.5542,
+        "role": "Thickness",
+        "label": "9/16\""
+      }
+    ]
+  },
+  "Stand_Machine_Bolt_3_8_x_4__1": {
+    "center": [
+      23.3278,
+      28.0,
+      -1.965
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 4.23,
+        "role": "Length",
+        "label": "4-1/4\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.64,
+        "role": "Width",
+        "label": "5/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.5542,
+        "role": "Thickness",
+        "label": "9/16\""
+      }
+    ]
+  },
+  "Stand_Machine_Bolt_3_8_x_4__2": {
+    "center": [
+      29.3629,
+      7.6943,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          -0.974924,
+          -0.222537,
+          -0.0
+        ],
+        "length": 4.23,
+        "role": "Length",
+        "label": "4-1/4\"",
+        "angle": {
+          "reference": "-X",
+          "total_deg": 12.9,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": -12.9
+            },
+            {
+              "label": "z",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.64,
+        "role": "Width",
+        "label": "5/8\""
+      },
+      {
+        "direction": [
+          -0.222537,
+          0.974924,
+          -0.0
+        ],
+        "length": 0.5542,
+        "role": "Thickness",
+        "label": "9/16\"",
+        "angle": {
+          "reference": "+Y (vertical)",
+          "total_deg": 12.9,
+          "components": [
+            {
+              "label": "x",
+              "deg": -12.9
+            },
+            {
+              "label": "z",
+              "deg": -0.0
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "Drive_Head_Drive_Base": {
+    "center": [
+      0.0,
+      28.375,
+      1.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 6.25,
+        "role": "Length",
+        "label": "6-1/4\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 4.5,
+        "role": "Width",
+        "label": "4-1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Drive_Head_Cleat": {
+    "center": [
+      0.0,
+      27.625,
+      1.875
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 4.5,
+        "role": "Length",
+        "label": "4-1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.75,
+        "role": "Width",
+        "label": "3/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Drive_Head_Cleat_1": {
+    "center": [
+      0.0,
+      27.625,
+      -1.875
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 4.5,
+        "role": "Length",
+        "label": "4-1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.75,
+        "role": "Width",
+        "label": "3/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Drive_Head_Paint_Can__1_qt_": {
+    "center": [
+      0.0,
+      31.22,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 4.94,
+        "role": "Length",
+        "label": "4-15/16\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 4.25,
+        "role": "Width",
+        "label": "4-1/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 4.25,
+        "role": "Thickness",
+        "label": "4-1/4\""
+      }
+    ]
+  },
+  "Drive_Head_Can_Lid": {
+    "center": [
+      0.0,
+      33.72,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 4.25,
+        "role": "Length",
+        "label": "4-1/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 4.25,
+        "role": "Width",
+        "label": "4-1/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.06,
+        "role": "Thickness",
+        "label": "1/16\""
+      }
+    ]
+  },
+  "Drive_Head_Felt_Washer": {
+    "center": [
+      0.0,
+      33.8125,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 1.2,
+        "role": "Length",
+        "label": "1-3/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 1.2,
+        "role": "Width",
+        "label": "1-3/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.125,
+        "role": "Thickness",
+        "label": "1/8\""
+      }
+    ]
+  },
+  "Drive_Head_Felt_Washer_1": {
+    "center": [
+      0.0,
+      31.625,
+      2.1875
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Length",
+        "label": "1\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Width",
+        "label": "1\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.125,
+        "role": "Thickness",
+        "label": "1/8\""
+      }
+    ]
+  },
+  "Drive_Head_Frame_Block": {
+    "center": [
+      0.0,
+      34.4375,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 4.5,
+        "role": "Length",
+        "label": "4-1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 1.5,
+        "role": "Width",
+        "label": "1-1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 1.125,
+        "role": "Thickness",
+        "label": "1-1/8\""
+      }
+    ]
+  },
+  "Drive_Head_Spindle_Body_Bushing": {
+    "center": [
+      0.0,
+      34.4375,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 1.125,
+        "role": "Length",
+        "label": "1-1/8\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.6876,
+        "role": "Width",
+        "label": "11/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.6876,
+        "role": "Thickness",
+        "label": "11/16\""
+      }
+    ]
+  },
+  "Drive_Head_Bushing_Bracket": {
+    "center": [
+      0.0,
+      29.3275,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 3.0,
+        "role": "Length",
+        "label": "3\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 1.095,
+        "role": "Width",
+        "label": "1-1/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 1.0,
+        "role": "Thickness",
+        "label": "1\""
+      }
+    ]
+  },
+  "Drive_Head_Spindle_Body_Bushing_1": {
+    "center": [
+      0.0,
+      29.5,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Length",
+        "label": "1\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 1.0,
+        "role": "Width",
+        "label": "1\""
+      },
+      {
+        "direction": [
+          0.0,
+          -1.0,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Thickness",
+        "label": "1\""
+      }
+    ]
+  },
+  "Drive_Head_Round_Head_Screw": {
+    "center": [
+      -1.3,
+      28.56,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          -1.0,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Length",
+        "label": "1\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.4,
+        "role": "Width",
+        "label": "3/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.4,
+        "role": "Thickness",
+        "label": "3/8\""
+      }
+    ]
+  },
+  "Drive_Head_Round_Head_Screw_1": {
+    "center": [
+      1.3,
+      28.56,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          -1.0,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Length",
+        "label": "1\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.4,
+        "role": "Width",
+        "label": "3/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.4,
+        "role": "Thickness",
+        "label": "3/8\""
+      }
+    ]
+  },
+  "Drive_Head_Drive_Shaft": {
+    "center": [
+      0.0,
+      32.5,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 6.5,
+        "role": "Length",
+        "label": "6-1/2\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.5,
+        "role": "Width",
+        "label": "1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.5,
+        "role": "Thickness",
+        "label": "1/2\""
+      }
+    ]
+  },
+  "Drive_Head_Channel": {
+    "center": [
+      0.0,
+      31.625,
+      0.425
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 3.0,
+        "role": "Length",
+        "label": "3\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.75,
+        "role": "Width",
+        "label": "3/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.35,
+        "role": "Thickness",
+        "label": "3/8\""
+      }
+    ]
+  },
+  "Drive_Head_Slide_Bar": {
+    "center": [
+      0.5,
+      31.625,
+      0.4562
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 1.06,
+        "role": "Length",
+        "label": "1-1/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.625,
+        "role": "Width",
+        "label": "5/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.2875,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Drive_Head_Crank_Disk": {
+    "center": [
+      -0.0105,
+      31.625,
+      0.8125
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 1.25,
+        "role": "Length",
+        "label": "1-1/4\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 1.229,
+        "role": "Width",
+        "label": "1-1/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.375,
+        "role": "Thickness",
+        "label": "3/8\""
+      }
+    ]
+  },
+  "Drive_Head_Crank_Pin": {
+    "center": [
+      0.5,
+      31.625,
+      0.6562
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.6875,
+        "role": "Length",
+        "label": "11/16\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.375,
+        "role": "Width",
+        "label": "3/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.375,
+        "role": "Thickness",
+        "label": "3/8\""
+      }
+    ]
+  },
+  "Drive_Head_Counterweight": {
+    "center": [
+      -0.5,
+      31.625,
+      1.1562
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.44,
+        "role": "Length",
+        "label": "7/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.44,
+        "role": "Width",
+        "label": "7/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.3125,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Drive_Head_Crankshaft": {
+    "center": [
+      0.0,
+      31.625,
+      2.75
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 3.7,
+        "role": "Length",
+        "label": "3-11/16\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.5,
+        "role": "Width",
+        "label": "1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.5,
+        "role": "Thickness",
+        "label": "1/2\""
+      }
+    ]
+  },
+  "Drive_Head_Crank_Pulley_4_": {
+    "center": [
+      0.0,
+      31.625,
+      2.675
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 4.0,
+        "role": "Length",
+        "label": "4\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 4.0,
+        "role": "Width",
+        "label": "4\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.8,
+        "role": "Thickness",
+        "label": "13/16\""
+      }
+    ]
+  },
+  "Drive_Head_Bearing_Block": {
+    "center": [
+      0.0,
+      30.625,
+      3.625
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 3.75,
+        "role": "Length",
+        "label": "3-3/4\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 2.5,
+        "role": "Width",
+        "label": "2-1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 1.0,
+        "role": "Thickness",
+        "label": "1\""
+      }
+    ]
+  },
+  "Drive_Head_Spindle_Body_Bushing_2": {
+    "center": [
+      0.0,
+      31.625,
+      3.75
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Length",
+        "label": "1\""
+      },
+      {
+        "direction": [
+          0.0,
+          -1.0,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Width",
+        "label": "1\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 1.0,
+        "role": "Thickness",
+        "label": "1\""
+      }
+    ]
+  },
+  "Drive_Head_Collar": {
+    "center": [
+      0.0,
+      31.625,
+      4.4
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Length",
+        "label": "1\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Width",
+        "label": "1\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.3,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Drive_Head_Carriage_Bolt_1_4_x_3_1_4_": {
+    "center": [
+      -1.5,
+      34.4375,
+      -0.05
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 3.4,
+        "role": "Length",
+        "label": "3-3/8\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.55,
+        "role": "Width",
+        "label": "9/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          -1.0,
+          -0.0
+        ],
+        "length": 0.55,
+        "role": "Thickness",
+        "label": "9/16\""
+      }
+    ]
+  },
+  "Drive_Head_Blade_Chuck": {
+    "center": [
+      0.0,
+      35.8125,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.8,
+        "role": "Length",
+        "label": "13/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.6928,
+        "role": "Width",
+        "label": "11/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.625,
+        "role": "Thickness",
+        "label": "5/8\""
+      }
+    ]
+  },
+  "Drive_Head_Setscrew": {
+    "center": [
+      0.0,
+      35.94,
+      0.2825
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.535,
+        "role": "Length",
+        "label": "9/16\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.19,
+        "role": "Width",
+        "label": "3/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.19,
+        "role": "Thickness",
+        "label": "3/16\""
+      }
+    ]
+  },
+  "Tension_Unit_Tension_Housing": {
+    "center": [
+      0.0,
+      45.5,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 7.0,
+        "role": "Length",
+        "label": "7\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 3.0,
+        "role": "Width",
+        "label": "3\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 1.5,
+        "role": "Thickness",
+        "label": "1-1/2\""
+      }
+    ]
+  },
+  "Tension_Unit_Spindle_Body_Bushing": {
+    "center": [
+      0.0,
+      48.5,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          -1.0,
+          -0.0
+        ],
+        "length": 1.25,
+        "role": "Length",
+        "label": "1-1/4\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Width",
+        "label": "1\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 1.0,
+        "role": "Thickness",
+        "label": "1\""
+      }
+    ]
+  },
+  "Tension_Unit_Wood_Sleeve": {
+    "center": [
+      0.0,
+      42.75,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 1.25,
+        "role": "Length",
+        "label": "1-1/4\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Width",
+        "label": "1\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 1.0,
+        "role": "Thickness",
+        "label": "1\""
+      }
+    ]
+  },
+  "Tension_Unit_Spindle_Body_Bushing_1": {
+    "center": [
+      0.0,
+      42.75,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 1.25,
+        "role": "Length",
+        "label": "1-1/4\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.6876,
+        "role": "Width",
+        "label": "11/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.6876,
+        "role": "Thickness",
+        "label": "11/16\""
+      }
+    ]
+  },
+  "Tension_Unit_Felt_Washer": {
+    "center": [
+      0.0,
+      42.0625,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Length",
+        "label": "1\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 1.0,
+        "role": "Width",
+        "label": "1\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.125,
+        "role": "Thickness",
+        "label": "1/8\""
+      }
+    ]
+  },
+  "Tension_Unit_Bushing_Plate": {
+    "center": [
+      -0.25,
+      41.9375,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 2.5,
+        "role": "Length",
+        "label": "2-1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 1.5,
+        "role": "Width",
+        "label": "1-1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.125,
+        "role": "Thickness",
+        "label": "1/8\""
+      }
+    ]
+  },
+  "Tension_Unit_Slotted_Tube": {
+    "center": [
+      0.0,
+      44.6875,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 2.625,
+        "role": "Length",
+        "label": "2-5/8\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Width",
+        "label": "1\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 1.0,
+        "role": "Thickness",
+        "label": "1\""
+      }
+    ]
+  },
+  "Tension_Unit_Tension_Shaft": {
+    "center": [
+      0.0,
+      45.6875,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 9.375,
+        "role": "Length",
+        "label": "9-3/8\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.5,
+        "role": "Width",
+        "label": "1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.5,
+        "role": "Thickness",
+        "label": "1/2\""
+      }
+    ]
+  },
+  "Tension_Unit_Cross_Pin": {
+    "center": [
+      0.0,
+      45.5,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Length",
+        "label": "1\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.125,
+        "role": "Width",
+        "label": "1/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.125,
+        "role": "Thickness",
+        "label": "1/8\""
+      }
+    ]
+  },
+  "Tension_Unit_Spring": {
+    "center": [
+      0.0,
+      44.4044,
+      0.0002
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 2.0367,
+        "role": "Length",
+        "label": "2-1/16\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.7699,
+        "role": "Width",
+        "label": "3/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.7696,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Tension_Unit_Blade_Chuck": {
+    "center": [
+      0.0,
+      40.9375,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.8,
+        "role": "Length",
+        "label": "13/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.6928,
+        "role": "Width",
+        "label": "11/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.625,
+        "role": "Thickness",
+        "label": "5/8\""
+      }
+    ]
+  },
+  "Tension_Unit_Setscrew": {
+    "center": [
+      0.0,
+      40.815,
+      0.2825
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.535,
+        "role": "Length",
+        "label": "9/16\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.19,
+        "role": "Width",
+        "label": "3/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.19,
+        "role": "Thickness",
+        "label": "3/16\""
+      }
+    ]
+  },
+  "Tension_Unit_Scroll_Saw_Blade": {
+    "center": [
+      0.0,
+      38.375,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 5.15,
+        "role": "Length",
+        "label": "5-1/8\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.25,
+        "role": "Width",
+        "label": "1/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.02,
+        "role": "Thickness",
+        "label": "0\""
+      }
+    ]
+  },
+  "Tension_Unit_Carriage_Bolt_1_4_x_4_": {
+    "center": [
+      -2.175,
+      44.5,
+      -0.225
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 3.75,
+        "role": "Length",
+        "label": "3-3/4\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.55,
+        "role": "Width",
+        "label": "9/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          -1.0,
+          -0.0
+        ],
+        "length": 0.55,
+        "role": "Thickness",
+        "label": "9/16\""
+      }
+    ]
+  },
+  "Tension_Unit_Handwheel": {
+    "center": [
+      -2.175,
+      44.5,
+      -1.875
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 2.5,
+        "role": "Length",
+        "label": "2-1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 2.5,
+        "role": "Width",
+        "label": "2-1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Tension_Unit_Square_Nut_1_4_": {
+    "center": [
+      -2.175,
+      44.5,
+      -1.975
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.4,
+        "role": "Length",
+        "label": "3/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.4,
+        "role": "Width",
+        "label": "3/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.21,
+        "role": "Thickness",
+        "label": "3/16\""
+      }
+    ]
+  },
+  "Tension_Unit_Hold_Down_Stick": {
+    "center": [
+      1.5,
+      43.5,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 8.0,
+        "role": "Length",
+        "label": "8\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.75,
+        "role": "Width",
+        "label": "3/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Tension_Unit_Hold_Down_Disk": {
+    "center": [
+      1.0938,
+      40.0,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 1.5,
+        "role": "Length",
+        "label": "1-1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 1.5,
+        "role": "Width",
+        "label": "1-1/2\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.0625,
+        "role": "Thickness",
+        "label": "1/16\""
+      }
+    ]
+  },
+  "Tension_Unit_Hold_Down_Tine": {
+    "center": [
+      0.1673,
+      39.0747,
+      0.3
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.72774,
+          0.685853,
+          -0.0
+        ],
+        "length": 2.1846,
+        "role": "Length",
+        "label": "2-3/16\"",
+        "angle": {
+          "reference": "+X",
+          "total_deg": 43.3,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": 43.3
+            },
+            {
+              "label": "z",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          -0.685853,
+          0.72774,
+          -0.0
+        ],
+        "length": 0.4547,
+        "role": "Width",
+        "label": "7/16\"",
+        "angle": {
+          "reference": "+Y (vertical)",
+          "total_deg": 43.3,
+          "components": [
+            {
+              "label": "x",
+              "deg": -43.3
+            },
+            {
+              "label": "z",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          -0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.08,
+        "role": "Thickness",
+        "label": "1/16\""
+      }
+    ]
+  },
+  "Tension_Unit_Hold_Down_Tine_1": {
+    "center": [
+      0.1673,
+      39.0747,
+      -0.3
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.72774,
+          0.685853,
+          0.0
+        ],
+        "length": 2.1846,
+        "role": "Length",
+        "label": "2-3/16\"",
+        "angle": {
+          "reference": "+X",
+          "total_deg": 43.3,
+          "components": [
+            {
+              "label": "vertical",
+              "deg": 43.3
+            },
+            {
+              "label": "z",
+              "deg": 0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          -0.685853,
+          0.72774,
+          -0.0
+        ],
+        "length": 0.4547,
+        "role": "Width",
+        "label": "7/16\"",
+        "angle": {
+          "reference": "+Y (vertical)",
+          "total_deg": 43.3,
+          "components": [
+            {
+              "label": "x",
+              "deg": -43.3
+            },
+            {
+              "label": "z",
+              "deg": -0.0
+            }
+          ]
+        }
+      },
+      {
+        "direction": [
+          -0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.08,
+        "role": "Thickness",
+        "label": "1/16\""
+      }
+    ]
+  },
+  "Tension_Unit_Blade_Guide_Bolt": {
+    "center": [
+      1.1125,
+      40.0,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 1.975,
+        "role": "Length",
+        "label": "2\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.6,
+        "role": "Width",
+        "label": "5/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.6,
+        "role": "Thickness",
+        "label": "5/8\""
+      }
+    ]
+  },
+  "Tension_Unit_Hex_Nut_1_4_": {
+    "center": [
+      1.9825,
+      40.0,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.5,
+        "role": "Length",
+        "label": "1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.433,
+        "role": "Width",
+        "label": "7/16\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.215,
+        "role": "Thickness",
+        "label": "3/16\""
+      }
+    ]
+  },
+  "Tension_Unit_Thumb_Screw_1_4_": {
+    "center": [
+      1.5,
+      44.5,
+      -1.3625
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 1.975,
+        "role": "Length",
+        "label": "2\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.25,
+        "role": "Width",
+        "label": "1/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.25,
+        "role": "Thickness",
+        "label": "1/4\""
+      }
+    ]
+  },
+  "Tension_Unit_Thumb_Nut": {
+    "center": [
+      1.5,
+      44.5,
+      -1.65
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 1.4,
+        "role": "Length",
+        "label": "1-3/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.84,
+        "role": "Width",
+        "label": "13/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.3,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Table_Table": {
+    "center": [
+      0.0,
+      37.875,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 12.0,
+        "role": "Length",
+        "label": "12\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 12.0,
+        "role": "Width",
+        "label": "12\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Table_Table_Insert": {
+    "center": [
+      0.0,
+      38.2188,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 2.0,
+        "role": "Length",
+        "label": "2\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 2.0,
+        "role": "Width",
+        "label": "2\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.0625,
+        "role": "Thickness",
+        "label": "1/16\""
+      }
+    ]
+  },
+  "Table_Trunnion": {
+    "center": [
+      -3.625,
+      36.375,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 5.8094,
+        "role": "Length",
+        "label": "5-13/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 2.25,
+        "role": "Width",
+        "label": "2-1/4\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Table_Trunnion_Guide": {
+    "center": [
+      -3.3125,
+      35.5491,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 3.0,
+        "role": "Length",
+        "label": "3\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 1.0983,
+        "role": "Width",
+        "label": "1-1/8\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.125,
+        "role": "Thickness",
+        "label": "1/8\""
+      }
+    ]
+  },
+  "Table_Trunnion_Bolt_1_4_x_1_1_2_": {
+    "center": [
+      -3.83,
+      35.7406,
+      1.125
+    ],
+    "axes": [
+      {
+        "direction": [
+          -1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 1.5,
+        "role": "Length",
+        "label": "1-1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.44,
+        "role": "Width",
+        "label": "7/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.44,
+        "role": "Thickness",
+        "label": "7/16\""
+      }
+    ]
+  },
+  "Table_Flat_Washer_1_4_": {
+    "center": [
+      -4.03,
+      35.7406,
+      1.125
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.625,
+        "role": "Length",
+        "label": "5/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.625,
+        "role": "Width",
+        "label": "5/8\""
+      },
+      {
+        "direction": [
+          -1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.06,
+        "role": "Thickness",
+        "label": "1/16\""
+      }
+    ]
+  },
+  "Table_Wing_Nut_1_4_": {
+    "center": [
+      -4.22,
+      35.7406,
+      1.125
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 1.3,
+        "role": "Length",
+        "label": "1-5/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.5,
+        "role": "Width",
+        "label": "1/2\""
+      },
+      {
+        "direction": [
+          -1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.32,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Table_Table_Cleat": {
+    "center": [
+      -4.375,
+      37.125,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 5.0,
+        "role": "Length",
+        "label": "5\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.75,
+        "role": "Width",
+        "label": "3/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Table_Trunnion_1": {
+    "center": [
+      3.625,
+      36.375,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 5.8094,
+        "role": "Length",
+        "label": "5-13/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 2.25,
+        "role": "Width",
+        "label": "2-1/4\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Table_Trunnion_Guide_1": {
+    "center": [
+      3.3125,
+      35.5491,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 3.0,
+        "role": "Length",
+        "label": "3\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 1.0983,
+        "role": "Width",
+        "label": "1-1/8\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.125,
+        "role": "Thickness",
+        "label": "1/8\""
+      }
+    ]
+  },
+  "Table_Trunnion_Bolt_1_4_x_1_1_2__1": {
+    "center": [
+      3.83,
+      35.7406,
+      1.125
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 1.5,
+        "role": "Length",
+        "label": "1-1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.44,
+        "role": "Width",
+        "label": "7/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.44,
+        "role": "Thickness",
+        "label": "7/16\""
+      }
+    ]
+  },
+  "Table_Flat_Washer_1_4__1": {
+    "center": [
+      4.03,
+      35.7406,
+      1.125
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.625,
+        "role": "Length",
+        "label": "5/8\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.625,
+        "role": "Width",
+        "label": "5/8\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.06,
+        "role": "Thickness",
+        "label": "1/16\""
+      }
+    ]
+  },
+  "Table_Wing_Nut_1_4__1": {
+    "center": [
+      4.22,
+      35.7406,
+      1.125
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 1.3,
+        "role": "Length",
+        "label": "1-5/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.5,
+        "role": "Width",
+        "label": "1/2\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.32,
+        "role": "Thickness",
+        "label": "5/16\""
+      }
+    ]
+  },
+  "Table_Table_Cleat_1": {
+    "center": [
+      4.375,
+      37.125,
+      -0.0
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 5.0,
+        "role": "Length",
+        "label": "5\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.75,
+        "role": "Width",
+        "label": "3/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Pedal_Drive_Pipe_Shaft_1_2_": {
+    "center": [
+      1.4,
+      16.9,
+      0.4
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 7.4,
+        "role": "Length",
+        "label": "7-3/8\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.84,
+        "role": "Width",
+        "label": "13/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.84,
+        "role": "Thickness",
+        "label": "13/16\""
+      }
+    ]
+  },
+  "Pedal_Drive_Shaft_Bushing": {
+    "center": [
+      1.4,
+      16.9,
+      1.125
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 1.25,
+        "role": "Length",
+        "label": "1-1/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 1.25,
+        "role": "Width",
+        "label": "1-1/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Pedal_Drive_Shaft_Bushing_1": {
+    "center": [
+      1.4,
+      16.9,
+      -2.25
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 1.5,
+        "role": "Length",
+        "label": "1-1/2\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 1.25,
+        "role": "Width",
+        "label": "1-1/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 1.25,
+        "role": "Thickness",
+        "label": "1-1/4\""
+      }
+    ]
+  },
+  "Pedal_Drive_Drive_Pulley_18_": {
+    "center": [
+      1.4,
+      16.9,
+      2.675
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 18.0,
+        "role": "Length",
+        "label": "18\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 18.0,
+        "role": "Width",
+        "label": "18\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.75,
+        "role": "Thickness",
+        "label": "3/4\""
+      }
+    ]
+  },
+  "Pedal_Drive_Floor_Flange_1_2_": {
+    "center": [
+      1.4,
+      16.9,
+      1.9
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 3.0,
+        "role": "Length",
+        "label": "3\""
+      },
+      {
+        "direction": [
+          0.0,
+          -1.0,
+          -0.0
+        ],
+        "length": 3.0,
+        "role": "Width",
+        "label": "3\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 0.8,
+        "role": "Thickness",
+        "label": "13/16\""
+      }
+    ]
+  },
+  "Pedal_Drive_Floor_Flange_1_2__1": {
+    "center": [
+      1.4,
+      16.9,
+      3.45
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 3.0,
+        "role": "Length",
+        "label": "3\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 3.0,
+        "role": "Width",
+        "label": "3\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.8,
+        "role": "Thickness",
+        "label": "13/16\""
+      }
+    ]
+  },
+  "Pedal_Drive_Pipe_Crank": {
+    "center": [
+      -0.39,
+      16.9,
+      4.4969
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 4.42,
+        "role": "Length",
+        "label": "4-7/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 1.0462,
+        "role": "Width",
+        "label": "1-1/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.84,
+        "role": "Thickness",
+        "label": "13/16\""
+      }
+    ]
+  },
+  "Pedal_Drive_Pedal_Spindle": {
+    "center": [
+      -2.6,
+      16.9,
+      7.02
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 4.0,
+        "role": "Length",
+        "label": "4\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.5,
+        "role": "Width",
+        "label": "1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.5,
+        "role": "Thickness",
+        "label": "1/2\""
+      }
+    ]
+  },
+  "Pedal_Drive_Bicycle_Pedal": {
+    "center": [
+      -2.6,
+      16.9,
+      7.32
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 3.4,
+        "role": "Length",
+        "label": "3-3/8\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 2.75,
+        "role": "Width",
+        "label": "2-3/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Thickness",
+        "label": "1\""
+      }
+    ]
+  },
+  "Pedal_Drive_Pipe_Crank_1": {
+    "center": [
+      3.19,
+      16.9,
+      -3.6969
+    ],
+    "axes": [
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 4.42,
+        "role": "Length",
+        "label": "4-7/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 1.0462,
+        "role": "Width",
+        "label": "1-1/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 0.84,
+        "role": "Thickness",
+        "label": "13/16\""
+      }
+    ]
+  },
+  "Pedal_Drive_Pedal_Spindle_1": {
+    "center": [
+      5.4,
+      16.9,
+      -6.22
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 4.0,
+        "role": "Length",
+        "label": "4\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 0.5,
+        "role": "Width",
+        "label": "1/2\""
+      },
+      {
+        "direction": [
+          0.0,
+          -1.0,
+          -0.0
+        ],
+        "length": 0.5,
+        "role": "Thickness",
+        "label": "1/2\""
+      }
+    ]
+  },
+  "Pedal_Drive_Bicycle_Pedal_1": {
+    "center": [
+      5.4,
+      16.9,
+      -6.52
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          0.0,
+          -1.0
+        ],
+        "length": 3.4,
+        "role": "Length",
+        "label": "3-3/8\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 2.75,
+        "role": "Width",
+        "label": "2-3/4\""
+      },
+      {
+        "direction": [
+          0.0,
+          -1.0,
+          -0.0
+        ],
+        "length": 1.0,
+        "role": "Thickness",
+        "label": "1\""
+      }
+    ]
+  },
+  "Pedal_Drive_V_Belt": {
+    "center": [
+      1.3993,
+      20.7625,
+      2.675
+    ],
+    "axes": [
+      {
+        "direction": [
+          0.0,
+          1.0,
+          -0.0
+        ],
+        "length": 25.8044,
+        "role": "Length",
+        "label": "25-13/16\""
+      },
+      {
+        "direction": [
+          1.0,
+          0.0,
+          -0.0
+        ],
+        "length": 18.0747,
+        "role": "Width",
+        "label": "18-1/16\""
+      },
+      {
+        "direction": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "length": 0.4,
+        "role": "Thickness",
+        "label": "3/8\""
+      }
+    ]
+  }
+}

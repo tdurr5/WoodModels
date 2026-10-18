@@ -9,6 +9,7 @@ import bmesh
 import bpy
 import math
 from mathutils import Matrix, Vector
+from mathutils.bvhtree import BVHTree
 
 SEG = 40
 
@@ -287,3 +288,84 @@ def write_dae(path, colors, tool, title, unit=('millimeter', 0.001)):
                 f'<library_geometries>{"".join(geo)}</library_geometries>'
                 f'<library_visual_scenes><visual_scene id="scene" name="{escape(title)}">{scene}</visual_scene></library_visual_scenes>'
                 '<scene><instance_visual_scene url="#scene"/></scene></COLLADA>')
+
+
+# ---------------------------------------------------------------- bent rod, belts
+
+
+def fillet(path, r, n=8):
+    """A polyline with each corner rounded to radius r (a bent rod)."""
+    P = [Vector(p) for p in path]
+    out = [P[0]]
+    for A, B, C in zip(P, P[1:], P[2:]):
+        u1, u2 = (A - B).normalized(), (C - B).normalized()
+        th = u1.angle(u2)
+        t = r / math.tan(th / 2)
+        ctr = B + (u1 + u2).normalized() * (r / math.sin(th / 2))
+        v1, v2 = B + u1 * t - ctr, B + u2 * t - ctr
+        sweep = math.pi - th
+        out += [ctr + (v1 * math.sin((1 - i / n) * sweep) + v2 * math.sin(i / n * sweep)) / math.sin(sweep) for i in range(n + 1)]
+    return out + [P[-1]]
+
+
+def tangent(A, ra, B, rb):
+    """Outer tangent from circle A to circle B for a loop run counter-clockwise (y right, z up)."""
+    d = (B - A).normalized()
+    s = (ra - rb) / (B - A).length
+    n = s * d + math.sqrt(1 - s * s) * Vector((d.y, -d.x))
+    return A + ra * n, B + rb * n
+
+
+def belt_path(loop, step=4):
+    """Points round a belt wrapped on circles [(centre, radius)] given counter-clockwise in a plane (2D Vectors)."""
+    runs = [tangent(*loop[i], *loop[(i + 1) % len(loop)]) for i in range(len(loop))]
+    pts = []
+    for i, (c, r) in enumerate(loop):
+        t_in, t_out = runs[i - 1][1], runs[i][0]
+        a0 = math.atan2(t_in.y - c.y, t_in.x - c.x)
+        a1 = math.atan2(t_out.y - c.y, t_out.x - c.x)
+        sweep = (a1 - a0) % (2 * math.pi)
+        assert sweep < math.pi * 1.9, 'belt does not wrap circle %d' % i
+        k = max(2, int(sweep / math.radians(step)))
+        pts += [(c.x + r * math.cos(a0 + sweep * j / k), c.y + r * math.sin(a0 + sweep * j / k)) for j in range(k + 1)]
+    return pts
+
+
+# ---------------------------------------------------------------- checks
+
+
+def report_overlaps(tol=0.02):
+    """Print each pair of parts where points of one are buried more than tol inside the other
+    (parts that only touch, or a rod in its hole, pass)."""
+    def solid(ob):
+        bm = bmesh.new()
+        bm.from_mesh(ob.data)
+        tris = bmesh.ops.triangulate(bm, faces=bm.faces[:])['faces']   # before moving it: triangulate projects on the face normals
+        bm.transform(ob.matrix_world)
+        pts = [v.co.copy() for v in bm.verts] + [f.calc_center_median() for f in tris]
+        tree = BVHTree.FromBMesh(bm)
+        bm.free()
+        return tree, pts
+
+    RAYS = [Vector(d).normalized() for d in ((0.3127, 0.7891, 0.5287), (-0.8123, 0.2461, 0.5289), (0.1709, -0.4517, -0.8757))]
+
+    def inside(tree, pt):
+        votes = 0
+        for d in RAYS:    # parity along three skew rays, majority wins (a ray can graze an edge)
+            hits, o = 0, pt
+            while True:
+                loc = tree.ray_cast(o, d)[0]
+                if loc is None:
+                    break
+                hits, o = hits + 1, loc + d * 1e-5
+            votes += hits % 2
+        return votes >= 2
+
+    solids = [(n, *solid(ob)) for _, n, ob, _ in PARTS]
+    for i, (n1, t1, p1) in enumerate(solids):
+        for n2, t2, p2 in solids[i + 1:]:
+            if not t1.overlap(t2):
+                continue
+            deep = [d for t, pts in ((t2, p1), (t1, p2)) for q in pts if inside(t, q) for d in [t.find_nearest(q)[3]] if d > tol]
+            if deep:
+                print(f'overlap: {n1} / {n2}: {len(deep)} points, deepest {max(deep):.3f}"')
